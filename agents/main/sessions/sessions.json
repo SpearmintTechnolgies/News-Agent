@@ -1,7 +1,7 @@
 {
   "agent:main:main": {
     "sessionId": "356a65ba-8787-4ece-94e8-a5396a65508d",
-    "updatedAt": 1777114132654,
+    "updatedAt": 1777124264763,
     "skillsSnapshot": {
       "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>clawhub</name>\n    <description>Search, install, update, sync, or publish agent skills with the ClawHub CLI and registry.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate feature work, PR review, refactors, or iterative coding to background Codex, Claude Code, or Pi agents.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>mcporter</name>\n    <description>List, configure, authenticate, call, and inspect MCP servers/tools with mcporter over HTTP or stdio.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw Android, iOS, or macOS node pairing, QR/setup code, route, auth, and connection failures.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, tidy, review, audit, or restructure AgentSkills and SKILL.md files.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow</name>\n    <description>Coordinate multi-step detached tasks as one durable TaskFlow job with owner context, state, waits, and child tasks.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow-inbox-triage</name>\n    <description>Example TaskFlow pattern for inbox triage, intent routing, waiting on replies, and later summaries.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>tmux</name>\n    <description>Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather, rain, temperature, and forecasts for locations or travel planning.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md</location>\n  </skill>\n</available_skills>",
       "skills": [
@@ -203,7 +203,7 @@
     "abortedLastRun": false,
     "systemPromptReport": {
       "source": "run",
-      "generatedAt": 1777114123788,
+      "generatedAt": 1777124248742,
       "sessionId": "356a65ba-8787-4ece-94e8-a5396a65508d",
       "sessionKey": "agent:main:main",
       "provider": "openrouter",
@@ -223,9 +223,9 @@
         "sandboxed": false
       },
       "systemPrompt": {
-        "chars": 27431,
+        "chars": 27421,
         "projectContextChars": 11728,
-        "nonProjectContextChars": 15703
+        "nonProjectContextChars": 15693
       },
       "injectedWorkspaceFiles": [
         {
@@ -453,7 +453,7 @@
     },
     "inputTokens": 21820,
     "outputTokens": 395,
-    "totalTokensFresh": true,
+    "totalTokensFresh": false,
     "cacheRead": 0,
     "cacheWrite": 0,
     "systemSent": true,
@@ -470,11 +470,10 @@
       "surface": "webchat",
       "chatType": "direct"
     },
-    "status": "done",
-    "startedAt": 1777114123824,
+    "status": "failed",
+    "startedAt": 1777124248916,
     "estimatedCostUsd": 0.03384775,
-    "totalTokens": 21479,
-    "endedAt": 1777114132462,
-    "runtimeMs": 8638
+    "endedAt": 1777124249750,
+    "runtimeMs": 834
   }
 }

@@ -1,7 +1,7 @@
 {
   "agent:orchestrator:main": {
-    "sessionId": "f5886ec3-968a-4dc1-a87f-9f712fdb2517",
-    "updatedAt": 1777121206323,
+    "sessionId": "311b40c7-9ed4-4320-a492-f12eebf0ec9e",
+    "updatedAt": 1777123775017,
     "skillsSnapshot": {
       "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>clawhub</name>\n    <description>Search, install, update, sync, or publish agent skills with the ClawHub CLI and registry.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate feature work, PR review, refactors, or iterative coding to background Codex, Claude Code, or Pi agents.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>gog</name>\n    <description>Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/gog/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>mcporter</name>\n    <description>List, configure, authenticate, call, and inspect MCP servers/tools with mcporter over HTTP or stdio.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw Android, iOS, or macOS node pairing, QR/setup code, route, auth, and connection failures.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, tidy, review, audit, or restructure AgentSkills and SKILL.md files.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow</name>\n    <description>Coordinate multi-step detached tasks as one durable TaskFlow job with owner context, state, waits, and child tasks.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow-inbox-triage</name>\n    <description>Example TaskFlow pattern for inbox triage, intent routing, waiting on replies, and later summaries.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>tmux</name>\n    <description>Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather, rain, temperature, and forecasts for locations or travel planning.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md</location>\n  </skill>\n</available_skills>",
       "skills": [
@@ -214,20 +214,18 @@
       ],
       "version": 0
     },
-    "sessionFile": "/home/bhard/.openclaw/agents/orchestrator/sessions/f5886ec3-968a-4dc1-a87f-9f712fdb2517.jsonl",
-    "status": "done",
-    "startedAt": 1777121111901,
+    "sessionFile": "/home/bhard/.openclaw/agents/orchestrator/sessions/311b40c7-9ed4-4320-a492-f12eebf0ec9e.jsonl",
+    "status": "failed",
+    "startedAt": 1777122885579,
     "abortedLastRun": false,
-    "endedAt": 1777121206100,
-    "runtimeMs": 94199,
     "contextTokens": 200000,
     "modelProvider": "openrouter",
     "model": "google/gemini-2.5-pro",
     "agentHarnessId": "pi",
     "systemPromptReport": {
       "source": "run",
-      "generatedAt": 1777121111877,
-      "sessionId": "f5886ec3-968a-4dc1-a87f-9f712fdb2517",
+      "generatedAt": 1777123759195,
+      "sessionId": "311b40c7-9ed4-4320-a492-f12eebf0ec9e",
       "sessionKey": "agent:orchestrator:main",
       "provider": "openrouter",
       "model": "google/gemini-2.5-pro",
@@ -246,9 +244,9 @@
         "sandboxed": false
       },
       "systemPrompt": {
-        "chars": 20746,
-        "projectContextChars": 6169,
-        "nonProjectContextChars": 14577
+        "chars": 22305,
+        "projectContextChars": 7139,
+        "nonProjectContextChars": 15166
       },
       "injectedWorkspaceFiles": [
         {
@@ -263,8 +261,8 @@
           "name": "SOUL.md",
           "path": "/home/bhard/.openclaw/workspace-orchestrator/SOUL.md",
           "missing": false,
-          "rawChars": 3824,
-          "injectedChars": 3824,
+          "rawChars": 4794,
+          "injectedChars": 4794,
           "truncated": false
         },
         {
@@ -478,12 +476,7 @@
         ]
       }
     },
-    "inputTokens": 64307,
-    "outputTokens": 5217,
-    "totalTokens": 12900,
-    "totalTokensFresh": true,
-    "cacheRead": 0,
-    "cacheWrite": 0,
-    "estimatedCostUsd": 0.13255375
+    "endedAt": 1777123759994,
+    "runtimeMs": 874415
   }
 }

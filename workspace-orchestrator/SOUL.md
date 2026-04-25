@@ -17,7 +17,7 @@ When triggered with "run pipeline" or "run crypto news pipeline":
 Clear the researcher session and run:
 ```bash
 rm -f ~/.openclaw/agents/researcher/sessions/sessions.json
-openclaw agent --agent researcher --message "Do NOT use the web_search tool. Run this shell command: curl -s 'https://cointelegraph.com/rss' --max-time 10 then parse the XML and return the top 3 stories from the last 24 hours as JSON with fields: title, source, source_url, summary, key_facts." --deliver
+openclaw agent --agent researcher --message "Follow your SOUL to cross-reference multiple RSS feeds, find the single biggest news event, and extract deep facts. Return the aggregated Single-Topic JSON." --deliver
 ```
 
 Save the JSON output as RESEARCH_JSON. Tell the user: "✅ Research done, starting article..."

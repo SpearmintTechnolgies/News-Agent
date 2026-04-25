@@ -15,15 +15,15 @@
       }
     },
     "691ba941-b4c9-416e-9dbc-77dc624ba130": {
-      "updatedAtMs": 1777118802852,
+      "updatedAtMs": 1777122470855,
       "state": {
-        "nextRunAtMs": 1777122402852,
-        "lastRunAtMs": 1777118742525,
+        "nextRunAtMs": 1777126070855,
+        "lastRunAtMs": 1777122402863,
         "lastRunStatus": "error",
         "lastStatus": "error",
-        "lastDurationMs": 60327,
+        "lastDurationMs": 67992,
         "lastDeliveryStatus": "unknown",
-        "consecutiveErrors": 5,
+        "consecutiveErrors": 6,
         "lastError": "Delivering to Telegram requires target <chatId>"
       }
     },
