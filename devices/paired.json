@@ -1,0 +1,88 @@
+{
+  "f7a0ef7116e7fc3e604f9065342f9febb06c2b65de57ce571960a3fae48dd026": {
+    "deviceId": "f7a0ef7116e7fc3e604f9065342f9febb06c2b65de57ce571960a3fae48dd026",
+    "publicKey": "HlvqEN6m4wbEgLbhJ0ABFm8NIqbA0oL61WS7YcDYXsY",
+    "platform": "Win32",
+    "clientId": "openclaw-control-ui",
+    "clientMode": "webchat",
+    "role": "operator",
+    "roles": [
+      "operator"
+    ],
+    "scopes": [
+      "operator.admin",
+      "operator.read",
+      "operator.write",
+      "operator.approvals",
+      "operator.pairing"
+    ],
+    "approvedScopes": [
+      "operator.admin",
+      "operator.read",
+      "operator.write",
+      "operator.approvals",
+      "operator.pairing"
+    ],
+    "tokens": {
+      "operator": {
+        "token": "sZpL-0tKj6R4_wSl3APKEJm4pMs51qfzOKsBTGPtJ7M",
+        "role": "operator",
+        "scopes": [
+          "operator.admin",
+          "operator.approvals",
+          "operator.pairing",
+          "operator.read",
+          "operator.write"
+        ],
+        "createdAtMs": 1777107516022,
+        "lastUsedAtMs": 1777116483568
+      }
+    },
+    "createdAtMs": 1777107516022,
+    "approvedAtMs": 1777107516022
+  },
+  "6d15ad84a81cf61326bdcd4798ec411d8210a22ad0b78cca00ac8bf9aa3e1e42": {
+    "deviceId": "6d15ad84a81cf61326bdcd4798ec411d8210a22ad0b78cca00ac8bf9aa3e1e42",
+    "publicKey": "X9IlbcBMVf5NeMqwKmqvxu3-nD8e7uMW7Hm9SagEFpI",
+    "platform": "linux",
+    "clientId": "cli",
+    "clientMode": "cli",
+    "role": "operator",
+    "roles": [
+      "operator"
+    ],
+    "scopes": [
+      "operator.admin",
+      "operator.read",
+      "operator.write",
+      "operator.approvals",
+      "operator.pairing",
+      "operator.talk.secrets"
+    ],
+    "approvedScopes": [
+      "operator.admin",
+      "operator.read",
+      "operator.write",
+      "operator.approvals",
+      "operator.pairing",
+      "operator.talk.secrets"
+    ],
+    "tokens": {
+      "operator": {
+        "token": "q1WAw9VfvUTzPq_ZVa4qv87obioXZ_NJviNceT_VWA8",
+        "role": "operator",
+        "scopes": [
+          "operator.admin",
+          "operator.approvals",
+          "operator.pairing",
+          "operator.read",
+          "operator.talk.secrets",
+          "operator.write"
+        ],
+        "createdAtMs": 1777116406586
+      }
+    },
+    "createdAtMs": 1777116406586,
+    "approvedAtMs": 1777116406586
+  }
+}

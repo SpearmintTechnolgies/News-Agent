@@ -1,0 +1,15 @@
+node_modules/
+*.log
+*.bak
+*.bak.*
+*.clobbered.*
+update-check.json
+exec-approvals.json
+logs/
+memory/
+canvas/
+completions/
+.DS_Store
+.env
+.env.*
+!.env.example

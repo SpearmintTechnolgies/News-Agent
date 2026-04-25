@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "web-reader-pro": {
+      "version": "1.0.0",
+      "installedAt": 1777107288266
+    },
+    "content-writer": {
+      "version": "1.0.0",
+      "installedAt": 1777107297258
+    },
+    "programmatic-seo": {
+      "version": "1.0.0",
+      "installedAt": 1777107307090
+    },
+    "gog": {
+      "version": "1.0.0",
+      "installedAt": 1777107367837
+    }
+  }
+}
