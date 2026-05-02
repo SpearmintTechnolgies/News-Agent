@@ -1,0 +1,66 @@
+Bitcoin Hit Its Highest Price Since January—Why VanEck Analysts See More Potential Gains - Decrypt{
+ "@context": "https://schema.org",
+ "@type": "NewsArticle",
+ "headline": "Bitcoin Hit Its Highest Price Since January—Why VanEck Analysts See More Potential Gains",
+ "image": ["https://cdn.decrypt.co/resize/1024/height/512/wp-content/uploads/2025/09/Bitcoin-decrypt-style-21-gID_7.png"],
+ "datePublished": "2026-04-25T16:31:33",
+ "dateModified": "2026-04-25T16:31:33",
+ "author": {
+ "@type": "Person",
+ "name": "Decrypt Agent"
+ },
+ "publisher": {
+ "@type": "Organization",
+ "name": "Decrypt",
+ "logo": {
+ "@type": "ImageObject",
+ "url": "https://decrypt.co/wp-content/uploads/2019/08/decrypt-mark.png"
+ }
+ },
+ "description": "Bitcoin hash rate recovery and negative funding rates signal potential gains ahead, according to the ETF provider's latest network analysis.",
+ "mainEntityOfPage": "https://decrypt.co/365556/bitcoin-highest-price-january-why-vaneck-analysts-more-gains",
+ "articleSection": "News",
+ "keywords": "Markets,hash rate,ETFs,analysis,bitcoin,vaneck"
+ }
+ // Tell Google Ads/GTM to read consent from the IAB TC string.
+ // Required by Cookiebot's TCF integration — must run before GTM.
+ window['gtag_enable_tcf_support'] = true;
+ 
+ window.dataLayer = window.dataLayer || [];
+ function gtag() {
+ dataLayer.push(arguments)
+ }
+ gtag("consent", "default", {
+ ad_personalization: "denied",
+ ad_storage: "denied",
+ ad_user_data: "denied",
+ analytics_storage: "denied",
+ functionality_storage: "denied",
+ personalization_storage: "denied",
+ security_storage: "granted",
+ wait_for_update: 500
+ });
+ gtag("set", "ads_data_redaction", true);
+ gtag("set", "url_passthrough", true);
+ (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+ new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+ 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+ })(window,document,'script','dataLayer','GTM-TF6PHHFJ');
+ window.googletag = window.googletag || {cmd: []};
+
+ googletag.cmd.push(() => {
+ googletag.pubads().enableLazyLoad({
+ fetchMarginPercent: 100,
+ renderMarginPercent: 100,
+ mobileScaling: 2
+ });
+ googletag.enableServices();
+ });
+ .bJsyml{color:inherit;-webkit-text-decoration:underline;text-decoration:underline;}/*!sc*/
+.bJsyml :hover{-webkit-text-decoration:"none";text-decoration:"none";cursor:pointer;}/*!sc*/
+data-styled.g5[id="sc-adb616fe-0"]{content:"bJsyml,"}/*!sc*/
+.bNRGqr{font-family:var(--font-akzidenz-grotesk);font-weight:700;color:#333;margin:0;line-height:97%;font-size:24px;}/*!sc*/
+@media (max-width:40em){.bNRGqr{font-size:18.5px;}}/*!sc*/
+data-styled.g18[id="sc-b2a202e4-4"]{content:"bNRGqr,"}/*!sc*/
+@import url("https://p.typekit.net/p.css?s=1&k=ktq8geq&ht=tk&f=5022.5310.5416.6773.39347.39348.39349.39496.39498&a=548490&app=typekit&e=css");@font-face{font-family:"ff-meta-serif-web-pro";src:url("https://use.typekit.net/af/ccb3f3/0000000

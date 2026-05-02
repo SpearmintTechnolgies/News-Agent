@@ -1,0 +1,11 @@
+total 40
+drwxr-xr-x  3 bhard bhard 4096 May  1 07:30 .
+drwx------ 24 bhard bhard 4096 May  1 07:30 ..
+drwxr-xr-x  2 bhard bhard 4096 Apr 25 11:42 .openclaw
+-rw-r--r--  1 bhard bhard  373 Apr 25 11:22 AGENTS.md
+-rw-r--r--  1 bhard bhard  168 Apr 25 11:42 HEARTBEAT.md
+-rw-r--r--  1 bhard bhard  186 Apr 25 11:20 IDENTITY.md
+-rw-r--r--  1 bhard bhard 7659 May  1 07:26 SOUL.md
+-rw-r--r--  1 bhard bhard  860 Apr 25 11:42 TOOLS.md
+-rw-r--r--  1 bhard bhard  477 Apr 25 11:42 USER.md
+-rw-r--r--  1 bhard bhard    0 May  1 07:30 ls_output.txt

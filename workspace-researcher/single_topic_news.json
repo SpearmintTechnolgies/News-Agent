@@ -1,0 +1,25 @@
+{
+  "topic_theme": "Aave Leads DeFi United Recovery After $293M KelpDAO Exploit",
+  "primary_keyword": "DeFi United KelpDAO",
+  "primary_headline": "Aave Asks Arbitrum to Unfreeze Stolen Kelp DAO Funds to Contain Fallout",
+  "sources_used": [
+    "Cointelegraph",
+    "Decrypt"
+  ],
+  "source_urls": [
+    "https://cointelegraph.com/news/arbitrum-dao-asked-to-unfreeze-30k-eth-tied-to-kelp-hacker-direct-them-to-defi-united",
+    "https://decrypt.co/365431/aave-leads-defi-united-push-to-contain-292m-kelpdao-fallout"
+  ],
+  "combined_key_facts": [
+    "Aave Labs proposed that the Arbitrum DAO unfreeze $73.5 million (30,765 ETH) tied to the Kelp DAO attack.",
+    "The unfreezing proposal asks for funds to be directed to a remediation effort called 'DeFi United' aimed at restoring rsETH and compensating its holders.",
+    "The overall Kelp exploit was valued at approximately $292-$293 million.",
+    "Aave was severely impacted by the hack, with its Total Value Locked (TVL) dropping nearly $12 billion in one week.",
+    "The hacker used stolen rsETH as collateral on Aave to borrow wrapped Ether, leaving behind over $190 million in bad debt.",
+    "Aave founder Stani Kulechov pledged 5,000 ETH of his own money to the recovery efforts.",
+    "The 'DeFi United' relief effort has already seen $21 million in contributions from various protocols (including Kelp DAO, BGD Labs, Golem Foundation, Babylon) and individuals.",
+    "Another $215 million has been conditionally pledged by Arbitrum, Mantle, Ether.fi, and Lido, subject to DAO governance votes.",
+    "Aave Labs expects the recovery effort to take roughly seven weeks (49 days) to normalize conditions for Arbitrum users and the DeFi ecosystem."
+  ],
+  "aggregated_raw_content": "Aave Labs has proposed that the decentralized autonomous organization (DAO) behind Arbitrum unfreeze $73.5 million in Ether (30,765 ETH) tied to the Kelp DAO attack and direct those funds to “DeFi United.” DeFi United is a newly established fund aimed at restoring the backing of Kelp DAO restaked ETH (rsETH) and compensating affected holders. Last week, the Arbitrum Security Council had moved to freeze the 30,765 Ether held in a wallet connected to the massive $292-$293 million Kelp exploit.\n\nIn a proposal posted on the Arbitrum governance forum, Aave Labs argued that directing these seized funds to a planned remediation effort would represent a \"material contribution\" toward restoring normal conditions for Arbitrum users and the wider crypto ecosystem. This submission was made with the active support of Kelp DAO, LayerZero, Ether.fi, and Compound. \n\nAave was hit particularly hard by the Kelp DAO exploit. Its total value locked (TVL) plummeted by nearly $12 billion in just one week after the hacker put the stolen rsETH tokens up as collateral on Aave’s lending platform to borrow wrapped Ether. This malicious action left Aave with more than $190 million in bad debt and triggered a wave of panic withdrawals.\n\nThe initial proposal comes mere days after Aave Labs and others formed the “DeFi United” coalition. According to Dune Analytics data, the initiative has already received about $21 million in active contributions. Notably, Aave's founder, Stani Kulechov, pledged 5,000 ETH of his own money as the DeFi coalition races to contain the fallout. Other initial contributions have come from Aave Labs head of contracts Emilio Frangella, Kelp DAO, Golem Foundation, BGD Labs, and the Bitcoin-native DeFi protocol Babylon.\n\nBeyond the initial $21 million, another staggering $215 million has been provisionally pledged by major protocols including Arbitrum, Mantle, Ether.fi, and Lido to assist the recovery effort. These additional funds are currently subject to the approval of their respective governance votes. Additionally, protocols like LayerZero, Ethena, Ink Foundation, and Frax Finance have signaled their intention to provide help.\n\nAave Labs specifically asked for the unthawed 30,765 Ether to be sent to a recovery multisig address controlled by Aave, Kelp DAO, and the blockchain security platform Certora. The group stated that even a partial recovery would meaningfully reduce the shortfall. Aave Labs set a timeline for this crisis management effort, expecting the process to unfreeze funds, restore rsETH, and compensate holders to take roughly seven weeks (about 49 days). If the recovery effort falls through for any reason, Aave stated that it would return the unthawed funds."
+}

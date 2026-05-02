@@ -1,0 +1,22 @@
+{
+  "topic_theme": "French Crackdown on Crypto Wrench Attacks",
+  "primary_crypto_asset": "General",
+  "source_articles": [
+    {
+      "source": "Cointelegraph",
+      "url": "https://cointelegraph.com/news/88-people-charged-over-12-crypto-wrench-attacks-in-france",
+      "title": "88 people charged over 12 crypto wrench attacks in France"
+    },
+    {
+      "source": "Decrypt",
+      "url": "https://decrypt.co/365596/france-charges-88-including-minors-in-crypto-wrench-attack-crackdown",
+      "title": "France Charges 88, Including Minors, in Crypto ‘Wrench Attack’ Crackdown"
+    }
+  ],
+  "combined_key_facts": [
+    "French law enforcement charged 88 individuals, including minors, in a major crackdown on crypto-related \"wrench attacks.\"",
+    "The charges are linked to at least 12 separate attacks where victims were physically threatened or assaulted to force them to reveal their cryptocurrency private keys.",
+    "Authorities noted a significant surge in such violent crimes, with 135 crypto-linked incidents reported since 2023.",
+    "The investigation revealed that some of the alleged perpetrators were involved in multiple attacks, indicating organized criminal activity."
+  ]
+}

@@ -1,0 +1,41 @@
+Title: Meta Stablecoin Move Brings USDC Payouts to Select Creators
+
+URL Source: https://cointelegraph.com/news/meta-re-enters-stablecoin-market-rolls-out-usdc-payouts-for-select-creators
+
+Published Time: Thu, 30 Apr 2026 12:24:39 GMT
+
+Markdown Content:
+US tech giant Meta has launched USDC payouts for creators on its platforms in the Philippines and Colombia, with plans to expand to additional markets.
+
+Creators who opt into the service will receive payments directly into crypto wallets on the Solana and Polygon blockchains. However, Meta does not offer a built-in conversion option, so an external exchange is required to convert USDC into fiat currency, [according](https://www.facebook.com/business/help/1141348158001625/) to the announcement on Wednesday.
+
+The service is currently available only to select creators in Colombia and the Philippines, but Polygon [said](https://x.com/0xPolygon/status/2049554753290727723) Wednesday that the stablecoin rollout is expected to expand to more jurisdictions soon.
+
+“Live in Colombia and the Philippines, with 160+ markets coming, users now get faster settlement with USDC while gaining access to dollar-denominated assets,” Polygon said. “This is how creators' lives are improved.”
+
+![Image 1](https://resizer.cointelegraph.com/cdn-cgi/image/f=auto,onerror=redirect,w=637,q=90/https://payload.cointelegraph.com/api/media/file/pasted-image-175.png?prefix=media%2Fcontent)
+_Source:_[_Polygon_](https://x.com/0xPolygon/status/2049554753290727723)
+
+Stablecoins have [emerged as a key use case for crypto](https://cointelegraph.com/news/western-union-eyes-may-for-its-stablecoin-usdpt-rollout). Lamine Brahimi, co-founder and managing partner at crypto custody provider Taurus, [told Cointelegraph earlier this month](https://cointelegraph.com/news/banks-corporates-europe-actively-selecting-partners-stablecoin-push) that financial institutions across Europe are actively selecting infrastructure partners to support stablecoin adoption.
+
+## Facebook creators were paid $3 billion last year
+
+Creators who opt for Meta’s stablecoin payout can connect their third-party crypto wallet to Facebook’s payout platform. However, Meta said it “reserves the right to pay” in an alternate payment method in the “event of technical difficulties or unforeseen circumstances.”
+
+Meta creators include influencers, educators, and entertainers who earn money by posting content on the company’s platforms, such as Facebook and Instagram. Facebook paid creators nearly $3 billion in 2025, a 35% increase from the previous year, [according](https://about.fb.com/news/2026/03/creator-fast-track-grow-your-audience-earn-money-on-facebook) to the company.
+
+_**Related:**_[_**Visa adds Polygon, Base support as stablecoin settlement run rate hits $7B**_](https://cointelegraph.com/news/visa-stablecoin-settlement-polygon-base-7b-run-rate)
+
+Circle’s USDC is currently the second-largest stablecoin by market capitalization with over $77.3 billion as of Thursday, [according](https://defillama.com/stablecoins) to decentralized finance analytics platform DefiLlama. The market leader is Tether's USDt (USDT) with a market cap of $189.4 billion.
+
+## Meta’s first stablecoin project scrapped in 2022
+
+The stablecoin creator payments come years after the company scrapped its open-source stablecoin project Diem, due to friction with regulators.
+
+The project faced opposition over privacy and antitrust concerns. Central banks and lawmakers also objected, citing concerns about financial stability, consumer protections and the lack of a clear regulatory framework for crypto at the time.
+
+In a January 2022 statement, the project [said](https://www.diem.com/en-us/updates/stuart-levey-statement-diem-asset-sale/) it was “clear from our dialogue with federal regulators that the project could not move ahead,” and all its assets were sold to Silvergate Capital Corporation.
+
+Magazine: [Singapore isn’t a ‘crypto hub’ — it’s something better: StraitsX CEO](https://cointelegraph-magazine.com/singapore-crypto-speculation-down-mas-loophole-closure-asia-express/)
+
+Cointelegraph is committed to independent, transparent journalism. This news article is produced in accordance with Cointelegraph’s [Editorial Policy](https://cointelegraph.com/editorial-policy) and aims to provide accurate and timely information. Readers are encouraged to verify information independently.

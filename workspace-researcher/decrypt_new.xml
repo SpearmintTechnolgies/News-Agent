@@ -1,0 +1,1516 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<rss
+  version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+  xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+  xmlns:media="http://search.yahoo.com/mrss/"
+  xmlns:snf="http://www.smartnews.be/snf"
+>
+  <channel>
+    <title>Decrypt</title>
+    <description>What&amp;#039;s new in crypto and the advent of the decentralized web.</description>
+    <language>en</language>
+    
+    <atom:link
+      href="https://decrypt.co/feed"
+      rel="self"
+      type="application/rss+xml"
+    />
+    
+    
+      
+        <link>https://decrypt.co/feed</link>
+      
+    
+    
+      <copyright>Decrypt Media</copyright>
+    
+    
+    
+    
+      <lastBuildDate>Wed, 29 Apr 2026 09:55:18 +0000</lastBuildDate>
+    
+    
+      <sy:updatePeriod>hourly</sy:updatePeriod>
+    
+    
+      <sy:updateFrequency>1</sy:updateFrequency>
+    
+    
+    
+    
+    
+      <item>
+  <title>Judge Shoots Down Sam Bankman-Fried&#39;s Bid for New Trial</title>
+  <link>https://decrypt.co/365915/judge-shoots-down-sam-bankman-frieds-bid-for-new-trial</link>
+  <pubDate>Wed, 29 Apr 2026 09:55:18 +0000</pubDate>
+  
+    <description>The judge dismissed the FTX founder’s claims that potential witnesses faced &#34;government threats and retaliation&#34; as &#34;wildly conspiratorial.”</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365915</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/04/sam-bankman-fried-ftx-sbf-decrypt-style-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Law and Order</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/04/sam-bankman-fried-ftx-sbf-decrypt-style-gID_7.jpg" height="1080" width="1920"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>AI Agent Deletes Startup’s Database in 9 Seconds, Founder Says</title>
+  <link>https://decrypt.co/365897/ai-agent-deletes-startup-database-9-seconds-founder-says</link>
+  <pubDate>Tue, 28 Apr 2026 23:00:02 +0000</pubDate>
+  
+    <description>PocketOS founder Jeremy Crane claims a Cursor agent running Claude Opus wiped production data and backups through a single Railway API call.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365897</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/08/robot-typing-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/08/robot-typing-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Woman Gets 71 Months in Prison Over Bitcoin Investment Fraud Targeting Elderly Victims</title>
+  <link>https://decrypt.co/365894/woman-71-months-prison-bitcoin-investment-fraud-targeting-elderly-victims</link>
+  <pubDate>Tue, 28 Apr 2026 22:01:02 +0000</pubDate>
+  
+    <description>Federal prosecutors secured a prison term for a Saipan woman who defrauded elderly victims through a fake Bitcoin investment scheme</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365894</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/Jail-cell-2-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Law and Order</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/Jail-cell-2-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>OpenClaw Insider Builds the Enterprise Safety Layer the Project Never Shipped</title>
+  <link>https://decrypt.co/365888/red-hat-tank-os-openclaw-enterprise-security</link>
+  <pubDate>Tue, 28 Apr 2026 21:46:02 +0000</pubDate>
+  
+    <description>Red Hat principal engineer and OpenClaw maintainer Sally O&#39;Malley released Tank OS—a tool that sandboxes AI agents in isolated containers, keeping credentials locked and agents from interfering with each other or the host machine.</description>
+  
+  <dc:creator>Jose Antonio Lanz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365888</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/03/OpenClaw2-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/03/OpenClaw2-gID_7.jpg" height="899" width="1600"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>CFTC Backs Prediction Markets in Yet Another Lawsuit Against a State</title>
+  <link>https://decrypt.co/365889/cftc-prediction-markets-lawsuit-wisconsin</link>
+  <pubDate>Tue, 28 Apr 2026 21:21:51 +0000</pubDate>
+  
+    <description>CFTC Chair Mike Selig has vowed to sue any state that attempts to regulate prediction markets under its own gambling laws. </description>
+  
+  <dc:creator>Sander Lutz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365889</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/cftc-decrypt-style-01-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Law and Order</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/cftc-decrypt-style-01-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Dead Internet? A Third of New Websites Are AI-Generated, Says Stanford</title>
+  <link>https://decrypt.co/365864/one-third-new-websites-ai-generated-study</link>
+  <pubDate>Tue, 28 Apr 2026 20:32:26 +0000</pubDate>
+  
+    <description>A Stanford-led study quantified what everyone already suspected—but the findings aren&#39;t quite what people expected.</description>
+  
+  <dc:creator>Jose Antonio Lanz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365864</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/ai-decrypt-style-07-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/ai-decrypt-style-07-gID_7.png" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Robinhood Shares Slide on 34% Decrease in Crypto Revenue</title>
+  <link>https://decrypt.co/365876/robinhood-shares-slide-34-decrease-crypto-revenue</link>
+  <pubDate>Tue, 28 Apr 2026 20:26:00 +0000</pubDate>
+  
+    <description>Retail brokerage Robinhood&#39;s business has gotten a boost from prediction markets, though its crypto trading revenue fell in Q1.</description>
+  
+  <dc:creator>André Beganski</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365876</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/robinhood-decrypt-style-01-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category></category>
+    
+      <category>Markets</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/robinhood-decrypt-style-01-gID_7.png" height="2000" width="3556"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Google DeepMind Veteran Raises $1.1 Billion to Build AI That Isn’t Trained With Human Data</title>
+  <link>https://decrypt.co/365853/google-deepmind-veteran-raises-1-1-billion-ai-isnt-trained-human-data</link>
+  <pubDate>Tue, 28 Apr 2026 20:13:48 +0000</pubDate>
+  
+    <description>Ineffable Intelligence is betting that reinforcement learning is the path to superintelligence, rather than AI&#39;s large language models.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365853</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/02/decrypt-style-brain-hand-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/02/decrypt-style-brain-hand-gID_7.png" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Soldier Charged in Polymarket Insider Trading Case Pleads Not Guilty</title>
+  <link>https://decrypt.co/365858/soldier-charged-polymarket-insider-trading-case-pleads-not-guilty</link>
+  <pubDate>Tue, 28 Apr 2026 19:21:17 +0000</pubDate>
+  
+    <description>Special forces member Gannon Ken Van Dyke allegedly used inside knowledge of a Venezuelan military operation to make nearly $400K profit on Polymarket.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365858</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/06/crime_jail-handcuffs-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Law and Order</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/06/crime_jail-handcuffs-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Google Signs AI Deal With Pentagon for Classified Work as Employees Object</title>
+  <link>https://decrypt.co/365857/google-ai-deal-pentagon-classified-work</link>
+  <pubDate>Tue, 28 Apr 2026 19:13:30 +0000</pubDate>
+  
+    <description>Google faces internal backlash as it signs a Pentagon AI deal for classified military work.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365857</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/google-decrypt-style-2-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/google-decrypt-style-2-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>IREN Price Target Cut as Bernstein Sees Firm Dumping Bitcoin Mining for AI</title>
+  <link>https://decrypt.co/365852/iren-price-target-cut-as-bernstein-sees-firm-dumping-bitcoin-mining-for-ai</link>
+  <pubDate>Tue, 28 Apr 2026 18:09:08 +0000</pubDate>
+  
+    <description>Bernstein analysts see IREN’s AI cloud prospects growing substantially in the coming years—and its Bitcoin business disappearing entirely.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365852</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/01/bitcoin-mining-decrypt-style-03-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Markets</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/01/bitcoin-mining-decrypt-style-03-gID_7.png" height="2000" width="3556"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Aave, Compound Unveil Technical Plan to Address Fallout From $290M Kelp DAO Hack</title>
+  <link>https://decrypt.co/365847/aave-compound-unveil-technical-plan-to-address-fallout-from-290m-kelp-dao-hack</link>
+  <pubDate>Tue, 28 Apr 2026 17:36:01 +0000</pubDate>
+  
+    <description>Major DeFi protocols outlined technical steps to eliminate bad debt and restore full backing for exploited rsETH tokens.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365847</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/aave-up-decrypt-style-scaled-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>compound-governance-token</category>
+    
+      <category></category>
+    
+      <category>DeFi</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/aave-up-decrypt-style-scaled-gID_7.jpg" height="1441" width="2560"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Stablecoin Giant Tether Reveals Plans for Modular Bitcoin Mining Hardware</title>
+  <link>https://decrypt.co/365840/stablecoin-giant-tether-modular-bitcoin-mining-hardware</link>
+  <pubDate>Tue, 28 Apr 2026 16:50:38 +0000</pubDate>
+  
+    <description>Leading stablecoin issuer Tether has teamed with Canaan and ACME Swisstech to develop customizable, upgradable Bitcoin mining rigs.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365840</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/07/bitcoin-mining-decrypt-style-04-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Business</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/07/bitcoin-mining-decrypt-style-04-gID_7.png" height="2000" width="3556"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Inside Trump’s Meme Coin Bash: Foreign Guests, Iran War Riffs, and Mar-a-Lago Charm</title>
+  <link>https://decrypt.co/365830/inside-trump-meme-coin-bash-foreign-guests-iran-war-mar-a-lago</link>
+  <pubDate>Tue, 28 Apr 2026 15:46:15 +0000</pubDate>
+  
+    <description>The president discussed policy, technology, and war with his top meme coin holders on Saturday at a private Mar-a-Lago gathering.</description>
+  
+  <dc:creator>Sander Lutz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365830</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/09/donald-trump-eric-trump-donald-trump-jr-decrypt-style-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>official-trump</category>
+    
+      <category></category>
+    
+      <category>Long Reads</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/09/donald-trump-eric-trump-donald-trump-jr-decrypt-style-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Hyperliquid Gains Counter $216 Million Q1 Loss at Novogratz&#39;s Galaxy Digital</title>
+  <link>https://decrypt.co/365814/hyperliquid-gains-counter-216m-q1-loss-galaxy-digital</link>
+  <pubDate>Tue, 28 Apr 2026 15:27:39 +0000</pubDate>
+  
+    <description>CEO Mike Novogratz said Galaxy Digital’s balance sheet suffered because crypto prices are down, yet Hyperliquid partially offset losses.</description>
+  
+  <dc:creator>André Beganski</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365814</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/Galaxy-Mike-Novogratz-decrypt-style-01-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Business</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/Galaxy-Mike-Novogratz-decrypt-style-01-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Meta Turns to Space-Based Solar Energy to Power AI Data Centers on Earth</title>
+  <link>https://decrypt.co/365805/meta-turns-space-based-solar-energy-power-ai-data-centers</link>
+  <pubDate>Tue, 28 Apr 2026 14:34:16 +0000</pubDate>
+  
+    <description>Facebook parent company Meta secured up to 1 gigawatt of orbital solar power as AI drives demand for electricity.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365805</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/ai-decrypt-style-18-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/ai-decrypt-style-18-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>White House Crypto Adviser Hints at ‘Breakthrough’ Bitcoin Reserve Move</title>
+  <link>https://decrypt.co/365801/white-house-crypto-adviser-hints-at-breakthrough-bitcoin-reserve-move</link>
+  <pubDate>Tue, 28 Apr 2026 13:30:24 +0000</pubDate>
+  
+    <description>A &#34;big announcement&#34; on the U.S. Bitcoin strategic reserve could drop soon, but Treasury and a stalled Senate bill continue to set limits.</description>
+  
+  <dc:creator>Vince Dioquino</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365801</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/bitcoin-america-decrypt-style-02-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Business</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/bitcoin-america-decrypt-style-02-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Bitcoin&#39;s Next Move Hinges on $82K CME Gap as Earnings, FOMC Loom</title>
+  <link>https://decrypt.co/365783/bitcoins-next-move-hinges-on-82k-cme-gap-as-earnings-fomc-loom</link>
+  <pubDate>Tue, 28 Apr 2026 12:21:26 +0000</pubDate>
+  
+    <description>Big Tech earnings and the FOMC are challenging investor risk appetite, with $82K as a make-or-break level for Bitcoin’s recovery rally.</description>
+  
+  <dc:creator>Akash Girimath</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365783</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/06/bitcoin-decrypt-style-wallet-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Markets</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/06/bitcoin-decrypt-style-wallet-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Morning Minute: Fidelity Is Cautiously Bullish on Crypto</title>
+  <link>https://decrypt.co/365776/morning-minute-fidelity-is-cautiously-bullish-on-crypto</link>
+  <pubDate>Tue, 28 Apr 2026 11:28:49 +0000</pubDate>
+  
+    <description>Fidelity says crypto may finally be finding its floor, while the White House is teasing a major strategic Bitcoin reserve update.</description>
+  
+  <dc:creator>Tyler Warner</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365776</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/01/fidelity-bitcoin-decrypt-style-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Opinion</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/01/fidelity-bitcoin-decrypt-style-gID_7.jpg" height="719" width="1278"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>OpenAI Fell Short of Its Own Targets as Compute Costs Piled Up: Report</title>
+  <link>https://decrypt.co/365774/openai-fell-short-of-its-own-targets-as-compute-costs-piled-up-report</link>
+  <pubDate>Tue, 28 Apr 2026 11:14:54 +0000</pubDate>
+  
+    <description>Internal stumbles over ChatGPT growth and a looming IPO are putting Sam Altman&#39;s spend-everything compute strategy under the microscope.</description>
+  
+  <dc:creator>Vismaya V</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365774</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-sam-altman-2-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-sam-altman-2-gID_7.png" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Jack Dorsey&#39;s Block Discloses $2.2B Bitcoin Holdings in Q1 Proof-of-Reserves Report</title>
+  <link>https://decrypt.co/365771/jack-dorseys-block-discloses-2-2b-bitcoin-holdings-in-q1-proof-of-reserves-report</link>
+  <pubDate>Tue, 28 Apr 2026 10:50:18 +0000</pubDate>
+  
+    <description>The fintech company&#39;s third-party audited disclosure shows $1.5 billion in customer Bitcoin and $692 million in corporate treasury holdings.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365771</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/07/jack-dorsey-twitter-square-bitcoin-decrypt-style-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Business</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/07/jack-dorsey-twitter-square-bitcoin-decrypt-style-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Elon Musk’s Fight With Colorado Over AI Law Hits Pause as State Considers Revisions</title>
+  <link>https://decrypt.co/365751/elon-musk-colorado-ai-law-pause-state-considers-revisions</link>
+  <pubDate>Mon, 27 Apr 2026 22:22:51 +0000</pubDate>
+  
+    <description>The joint motion halts deadlines and enforcement in xAI’s lawsuit while Colorado lawmakers weigh changes to the state’s AI bias law.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365751</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-elon-musk-4-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-elon-musk-4-gID_7.png" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Aave-Led &#39;DeFi United&#39; Relief Effort Raises $300 Million to Cover Kelp DAO Exploit Losses</title>
+  <link>https://decrypt.co/365724/aave-led-defi-united-relief-effort-raises-300m-kelp-dao-losses</link>
+  <pubDate>Mon, 27 Apr 2026 20:56:27 +0000</pubDate>
+  
+    <description>The Aave-led relief effort has gained widespread support, securing enough commitments to replenish the swiped funds.</description>
+  
+  <dc:creator>André Beganski</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365724</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/08/ethereum-decrypt-style-05-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category></category>
+    
+      <category>DeFi</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/08/ethereum-decrypt-style-05-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>OpenAI Is Building Its Own Smartphone Chip With Qualcomm and MediaTek: Report</title>
+  <link>https://decrypt.co/365726/openai-smartphone-chip-qualcomm-mediatek</link>
+  <pubDate>Mon, 27 Apr 2026 20:45:08 +0000</pubDate>
+  
+    <description>Six weeks after telling staff to stop chasing distractions, OpenAI is reportedly planning a phone targeting 400 million units a year.</description>
+  
+  <dc:creator>Jose Antonio Lanz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365726</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/08/Open-AI-decrypt-style-01-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/08/Open-AI-decrypt-style-01-gID_7.png" height="2000" width="3556"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Bitcoin Developer Plans to &#39;Reassign&#39; Coins Linked to Satoshi Nakamoto in Hard Fork</title>
+  <link>https://decrypt.co/365712/bitcoin-developer-reassign-coins-linked-satoshi-nakamoto-hard-fork</link>
+  <pubDate>Mon, 27 Apr 2026 20:15:29 +0000</pubDate>
+  
+    <description>Paul Sztorc’s proposed eCash fork would give investors coins cloned from wallets believed to belong to Bitcoin creator Satoshi Nakamoto.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365712</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/07/satoshi-nakamoto-decrypt-style-02-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Coins</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/07/satoshi-nakamoto-decrypt-style-02-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Taylor Swift Seeks Trademarks for Her Voice and Image to Fight AI Fakes</title>
+  <link>https://decrypt.co/365720/taylor-swift-trademarks-voice-mage-fight-ai-fakes</link>
+  <pubDate>Mon, 27 Apr 2026 20:07:06 +0000</pubDate>
+  
+    <description>The trademark applications aim to strengthen her ability to fight AI-generated deepfakes, as image generation tools advance.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365720</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/08/taylor-swift-decrypt-style-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/08/taylor-swift-decrypt-style-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Fed Confirms What Tech Developers Have Feared for Two Years</title>
+  <link>https://decrypt.co/365693/fed-confirms-tech-developers-fears-ai-jobs</link>
+  <pubDate>Mon, 27 Apr 2026 19:53:51 +0000</pubDate>
+  
+    <description>A new Federal Reserve study links ChatGPT&#39;s launch to a sharp halving of U.S. programmer job growth—the first institutional-level evidence connecting AI adoption to measurable developer hiring declines.</description>
+  
+  <dc:creator>Jose Antonio Lanz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365693</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-ai-jobs-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-ai-jobs-gID_7.jpg" height="719" width="1279"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Malicious Web Pages Are Hijacking AI Agents, And Some Are Going After Your PayPal</title>
+  <link>https://decrypt.co/365677/google-prompt-injection-ai-agents-paypal-enterprise</link>
+  <pubDate>Mon, 27 Apr 2026 18:12:13 +0000</pubDate>
+  
+    <description>Google&#39;s security team scanned billions of web pages and found real payloads designed to trick AI agents into sending money, deleting files, and leaking credentials.</description>
+  
+  <dc:creator>Jose Antonio Lanz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365677</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/Hacker-decrypt-style-02-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/Hacker-decrypt-style-02-gID_7.png" height="2000" width="3556"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Google Employees Demand CEO Block Military AI Contracts in Open Letter</title>
+  <link>https://decrypt.co/365674/google-employees-demand-ceo-block-military-ai-contracts-in-open-letter</link>
+  <pubDate>Mon, 27 Apr 2026 17:44:42 +0000</pubDate>
+  
+    <description>Some 580 Google employees have signed the letter to CEO Sundar Pichai, citing ethical concerns over military use of AI.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365674</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/10/google-quantum-decrypt-style-02-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Law and Order</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/10/google-quantum-decrypt-style-02-gID_7.jpg" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Publicly Traded Strive Buys $60 Million in Bitcoin, Plans BTC Business Summit</title>
+  <link>https://decrypt.co/365672/publicly-traded-strive-buys-60-million-bitcoin-business-summit</link>
+  <pubDate>Mon, 27 Apr 2026 17:37:43 +0000</pubDate>
+  
+    <description>Strive Inc. purchased 789 more Bitcoin while its subsidiary prepares to educate business leaders on corporate crypto adoption.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365672</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/07/Bitcoin-decrypt-style-25-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Business</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/07/Bitcoin-decrypt-style-25-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Trump Walks Back Prediction Market Criticism, Says &#39;Smart People&#39; He Knows Like Them</title>
+  <link>https://decrypt.co/365657/trump-prediction-markets-smart-people-like-them</link>
+  <pubDate>Mon, 27 Apr 2026 17:15:53 +0000</pubDate>
+  
+    <description>Trump said last week he didn’t like prediction markets, but then changed his tune, arguing the U.S. should not get left behind in the space.</description>
+  
+  <dc:creator>Sander Lutz</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365657</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/trump-decrypt-style-01-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Law and Order</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/trump-decrypt-style-01-gID_7.png" height="2000" width="3556"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Crypto Exchange Gemini Launches Agentic Trading Feature for AI Agents</title>
+  <link>https://decrypt.co/365661/crypto-exchange-gemini-agentic-trading-feature-ai-agents</link>
+  <pubDate>Mon, 27 Apr 2026 16:56:47 +0000</pubDate>
+  
+    <description>Gemini has integrated AI models like Claude and ChatGPT to execute automated trading strategies via an open protocol.</description>
+  
+  <dc:creator>Decrypt Agent</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365661</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/06/gemini-decrypt-style-01-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/06/gemini-decrypt-style-01-gID_7.png" height="1000" width="1778"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>Litecoin Rewrites Transaction History After Exploit, Apologizes for Social Posts</title>
+  <link>https://decrypt.co/365648/litecoin-rewrites-transaction-history-exploit-apologizes-social-posts</link>
+  <pubDate>Mon, 27 Apr 2026 16:40:50 +0000</pubDate>
+  
+    <description>Litecoin was affected by a bug this weekend that allowed an attacker to transfer digital assets—transactions that were later wiped away.</description>
+  
+  <dc:creator>André Beganski</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365648</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2025/05/litecoin-decrypt-style-01-scaled-gID_7.jpg@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category></category>
+    
+      <category>Coins</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2025/05/litecoin-decrypt-style-01-scaled-gID_7.jpg" height="1440" width="2560"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+      <item>
+  <title>OpenAI&#39;s Sam Altman Apologizes for Not Alerting Police Before Tumbler Ridge Mass Shooting</title>
+  <link>https://decrypt.co/365645/openai-sam-altman-apologizes-not-alerting-police-tumbler-ridge-mass-shooting</link>
+  <pubDate>Mon, 27 Apr 2026 16:05:57 +0000</pubDate>
+  
+    <description>Sam Altman admitted that OpenAI should have warned law enforcement after banning the suspect’s account months before the attack.</description>
+  
+  <dc:creator>Jason Nelson</dc:creator>
+  
+  
+    <guid isPermaLink="false">https://decrypt.co/?p=365645</guid>
+  
+  
+    <enclosure url="https://img.decrypt.co/insecure/rs:fill:1024:512:1:0/plain/https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-sam-altman-3-gID_7.png@png" length="1000000" type="image/png" />
+  
+  
+    
+      <category>Artificial Intelligence</category>
+    
+  
+  
+  
+  
+  
+  
+    
+      <media:thumbnail url="https://cdn.decrypt.co/wp-content/uploads/2026/04/decrypt-style-sam-altman-3-gID_7.png" height="720" width="1280"/>
+    
+    
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+</item>
+    
+  </channel>
+</rss>

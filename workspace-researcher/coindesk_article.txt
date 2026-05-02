@@ -1,0 +1,292 @@
+Title: Canada proposes ban on BTC ATMs as fraud cases mount
+
+URL Source: https://www.coindesk.com/markets/2026/04/29/canada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount
+
+Markdown Content:
+# Canada proposes ban on BTC ATMs as fraud cases mount
+
+Search
+
+/
+
+[](https://www.coindesk.com/)
+*   News 
+*   Video 
+*   [Prices](https://www.coindesk.com/price)
+*   [Research](https://www.coindesk.com/research)
+*   Consensus 2026 
+*   Data & Indices 
+*   [Sponsored](https://www.coindesk.com/sponsored-content)
+
+Search
+
+/
+
+en
+
+[CoinDesk 20$2,106.76 1.65%](https://www.coindesk.com/price/cd20)[Bitcoin$77,540.15 1.73%](https://www.coindesk.com/price/bitcoin)[Ethereum$2,329.37 2.38%](https://www.coindesk.com/price/ethereum)[XRP$1.39 0.93%](https://www.coindesk.com/price/xrp)[Solana$85.02 1.92%](https://www.coindesk.com/price/solana)
+
+[![Image 1](https://cdn.sanity.io/images/s3y3vcno/production/e3ccf2c7dfe53a58a3fb077817dc4e9394cf9ecc-119x66.png?auto=format) Consensus Last Days to Save Register by May 1 at 4 p.m. ET 02 DAYS 08 HOURS 49 MINUTES 24 SECONDS Consensus Last Days to Save Register by May 1 at 4 p.m. ET 02 DAYS 08 HOURS 49 MINUTES 24 SECONDS Register now](https://consensus.coindesk.com/register)
+
+[Markets](https://www.coindesk.com/markets)
+
+Share
+
+Share this article
+
+Copy link[X (Twitter)](https://x.com/intent/tweet?utm_source=twitter&text=Canada+proposes+ban+on+crypto+ATMs+as+fraud+cases+mount+https%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount+via+%40coindesk&editorial=utm_content&social=utm_medium&organic=utm_term)[LinkedIn](https://www.linkedin.com/shareArticle?utm_source=linkedin&mini=true&summary=Canada%27s+Liberal+government+calls+machines+a+%E2%80%9Cprimary+method%E2%80%9D+for+scams+as+data+and+law+enforcement+link+them+to+rising+losses&url=https%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount&editorial=utm_content&social=utm_medium&organic=utm_term)[Facebook](https://www.facebook.com/sharer/sharer.php?utm_source=facebook&u=https%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount&editorial=utm_content&social=utm_medium&organic=utm_term)[Email](mailto:%20?subject=Canada%20proposes%20ban%20on%20crypto%20ATMs%20as%20fraud%20cases%20mount%20%E2%80%94%20CoinDesk&body=Canada%20proposes%20ban%20on%20crypto%20ATMs%20as%20fraud%20cases%20mount%0ACanada's%20Liberal%20government%20calls%20machines%20a%20%E2%80%9Cprimary%20method%E2%80%9D%20for%20scams%20as%20data%20and%20law%20enforcement%20link%20them%20to%20rising%20losses%0A%0ARead%20the%20full%20article%20on%20CoinDesk%3A%0A%0Ahttps%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount)
+
+# Canada proposes ban on crypto ATMs as fraud cases mount
+
+## Canada's Liberal government calls machines a “primary method” for scams as data and law enforcement link them to rising losses
+
+By[Sam Reynolds](https://www.coindesk.com/author/sam-reynolds)|Edited by[Omkar Godbole](https://www.coindesk.com/author/omkar-godbole)
+
+Apr 29, 2026, 5:14 a.m. 
+
+[Make preferred on](https://www.google.com/preferences/source?q=coindesk.com)
+
+![Image 2: Canada parliament](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2Fc176814c12e8a022d4646fd107452eda84416153-1500x885.jpg%3Fauto%3Dformat&w=3840&q=75)
+
+#### What to know:
+
+*   Canada’s Liberal government has proposed a nationwide ban on bitcoin and other crypto ATMs as part of a broader effort to combat fraud and money laundering.
+*   Officials say crypto ATMs have become a “primary method” for scammers to defraud victims and for criminals to launder illicit cash, citing findings from the financial intelligence agency FINTRAC.
+*   The move comes as lawmakers also weigh banning crypto as a form of electoral donations, even though Canada hosted the world’s first bitcoin ATM in Vancouver in 2013.
+
+Canada is proposing to ban crypto ATMs as part of a broader crackdown on fraud and money laundering, citing growing evidence that the machines have become a key tool for scammers.
+
+The measure, included in the Liberal government's [Spring Economic Update released Tuesday](https://budget.canada.ca/update-miseajour/2026/report-rapport/chap2-en.html#a27), would eliminate crypto ATMs nationwide. Officials described the machines as a "primary method" for defrauding victims and laundering illicit funds.
+
+"To protect Canadians by shutting down a primary method for scammers to defraud victims, and for criminals to place their cash proceeds of crime," the government said, it plans to prohibit the machines entirely.
+
+A crypto ATM (automated teller machine) may sound similar to a traditional cash machine that dispenses money from your bank account, but it works very differently. Instead of withdrawing cash, these machines let users convert physical cash into cryptocurrencies like bitcoin, which can then be sent to a digital wallet anywhere in the world, while bypassing traditional banking channels. That’s where the money-laundering risk comes in.
+
+The proposal follows mounting concerns from law enforcement and regulators that crypto ATMs have become central to fraud schemes.
+
+A [2023 internal analysis](https://www.cbc.ca/news/canada/toronto/feeding-fraud-crypto-atm-problem-part-one-1.7647402) by Canada's financial intelligence agency, FINTRAC, found that bitcoin ATMs are likely to remain "the primary method" fraudsters use to collect and launder funds from victims.
+
+Canadian l[awmakers are debating](https://www.coindesk.com/policy/2026/04/27/canada-s-crypto-donation-ban-clears-key-vote-with-support-from-conservatives)banning crypto as a payment method for electoral donations, citing concerns about the anonymity of fund transfers.
+
+Canada was [home to the first bitcoin ATM](https://www.coindesk.com/markets/2014/01/31/vancouver-atm-operator-wants-to-leave-bitstamp-following-breakdown), installed in a downtown Vancouver coffee shop in 2013.
+
+[Cryptocurrency](https://www.coindesk.com/tag/cryptocurrency)
+
+More For You
+
+### [Bitcoin rebounds from key support as traders eye renewed push toward $80,000](https://www.coindesk.com/markets/2026/04/29/bitcoin-rebounds-from-key-support-as-traders-eye-renewed-push-toward-usd80-000)
+
+By[Oliver Knight](https://www.coindesk.com/author/oliver-knight), [Omkar Godbole](https://www.coindesk.com/author/omkar-godbole)|Edited by[Sheldon Reback](https://www.coindesk.com/author/sheldon-reback)
+
+22 minutes ago
+
+[![Image 3: BTC chart (CoinDesk Data)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F8dd1acce48b331589cf1c9408125e5826fa59680-1870x976.png%3Fauto%3Dformat&w=3840&q=75)](https://www.coindesk.com/markets/2026/04/29/bitcoin-rebounds-from-key-support-as-traders-eye-renewed-push-toward-usd80-000)
+BTC climbs after holding at the $75,600 support level while derivatives signal de-risking, and speculative flows build in memecoins ahead of tech earnings.
+
+What to know:
+
+*   Bitcoin bounced to $77,700 after reclaiming $75,600 as a support price, strengthening the case for another attempt to breach $80,000. 
+*   Futures open interest continues to decline, signaling further de-risking, while options markets still show elevated demand for downside protection. 
+*   Memecoins surged with strong inflows into DOGE and SHIB, suggesting rising...
+
+[Read full story](https://www.coindesk.com/markets/2026/04/29/bitcoin-rebounds-from-key-support-as-traders-eye-renewed-push-toward-usd80-000)
+
+[Latest Crypto News](https://www.coindesk.com/latest-crypto-news)
+
+[![Image 4: BTC chart (CoinDesk Data)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F8dd1acce48b331589cf1c9408125e5826fa59680-1870x976.png%3Fauto%3Dformat&w=1080&q=75) #### Bitcoin rebounds from key support as traders eye renewed push toward $80,000 22 minutes ago](https://www.coindesk.com/markets/2026/04/29/bitcoin-rebounds-from-key-support-as-traders-eye-renewed-push-toward-usd80-000)
+
+[![Image 5: Bitcoin (CoinDesk)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F22e3a0dea3dea589da7cfc612482b108669434c6-3840x2160.png%3Fauto%3Dformat&w=1080&q=75) #### Mezo unveils institutional bitcoin yield vaults as demand grows to put idle BTC to work 42 minutes ago](https://www.coindesk.com/business/2026/04/29/mezo-unveils-institutional-bitcoin-yield-vaults-as-demand-grows-to-put-idle-btc-to-work)
+
+[![Image 6: Hong Kong view over Victoria Harbour. ](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F8884e3eec669615d2f66709e94003e28624e0a82-1500x1002.jpg%3Fauto%3Dformat&w=1080&q=75) #### Fake Hong Kong stablecoins start trading as real ones remain absent 1 hour ago](https://www.coindesk.com/policy/2026/04/29/fake-hong-kong-stablecoins-start-trading-as-real-ones-remain-absent)
+
+[![Image 7: KuCoin screen on a mobile phone. (Shutterstock)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F9dacc8ba7e3bc993ee613bb3eed25bfa15903698-1920x1080.jpg%3Fauto%3Dformat&w=1080&q=75) #### KuCoin EU hires anti-money laundering talent to appease Austrian regulator 1 hour ago](https://www.coindesk.com/policy/2026/04/29/kucoin-eu-hires-anti-money-laundering-talent-to-appease-austrian-regulator)
+
+[![Image 8: Hidden in a crowd.](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F658f1d658d2528a892da6017211afed3bfbc1e55-1920x1390.jpg%3Fauto%3Dformat&w=1080&q=75) #### There's a social media groundswell predicting bitcoin above $90,000. That might be a problem. 1 hour ago](https://www.coindesk.com/markets/2026/04/29/there-s-a-social-media-groundswell-predicting-bitcoin-above-usd90-000-that-might-be-a-problem)
+
+[![Image 9: (CoinDesk Data)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F0fe1be3b98849b2bca377a2345d301e1b1d2c48a-1194x736.png%3Fauto%3Dformat&w=1080&q=75) #### XRP falls to $1.38 after breaking below $1.40 on rising selling pressure 6 hours ago](https://www.coindesk.com/markets/2026/04/29/xrp-falls-to-usd1-38-after-breaking-below-usd1-40-on-rising-selling-pressure)
+
+Top Stories
+
+[![Image 10: Blockstream CEO Adam Back ](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2Fc72a7d7906fb5fbc62478d497a1a0b6acf914bb5-2048x1365.jpg%3Fauto%3Dformat&w=2048&q=75) #### Institutional money is coming for bitcoin, but Adam Back says it moves slower than you think 7 hours ago](https://www.coindesk.com/business/2026/04/29/institutional-money-is-coming-for-bitcoin-but-adam-back-says-it-moves-slower-than-you-think)
+
+[![Image 11: Paul Tudor Jones (Kevin Mazur/Getty Images)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2Fe5117f77adbefabbf673117e388511dbe3d01618-3000x1688.jpg%3Fauto%3Dformat&w=2048&q=75) #### Paul Tudor Jones calls bitcoin the 'best inflation hedge,' warns of overvalued stocks 15 hours ago](https://www.coindesk.com/markets/2026/04/28/paul-tudor-jones-calls-bitcoin-the-best-inflation-hedge-warns-of-overvalued-stocks)
+
+[![Image 12: Michael Terpin. (Michael Terpin)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2Fb59ad3cb1779d5920284c3d24b1ea5055834e985-2048x1366.jpg%3Fauto%3Dformat&w=2048&q=75) #### 'Crypto Godfather' says bitcoin has not reached its bottom and a new all-time high is off the table for 2026 19 hours ago](https://www.coindesk.com/markets/2026/04/28/crypto-godfather-says-bitcoin-has-not-reached-its-bottom-and-a-new-all-time-high-is-off-the-table-for-2026)
+
+[![Image 13: Markets rise (Mehmet Turgut Kirkgoz, Unsplash)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F606f6bccb114ca502ef809a2ad0d272c32193a03-2354x1282.png%3Fauto%3Dformat&w=2048&q=75) #### Bitcoin rises to $77,000 ahead of Fed decision as Trump preps for lengthy Hormuz block 6 hours ago](https://www.coindesk.com/markets/2026/04/29/bitcoin-rises-to-usd77-000-ahead-of-fed-decision-as-trump-preps-for-lengthy-hormuz-block)
+
+[![Image 14: Robinhood website (PiggyBank/ Unsplash/ Modified by CoinDesk)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F444f7a787b146a0e468e858e32f1f9d80f6c9c32-3600x2400.jpg%3Fauto%3Dformat&w=2048&q=75) #### Robinhood stock falls 8% after big earnings miss due to weak crypto trading revenue 14 hours ago](https://www.coindesk.com/markets/2026/04/28/robinhood-stock-shrugs-off-a-47-crash-in-crypto-revenue-thanks-to-a-massive-surge-in-event-betting)
+
+[![Image 15: CFTC Chairman Mike Selig (Jesse Hamilton/CoinDesk)](https://www.coindesk.com/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fs3y3vcno%2Fproduction%2F5b447737cbb37b580c1293c8d94722780d032652-4928x2772.jpg%3Fw%3D1920%26h%3D1080%26auto%3Dformat&w=2048&q=75) #### CFTC's AI will review U.S. crypto registration applications, chairman tells CoinDesk 22 hours ago](https://www.coindesk.com/policy/2026/04/27/cftc-s-ai-will-review-u-s-crypto-registration-applications-chairman-tells-coindesk)
+
+### Only 2 articles remaining this month.
+
+[Sign up for free](https://www.coindesk.com/auth/login?returnTo=%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount&screen_hint=signup%C2%AE_module=reg-banner%C2%AE_submodule=meter%C2%AE_state=meter&ext-country=US "Sign up for a free CoinDesk account")
+
+* * *
+
+[](https://www.coindesk.com/ "CoinDesk homepage")
+
+* * *
+
+About
+
+*   [About Us](https://www.coindesk.com/about)
+*   [Masthead](https://www.coindesk.com/masthead)
+*   [Careers](https://bullish.wd3.myworkdayjobs.com/CoinDesk)
+*   [Blog](https://data.coindesk.com/blogs)
+*   [Investor Relations](https://investors.bullish.com/overview/default.aspx)
+
+Contact
+
+*   [Contact Us](https://www.coindesk.com/contact-us)
+*   [Accessibility](https://www.coindesk.com/accessibility-help)
+*   [Advertise](https://www.coindesk.com/advertise)
+*   [Media Kit](https://www.coindesk.com/mediakit)
+*   [](https://www.coindesk.com/es/sitemap)[](https://www.coindesk.com/uk/sitemap)[](https://www.coindesk.com/ru/sitemap)[](https://www.coindesk.com/fil/sitemap)[](https://www.coindesk.com/it/sitemap)[](https://www.coindesk.com/fr/sitemap)[](https://www.coindesk.com/pt-br/sitemap)[](https://www.coindesk.com/de/sitemap)[](https://www.coindesk.com/nl/sitemap)[](https://www.coindesk.com/ko/sitemap)[](https://www.coindesk.com/zh/sitemap)[](https://www.coindesk.com/tr/sitemap)[](https://www.coindesk.com/id/sitemap)[](https://www.coindesk.com/ja/sitemap)[Sitemap](https://www.coindesk.com/sitemap)
+*   [System status](https://status.coindesk.com/)
+
+[Newsletters](https://www.coindesk.com/newsletters)
+*   [CoinDesk Headlines](https://www.coindesk.com/newsletters/the-node)
+*   [Crypto Daybook Americas](https://www.coindesk.com/newsletters/daybook-us)
+*   [The Protocol](https://www.coindesk.com/newsletters/the-protocol)
+*   [State of Crypto](https://www.coindesk.com/newsletters/state-of-crypto)
+*   [Crypto for Advisors](https://www.coindesk.com/newsletters/crypto-for-advisors)
+*   [Crypto Long & Short](https://www.coindesk.com/newsletters/crypto-long-short)
+
+[News](https://www.coindesk.com/latest-crypto-news)
+*   [Markets](https://www.coindesk.com/markets)
+*   [Finance](https://www.coindesk.com/business)
+*   [Tech](https://www.coindesk.com/tech)
+*   [Policy](https://www.coindesk.com/policy)
+*   [Focus](https://www.coindesk.com/focus)
+
+[Videos](https://www.coindesk.com/videos)
+*   [CoinDesk Daily](https://www.coindesk.com/videos/coindesk-daily)
+*   [Editor's Picks](https://www.coindesk.com/videos/editors-picks)
+*   [Shorts](https://www.coindesk.com/videos/shorts)
+*   [Spotlight](https://www.coindesk.com/videos/coindesk-spotlight)
+
+Podcasts
+
+*   [CoinDesk Podcast Network](https://www.coindesk.com/podcasts/coindesk-podcast-network)
+*   [Markets Outlook](https://www.coindesk.com/podcasts/markets-daily)
+*   [Gen C](https://www.coindesk.com/podcasts/generation-c)
+
+Cryptocurrencies
+
+*   [Prices](https://www.coindesk.com/price)
+*   [Bitcoin (BTC)](https://www.coindesk.com/price/bitcoin)
+*   [Ethereum (ETH)](https://www.coindesk.com/price/ethereum)
+*   [XRP](https://www.coindesk.com/price/xrp)
+*   [Solana (SOL)](https://www.coindesk.com/price/solana)
+
+[Data & Indices](https://indices.coindesk.com/institutions)
+*   [Market Data](https://data.coindesk.com/)
+*   [Index Offering](https://indices.coindesk.com/offerings)
+*   [API](https://developers.coindesk.com/documentation/data-api/introduction)
+*   [Research Insights](https://data.coindesk.com/reports)
+*   [Documentation and Governance](https://indices.coindesk.com/documentation-and-governance)
+
+Consensus
+
+*   [Consensus Miami](https://consensus.coindesk.com/)
+*   [CoinDesk: Policy & Regulation](https://policy-regulation.coindesk.com/)
+*   [Webinars](https://events.coindesk.com/#section-webinars)
+
+[Sponsored](https://www.coindesk.com/sponsored-content)
+*   [Bitcoin Treasuries Theme Week](https://www.coindesk.com/tag/btc-treasuires-theme-week-2025)
+*   [Thought Leadership](https://www.coindesk.com/sponsored-content)
+*   [Press Release](https://www.coindesk.com/press-release)
+*   [MEXC](https://www.coindesk.com/sponsored-content/hub/MEXC)
+*   [Phemex](https://www.coindesk.com/sponsored-content/hub/Phemex)
+*   [Stellar](https://www.coindesk.com/sponsored-content/hub/stellar)
+
+[Research](https://www.coindesk.com/research)
+*   [Research Hub](https://www.coindesk.com/research)
+*   [Exchange Benchmark](https://data.coindesk.com/research/exchange-benchmark-ranking-tables)
+
+[](https://apps.apple.com/app/coindesk-crypto-bitcoin-news/id6502816903)[](https://play.google.com/store/apps/details?id=com.coindesk.mobile)
+
+* * *
+
+[Ethics](https://www.coindesk.com/ethics)[Privacy](https://www.coindesk.com/privacy)[Terms of Use](https://www.coindesk.com/terms)[Cookie Settings](https://www.coindesk.com/markets/2026/04/29/canada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount "Manage your cookie preferences")[Do Not Sell My Info](https://www.coindesk.com/privacy#dnsmpi)[Bug Bounty Program](https://bugcrowd.com/engagements/coindesk-mbb-og)
+
+[](https://twitter.com/coindesk)[](https://facebook.com/coindesk)[](https://linkedin.com/company/coindesk)[](https://www.coindesk.com/arc/outboundfeeds/rss/)[](https://instagram.com/coindesk)[](https://www.youtube.com/coindesk)[](https://www.tiktok.com/@coindesk/)[](https://discord.com/invite/tRuUMkkQd9)[](https://t.me/CoinDeskGlobal)
+
+© 2026 CoinDesk, Inc.
+
+**Disclosure & Polices**: CoinDesk is an [award-winning](https://www.coindesk.com/business/2023/02/20/coindesk-wins-a-polk-award-a-top-journalism-prize-for-explosive-ftx-coverage) media outlet that covers the cryptocurrency industry. Its journalists abide by a strict set of [editorial policies](https://www.coindesk.com/ethics). CoinDesk has adopted a set of principles aimed at ensuring the integrity, editorial independence and freedom from bias of its publications. CoinDesk is part of [Bullish](https://www.bullish.com/) (NYSE:BLSH), an institutionally focused global digital asset platform that provides market infrastructure and information services. Bullish owns and invests in digital asset businesses and digital assets and CoinDesk employees, including journalists, may receive Bullish equity-based compensation.
+
+![Image 16](https://t.co/1/i/adsct?bci=2&dv=UTC%26en-US%26Google%20Inc.%26Linux%20x86_64%26255%26800%26600%268%2624%26800%26600%260%26na&eci=4&event=%7B%7D&event_id=adacf21d-2d83-415d-a2d4-137fda7d27ab&integration=gtm&p_id=Twitter&p_user_id=0&pl_id=85bf2b30-9900-4040-afcf-f30c4c0dcb42&pt=Canada%20proposes%20ban%20on%20BTC%20ATMs%20as%20fraud%20cases%20mount&tw_document_href=https%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount&tw_iframe_status=0&tw_pid_src=1&twpid=tw.1777461030134.42099755630157994&txn_id=tw-o2yx9-oli3g&type=javascript&version=2.3.53)![Image 17](https://analytics.twitter.com/1/i/adsct?bci=2&dv=UTC%26en-US%26Google%20Inc.%26Linux%20x86_64%26255%26800%26600%268%2624%26800%26600%260%26na&eci=4&event=%7B%7D&event_id=adacf21d-2d83-415d-a2d4-137fda7d27ab&integration=gtm&p_id=Twitter&p_user_id=0&pl_id=85bf2b30-9900-4040-afcf-f30c4c0dcb42&pt=Canada%20proposes%20ban%20on%20BTC%20ATMs%20as%20fraud%20cases%20mount&tw_document_href=https%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount&tw_iframe_status=0&tw_pid_src=1&twpid=tw.1777461030134.42099755630157994&txn_id=tw-o2yx9-oli3g&type=javascript&version=2.3.53)
+
+![Image 18: Company Logo](https://downloads.coindesk.com/logos/b76afad0-8f9d-4609-9a6d-fb1f4b2fe092/019b04c0-d4fd-7eb1-9372-7505727a3f0e/1d3af675-d332-4037-b9f5-155b79dabcf4/CoinDesk_Logo_-_Black.png)
+
+## Cookie Settings
+
+## Cookie Settings
+
+*   ### Privacy 
+*   ### Performance Cookies 
+*   ### Functional Cookies 
+*   ### Targeting Cookies 
+*   ### Strictly Necessary Cookies 
+*   ### Social Media Cookies 
+
+#### Privacy
+
+When you visit any website, it may store or retrieve information on your browser, mostly in the form of cookies. This information might be about you, your preferences or your device and is mostly used to make the site work as you expect it to. The information does not usually directly identify you, but it can give you a more personalized web experience. Because we respect your right to privacy, you can choose not to allow some types of cookies. Click on the different category headings to find out more and change our default settings. However, blocking some types of cookies may impact your experience of the site and the services we are able to offer. 
+
+[More information](https://www.coindesk.com/privacy)
+
+#### Performance Cookies
+
+- [x] Performance Cookies 
+
+These cookies allow us to count visits and traffic sources so we can measure and improve the performance of our site. They help us to know which pages are the most and least popular and see how visitors move around the site. All information these cookies collect is aggregated and therefore anonymous. If you do not allow these cookies we will not know when you have visited our site, and will not be able to monitor its performance.
+
+#### Functional Cookies
+
+- [x] Functional Cookies 
+
+These cookies enable the website to provide enhanced functionality and personalisation. They may be set by us or by third party providers whose services we have added to our pages. If you do not allow these cookies then some or all of these services may not function properly.
+
+#### Targeting Cookies
+
+- [x] Targeting Cookies 
+
+These cookies may be set through our site by our advertising partners. They may be used by those companies to build a profile of your interests and show you relevant adverts on other sites. They do not store directly personal information, but are based on uniquely identifying your browser and internet device. If you do not allow these cookies, you will experience less targeted advertising.
+
+#### Strictly Necessary Cookies
+
+These cookies are necessary for the website to function and cannot be switched off in our systems. They are usually only set in response to actions made by you which amount to a request for services, such as setting your privacy preferences, logging in or filling in forms. You can set your browser to block or alert you about these cookies, but some parts of the site will not then work. These cookies do not store any personally identifiable information.
+
+#### Social Media Cookies
+
+- [x] Social Media Cookies 
+
+These cookies are set by a range of social media services that we have added to the site to enable you to share our content with your friends and networks. They are capable of tracking your browser across other sites and building up a profile of your interests. This may impact the content and messages you see on other websites you visit. If you do not allow these cookies you may not be able to use or see these sharing tools.
+
+### Cookie List
+
+Consent Leg.Interest
+
+- [x] checkbox label label
+
+- [x] checkbox label label
+
+- [x] checkbox label label
+
+Clear
+
+*   - [x] checkbox label label 
+
+Apply Cancel
+
+Confirm My Choices
+
+Reject All Allow All
+
+[![Image 19: Powered by Onetrust](https://downloads.coindesk.com/logos/static/powered_by_logo.svg)](https://www.onetrust.com/products/cookie-consent/)
+
+![Image 20](https://bat.bing.com/action/0?ti=187186731&tm=gtm002&Ver=2&mid=c9c36344-e4b1-491b-900f-d0bb0e9d3542&bo=1&sid=08f8300043bc11f1af1e01cf2fe075c5&vid=08f84a2043bc11f199d6f70ec973b386&vids=1&msclkid=N&pi=918639831&lg=en-US&sw=800&sh=600&sc=24&tl=Canada%20proposes%20ban%20on%20BTC%20ATMs%20as%20fraud%20cases%20mount&p=https%3A%2F%2Fwww.coindesk.com%2Fmarkets%2F2026%2F04%2F29%2Fcanada-proposes-ban-on-bitcoin-atms-as-fraud-cases-mount&r=&lt=2012&evt=pageLoad&sv=2&cdb=AQET&rn=565197)

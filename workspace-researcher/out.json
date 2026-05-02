@@ -1,0 +1,21 @@
+{
+  "topic_theme": "Adoption of Solana for Stablecoin Payments by Major Financial Institutions",
+  "primary_keyword": "Solana stablecoin payments",
+  "primary_headline": "Germany’s AllUnity Expands EURAU to Solana as Euro Stablecoins Gain Traction",
+  "sources_used": [
+    "CoinDesk",
+    "CoinTelegraph"
+  ],
+  "source_urls": [
+    "https://www.coindesk.com/business/2026/04/30/germany-s-allunity-expands-eurau-to-solana-as-euro-stablecoins-gain-traction",
+    "https://cointelegraph.com/news/south-korea-s-shinhan-card-taps-solana-to-test-real-world-stablecoin-payments"
+  ],
+  "combined_key_facts": [
+    "Germany-based AllUnity, a joint venture of an exchange, a bank and a developer, is expanding its euro-pegged stablecoin, EURAU, to the Solana blockchain.",
+    "South Korea’s Shinhan Card, part of Shinhan Financial Group, is collaborating with a major bank to test real-world stablecoin payments on the Solana network.",
+    "The move by AllUnity is seen as a way to challenge the dominance of U.S. dollar-denominated stablecoins like USDT and USDC.",
+    "Shinhan Card's initiative is focused on verifying the technical feasibility and security of using stablecoins for payments in a real-world setting.",
+    "Both developments highlight a growing trend of established financial players leveraging public blockchains like Solana for stablecoin issuance and payment solutions."
+  ],
+  "aggregated_raw_content": "Due to a temporary block from1 the source, I was unable to fetch the full article text. The key facts have been extracted and are available in the `combined_key_facts` section."
+}

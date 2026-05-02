@@ -1,0 +1,52 @@
+HTTP/2 302 
+content-type: application/binary
+vary: Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site
+cache-control: no-cache, no-store, max-age=0, must-revalidate
+pragma: no-cache
+expires: Mon, 01 Jan 1990 00:00:00 GMT
+date: Wed, 29 Apr 2026 11:16:28 GMT
+location: https://news.google.com/rss/articles/CBMiWEFVX3lxTE5CZ0h0dW1XazZ3Q0RhYWJ1ME43NFFDZE91eGRpejd3cjJqdVd3ZzZDNi1LZWhYUzU5eVczWW9zcUcyT0dadng1TTBHcG1WU3drZ0VPN0ZDMzA?oc=5&hl=en-IN&gl=IN&ceid=IN:en
+content-length: 0
+p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
+strict-transport-security: max-age=31536000
+accept-ch: Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Model, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version
+permissions-policy: ch-ua-arch=*, ch-ua-bitness=*, ch-ua-full-version=*, ch-ua-full-version-list=*, ch-ua-model=*, ch-ua-wow64=*, ch-ua-form-factors=*, ch-ua-platform=*, ch-ua-platform-version=*
+content-security-policy: require-trusted-types-for 'script';report-uri /_/DotsSplashUi/cspreport
+content-security-policy: script-src 'nonce-wzKh74_w9BI-QPPr44ATew' 'unsafe-inline';object-src 'none';base-uri 'self';report-uri /_/DotsSplashUi/cspreport;worker-src 'self'
+cross-origin-opener-policy: same-origin-allow-popups
+cross-origin-resource-policy: same-site
+server: ESF
+x-xss-protection: 0
+x-frame-options: SAMEORIGIN
+x-content-type-options: nosniff
+set-cookie: NID=531=cIovz9HqaZeNwcBY9suFLBEI8GPv2duBttf6sriRXpV8xumQ0_WiDndUeHRcod3QiEFOCKU3xLhsqmXGF5uX_0rM-qqFfBYuBa0GyoD3q3tW8m_JpocrgfDF63sEUpF47XGowxFrVYbR6Ebhz1OYJ-BhFT6OfgUo_pNByiqDXPs3Saa5CGG4h7Mcm5LhpzCRdtIEu3FGa1GpdBcC; expires=Thu, 29-Oct-2026 11:16:28 GMT; path=/; domain=.google.com; HttpOnly
+set-cookie: GN_PREF=W251bGwsIkNBSVNDd2lNMGNmUEJoQ0k1NUppIl0_; Expires=Wed, 28-Oct-2026 23:16:28 GMT; Path=/; Secure
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+vary: Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site
+x-ua-compatible: IE=edge
+cache-control: no-cache, no-store, max-age=0, must-revalidate
+pragma: no-cache
+expires: Mon, 01 Jan 1990 00:00:00 GMT
+date: Wed, 29 Apr 2026 11:16:28 GMT
+content-length: 0
+p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
+strict-transport-security: max-age=31536000
+cross-origin-resource-policy: same-site
+permissions-policy: ch-ua-arch=*, ch-ua-bitness=*, ch-ua-full-version=*, ch-ua-full-version-list=*, ch-ua-model=*, ch-ua-wow64=*, ch-ua-form-factors=*, ch-ua-platform=*, ch-ua-platform-version=*
+accept-ch: Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Model, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version
+cross-origin-opener-policy: same-origin-allow-popups
+content-security-policy: script-src 'nonce-rYgaVxIa8fQFb0ogRs8t1w' 'unsafe-inline';object-src 'none';base-uri 'self';report-uri /_/DotsSplashUi/cspreport;worker-src 'self'
+content-security-policy: require-trusted-types-for 'script';report-uri /_/DotsSplashUi/cspreport
+reporting-endpoints: default="/_/DotsSplashUi/web-reports?context=eJzjKtDikmJw0pBi-LRjBmvrzXOsU4G4ZNF51hYg7gLiWUBsqHCJ1RGIL6dfYi2SuMLaBMSfqm6wClXfYP1W7MvGVuLLdmKKH9sNIH4CxF-AmOWtP5va0QA2MyCedi-IbYtmMFtpWjCbEA9Hz8Xj59kEFjTfn8qkpJyUXxifkl9SXFyQk1icUZxaVJZaFG9kYGRmYGJkpmdoFF9gAAAZlz6y"
+server: ESF
+x-xss-protection: 0
+x-frame-options: SAMEORIGIN
+x-content-type-options: nosniff
+set-cookie: NID=531=ibJf8aHyklCiwKzgTwYpKvHUAGyU4ene31s7t5spx6pyfH87WolSUYqM7lvAwip3VunLtBIgwOpqaCtPEmkUErmWsaxPx8vqEw2o2O15a-EDX4NacYex1WarplPIctrho44GwBkQcXA4Qe_4r5ofZ4IN_wIwLSMdDwe8sFHhWAI6MHK5u7daVxrwt7VqIqK00heOYIlIvW9TdomO; expires=Thu, 29-Oct-2026 11:16:28 GMT; path=/; domain=.google.com; HttpOnly
+set-cookie: GN_PREF=W251bGwsIkNBSVNEQWlNMGNmUEJoQ1F3ZjZKQWciXQ__; Expires=Wed, 28-Oct-2026 23:16:28 GMT; Path=/; Secure
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+
+https://news.google.com/rss/articles/CBMiWEFVX3lxTE5CZ0h0dW1XazZ3Q0RhYWJ1ME43NFFDZE91eGRpejd3cjJqdVd3ZzZDNi1LZWhYUzU5eVczWW9zcUcyT0dadng1TTBHcG1WU3drZ0VPN0ZDMzA?oc=5&hl=en-IN&gl=IN&ceid=IN:en

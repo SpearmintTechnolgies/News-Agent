@@ -1,0 +1,71 @@
+Title: Bitcoin Juggles $120 Oil and Fed's 'Most Hawkish' Interest-Rate Pause
+
+URL Source: https://cointelegraph.com/markets/bitcoin-eyes-75k-after-most-hawkish-fomc-as-oil-hits-highest-since-2022
+
+Published Time: Thu, 30 Apr 2026 10:15:59 GMT
+
+Markdown Content:
+Bitcoin (BTC) failed to recover new support on Thursday as oil hit its highest levels in nearly four years.
+
+**Key points:**
+
+*   Bitcoin struggles to recoup recent lost ground as geopolitical factors weigh on momentum.
+*   UK Brent crude oil spot markets record their highest levels since June 2022.
+*   The Federal Reserve's interest-rate decision is called Chair Jerome Powell's "most hawkish in years."
+
+## Bitcoin falls on "most hawkish" Fed meeting
+
+Data from TradingView showed BTC/USD circling $76,000, down around 2% from the previous day’s high.
+
+![Image 1](https://resizer.cointelegraph.com/cdn-cgi/image/f=auto,onerror=redirect,w=896,q=90/https://payload.cointelegraph.com/api/media/file/BTCUSD_2026-04-30_11-03-05.png?prefix=media%2Fcontent)
+_BTC/USD one-hour chart. Source: Cointelegraph/_[_TradingView_](https://www.tradingview.com/symbols/BTCUSD/)
+
+A combination of high oil prices and the US Federal Reserve’s “most hawkish” meeting in years kept risk-asset optimism low.
+
+Both were a result of the ongoing US-Iran war, which showed no sign of resolution.
+
+“Iran can’t get their act together. They don’t know how to sign a nonnuclear deal. They better get smart soon!” US President Donald Trump wrote in one of his latest posts on [Truth Social](https://truthsocial.com/@realDonaldTrump/posts/116486959174837748).
+
+![Image 2](https://resizer.cointelegraph.com/cdn-cgi/image/f=auto,onerror=redirect,w=727,q=90/https://payload.cointelegraph.com/api/media/file/Screenshot%202026-04-30%20at%2010.55.31.png?prefix=media%2Fcontent)
+_Source: Truth Social_
+
+Amid the tensions, spot Brent crude oil passed $120 per barrel for the first time since June 2022.
+
+“Asia is facing its worst even crisis in history and Europe has just weeks worth of jet fuel left. The US is exporting record amounts of oil as a result,” trading resource The Kobeissi Letter responded in a [post on X](https://x.com/KobeissiLetter/status/2049713857728524691).
+
+> “Inflation is back.”
+
+![Image 3](https://resizer.cointelegraph.com/cdn-cgi/image/f=auto,onerror=redirect,w=896,q=90/https://payload.cointelegraph.com/api/media/file/SPOTBRENT_2026-04-30_10-59-05.png?prefix=media%2Fcontent)
+_Spot Brent crude oil one-month chart. Source: Cointelegraph/TradingView_
+
+Inflation worries were among the guiding factors for Fed officials at Wednesday’s Federal Open Market Committee (FOMC) meeting, where they left interest rates unchanged.
+
+While markets [expected that outcome](https://cointelegraph.com/markets/bitcoin-recovery-stalls-after-fed-holds-interest-rates-citing-uncertainty-in-middle-east), commentators noted a worsening outlook for risk appetite due to changing Fed policy.
+
+Nic Puckrin, CEO and cofounder of crypto education platform Coin Bureau, [described](https://x.com/nicrypto/status/2049752110011457876) the FOMC meeting —the last with Jerome Powell as Chair — as his “most hawkish in years.”
+
+“For the first time since 1992, 4 Federal Reserve members dissented the decision,” he noted.
+
+![Image 4](https://resizer.cointelegraph.com/cdn-cgi/image/f=auto,onerror=redirect,w=858,q=90/https://payload.cointelegraph.com/api/media/file/HHIltJGbwAAFA0r.png?prefix=media%2Fcontent)
+_US two-year Treasury yield versus Fed funds rate futures. Source: Nic Puckrin/X_
+
+Puckrin suggested that the Fed’s “soft landing” policy on inflation had also gone.
+
+“Rates held for the third straight meeting, but the direction of travel just changed,” he summarized.
+
+![Image 5](https://resizer.cointelegraph.com/cdn-cgi/image/f=auto,onerror=redirect,w=896,q=90/https://payload.cointelegraph.com/api/media/file/Screenshot%202026-04-30%20at%2010.56.24.png?prefix=media%2Fcontent)
+_Source: Truth Social_
+
+Trump [repeated attacks](https://truthsocial.com/@realDonaldTrump/posts/116490221112397902) on Powell after the decision, calling him “too late” in cutting rates ahead of the likely takeover by Kevin Warsh.
+
+As [Cointelegraph reported](https://cointelegraph.com/markets/bitcoin-stocks-face-months-of-losses-as-kevin-warsh-becomes-fed-chair), Trump said that he “would” be disappointed if Warsh did not cut rates at his first FOMC meeting in June.
+
+## BTC price 21-day trend line hangs in the balance
+
+BTC price action still managed to respect the 21-day simple moving average (SMA) near $75,500 overnight.
+
+_**Related:**_[_**First 21-week trend line reclaim since October 2025: Five things to know in Bitcoin this week**_](https://cointelegraph.com/markets/first-21-week-trend-line-reclaim-since-october-2025-five-things-to-know-in-bitcoin-this-week)
+
+That support line was the key question for trading resource Material Indicators on low time frames.
+
+“Will support hold?” it [queried](https://x.com/

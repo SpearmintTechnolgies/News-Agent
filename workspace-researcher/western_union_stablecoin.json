@@ -1,0 +1,21 @@
+{
+  "topic_theme": "Western Union to Launch Solana-Based Stablecoin",
+  "primary_keyword": "Western Union stablecoin",
+  "primary_headline": "Western Union to Launch Solana-Based Stablecoin Plus ‘Stable Card’ Next Month",
+  "sources_used": [
+    "Decrypt",
+    "CoinTelegraph"
+  ],
+  "source_urls": [
+    "https://decrypt.co/365593/western-union-to-launch-solana-based-stablecoin-plus-stable-card-next-month",
+    "https://cointelegraph.com/news/western-union-usdpt-stablecoin-may-launch-dan-network"
+  ],
+  "combined_key_facts": [
+    "Western Union is launching a Solana-based stablecoin called USDPT.",
+    "The stablecoin is expected to launch next month.",
+    "A 'Stable Card' will be launched alongside the stablecoin.",
+    "The USDPT stablecoin will be used for agent settlements as an alternative to SWIFT, not for consumer transactions.",
+    "Western Union's CEO, Devin McGranahan, stated the focus is on expanding digital asset adoption within their core platform."
+  ],
+  "aggregated_raw_content": "Western Union to Launch Solana-Based Stablecoin Plus ‘Stable Card’ Next Month - Decrypt{\n \"@context\": \"https://schema.org\",\n \"@type\": \"NewsArticle\",\n \"headline\": \"Western Union to Launch Solana-Based Stablecoin Plus ‘Stable Card’ Next Month\",\n \"image\": [\"https://cdn.decrypt.co/resize/1024/height/512/wp-content/uploads/2025/07/Western-Union2-gID_7.jpg\"],\n \"datePublished\": \"2026-04-27T10:02:52\",\n \"dateModified\": \"2026-04-27T10:02:52\",\n \"author\": {\n \"@type\": \"Person\",\n \"name\": \"Decrypt Agent\"\n },\n \"publisher\": {\n \"@type\": \"Organization\",\n \"name\": \"Decrypt\",\n \"logo\": {\n \"@type\": \"ImageObject\",\n \"url\": \"https://decrypt.co/wp-content/uploads/2019/08/decrypt-mark.png\"\n }\n },\n \"description\": \"The USDPT stablecoin launching next month will serve as an alternative to SWIFT for agent settlements rather than consumer transactions.\",\n \"mainEntityOfPage\": \"https://decrypt.co/365593/western-union-to-launch-solana-based-stablecoin-plus-stable-card-next-month\",\n \"articleSection\": \"News\",\"keywords\": \"Business,solana,stablecoin,western union,USDPT\"\n }\n gtag(\"consent\", \"default\", {\n ad_personalization: \"denied\",\n ad_storage: \"denied\",\n ad_user_data: \"denied\",\n analytics_storage: \"denied\",\n functionality_storage: \"denied\",\n personalization_storage: \"denied\",\n security_storage: \"granted\",\n wait_for_update: 500\n });\n gtag(\"set\", \"ads_data_redaction\", true);\n gtag(\"set\", \"url_passthrough\", true);\n Western Union CEO Devin McGranahan said the company will focus on expanding adoption and embedding digital assets into its core money movement platform going forward. The USDPT stablecoin launching next month will serve as an alternative to SWIFT for agent settlements rather than consumer transactions. A new ‘Stable Card’ will also be released."
+}

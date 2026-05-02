@@ -1,21 +1,24 @@
 {
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "project-133cdfbf-a67a-492b-91c",
+    "GOOGLE_CLOUD_LOCATION": "us-central1"
+  },
   "agents": {
     "defaults": {
       "workspace": "/home/bhard/.openclaw/workspace",
       "models": {
-        "openrouter/auto": {
-          "alias": "OpenRouter"
-        },
-        "openrouter/google/gemini-2.5-pro": {}
+        "gemini-proxy/gemini-2.5-pro": {}
       },
       "model": {
-        "primary": "openrouter/google/gemini-2.5-pro"
+        "primary": "gemini-proxy/gemini-2.5-pro",
+        "fallbacks": []
       }
     },
     "list": [
       {
         "id": "main",
-        "workspace": "/home/bhard/.openclaw/workspace"
+        "workspace": "/home/bhard/.openclaw/workspace",
+        "model": "gemini-proxy/gemini-2.5-pro"
       },
       {
         "id": "orchestrator",
@@ -38,6 +41,33 @@
         "workspace": "/home/bhard/.openclaw/workspace-publisher"
       }
     ]
+  },
+  "models": {
+    "mode": "replace",
+    "providers": {
+      "gemini-proxy": {
+        "baseUrl": "http://127.0.0.1:8080/v1",
+        "api": "openai-completions",
+        "apiKey": "static-key",
+        "models": [
+          {
+            "id": "gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro (Vertex)",
+            "contextWindow": 1000000,
+            "maxTokens": 65536,
+            "reasoning": true,
+            "input": ["text", "image"],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "api": "openai-completions"
+          }
+        ]
+      }
+    }
   },
   "gateway": {
     "mode": "local",
@@ -80,23 +110,7 @@
     }
   },
   "auth": {
-    "profiles": {
-      "openrouter:default": {
-        "provider": "openrouter",
-        "mode": "api_key"
-      }
-    }
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "groups": {
-        "*": {
-          "requireMention": true
-        }
-      },
-      "botToken": "8788660586:AAGnipTMSAWK1uSBI-62UIyGIlXiXKNsZS0"
-    }
+    "profiles": {}
   },
   "plugins": {
     "entries": {
@@ -107,9 +121,6 @@
             "baseUrl": "https://paulgo.io"
           }
         }
-      },
-      "openrouter": {
-        "enabled": true
       }
     }
   },
@@ -127,13 +138,13 @@
     }
   },
   "wizard": {
-    "lastRunAt": "2026-04-25T07:26:21.016Z",
+    "lastRunAt": "2026-04-29T11:26:39.311Z",
     "lastRunVersion": "2026.4.23",
-    "lastRunCommand": "onboard",
+    "lastRunCommand": "configure",
     "lastRunMode": "local"
   },
   "meta": {
     "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-04-25T08:58:13.638Z"
+    "lastTouchedAt": "2026-04-29T11:26:39.481Z"
   }
 }
