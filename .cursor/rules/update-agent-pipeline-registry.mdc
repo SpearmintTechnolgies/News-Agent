@@ -1,0 +1,37 @@
+---
+description: Keep AGENT_PIPELINE_REGISTRY.md in sync when pipeline or agent files change
+globs: |
+  openclaw.json,
+  exec-approvals.json,
+  workspace-*/SOUL.md,
+  workspace-*/AGENTS.md,
+  workspace-*/IDENTITY.md,
+  workspace-*/TOOLS.md,
+  workspace-*/COINOGRAPHY_TEMPLATE.md,
+  workspace-*/skills/**,
+  skills/**,
+  workspace-orchestrator/skills/pipeline/**
+alwaysApply: false
+---
+
+# Update Agent Pipeline Registry
+
+When you change any file matched by this rule, also update [AGENT_PIPELINE_REGISTRY.md](/home/bhard/.openclaw/AGENT_PIPELINE_REGISTRY.md) in the same task.
+
+## Checklist
+
+1. Bump the **Last updated** date at the top of the registry.
+2. Append one line to the **Change log** table describing what changed.
+3. Update only the affected sections (agent profile, tools table, skills list, spawn message, pipeline step, etc.). Do not rewrite unrelated sections.
+4. Never copy secrets (tokens, passwords, API keys) into the registry. Document locations only (`TOOLS.md`, `openclaw.json`).
+
+## What to update per change type
+
+| Change | Registry sections to edit |
+|--------|---------------------------|
+| `openclaw.json` agent/model/tools | Global config, Agent registry matrix, per-agent tools |
+| `SOUL.md` | Per-agent profile, spawn messages, pipeline steps |
+| `AGENTS.md` / `IDENTITY.md` | Per-agent profile (if role/rules changed) |
+| `COINOGRAPHY_TEMPLATE.md` | Writer profile, editorial rules summary |
+| New/removed skill or pipeline script | Skills inventory, Orchestrator pipeline scripts table |
+| `TOOLS.md` | Per-agent profile (note config location only, no secrets) |

@@ -1,44 +1,4 @@
 {
   "version": 1,
-  "jobs": {
-    "20b9ebf1-8ce9-403c-9136-64394697f287": {
-      "updatedAtMs": 1777121100040,
-      "state": {
-        "nextRunAtMs": 1777124700040,
-        "lastRunAtMs": 1777120977533,
-        "lastRunStatus": "error",
-        "lastStatus": "error",
-        "lastDurationMs": 122507,
-        "lastDeliveryStatus": "unknown",
-        "consecutiveErrors": 5,
-        "lastError": "Delivering to Telegram requires target <chatId>"
-      }
-    },
-    "691ba941-b4c9-416e-9dbc-77dc624ba130": {
-      "updatedAtMs": 1777122470855,
-      "state": {
-        "nextRunAtMs": 1777126070855,
-        "lastRunAtMs": 1777122402863,
-        "lastRunStatus": "error",
-        "lastStatus": "error",
-        "lastDurationMs": 67992,
-        "lastDeliveryStatus": "unknown",
-        "consecutiveErrors": 6,
-        "lastError": "Delivering to Telegram requires target <chatId>"
-      }
-    },
-    "692e632c-9853-472b-bc8a-6b7ad3eb86d3": {
-      "updatedAtMs": 1777121641935,
-      "state": {
-        "nextRunAtMs": 1777125241935,
-        "lastRunAtMs": 1777121605087,
-        "lastRunStatus": "error",
-        "lastStatus": "error",
-        "lastDurationMs": 36848,
-        "lastDeliveryStatus": "unknown",
-        "consecutiveErrors": 5,
-        "lastError": "Delivering to Telegram requires target <chatId>"
-      }
-    }
-  }
+  "jobs": {}
 }

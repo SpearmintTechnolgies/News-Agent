@@ -1,5 +1,7 @@
 # Agent Profiles
 
+> **DEPRECATED:** This document describes an older pipeline design (session `rm`, `openclaw agent` delegation). For the current system see [AGENT_PIPELINE_REGISTRY.md](../AGENT_PIPELINE_REGISTRY.md).
+
 This document details the exact role, logic, and limitations of each of the 5 agents in the pipeline. Each agent is defined by its `SOUL.md` file located in its respective workspace.
 
 ---

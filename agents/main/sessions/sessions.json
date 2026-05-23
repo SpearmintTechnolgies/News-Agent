@@ -1,9 +1,23 @@
 {
   "agent:main:main": {
-    "sessionId": "356a65ba-8787-4ece-94e8-a5396a65508d",
-    "updatedAt": 1777124264763,
+    "sessionId": "8128c0ca-49a4-4b44-a501-58123a004f69",
+    "updatedAt": 1778829086245,
+    "systemSent": true,
+    "abortedLastRun": false,
+    "chatType": "direct",
+    "deliveryContext": {
+      "channel": "webchat"
+    },
+    "lastChannel": "webchat",
+    "origin": {
+      "provider": "webchat",
+      "surface": "webchat",
+      "chatType": "direct"
+    },
+    "sessionFile": "/home/bhard/.openclaw/agents/main/sessions/8128c0ca-49a4-4b44-a501-58123a004f69.jsonl",
+    "compactionCount": 0,
     "skillsSnapshot": {
-      "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>clawhub</name>\n    <description>Search, install, update, sync, or publish agent skills with the ClawHub CLI and registry.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate feature work, PR review, refactors, or iterative coding to background Codex, Claude Code, or Pi agents.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>mcporter</name>\n    <description>List, configure, authenticate, call, and inspect MCP servers/tools with mcporter over HTTP or stdio.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw Android, iOS, or macOS node pairing, QR/setup code, route, auth, and connection failures.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, tidy, review, audit, or restructure AgentSkills and SKILL.md files.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow</name>\n    <description>Coordinate multi-step detached tasks as one durable TaskFlow job with owner context, state, waits, and child tasks.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow-inbox-triage</name>\n    <description>Example TaskFlow pattern for inbox triage, intent routing, waiting on replies, and later summaries.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>tmux</name>\n    <description>Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather, rain, temperature, and forecasts for locations or travel planning.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md</location>\n  </skill>\n</available_skills>",
+      "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>clawhub</name>\n    <description>Search, install, update, sync, or publish agent skills with the ClawHub CLI and registry.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate feature work, PR review, refactors, or iterative coding to background Codex, Claude Code, or Pi agents.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>content-writer</name>\n    <description>Multi-platform content generator for Chinese social media. Produces publish-ready posts for 小红书, 知乎, 公众号, and 抖音 with platform-native formatting, hooks, and CTAs.</description>\n    <location>~/.openclaw/workspace/skills/content-writer/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>gog</name>\n    <description>Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.</description>\n    <location>~/.openclaw/workspace/skills/gog/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>mcporter</name>\n    <description>List, configure, authenticate, call, and inspect MCP servers/tools with mcporter over HTTP or stdio.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw Android, iOS, or macOS node pairing, QR/setup code, route, auth, and connection failures.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>programmatic-seo</name>\n    <description>When the user wants to create SEO-driven pages at scale using templates and data. Also use when the user mentions &quot;programmatic SEO,&quot; &quot;template pages,&quot; &quot;pages at scale,&quot; &quot;directory pages,&quot; &quot;location pages,&quot; &quot;[keyword] + [city] pages,&quot; &quot;comparison pages,&quot; &quot;integration pages,&quot; or &quot;building many pages for SEO.&quot; For auditing existing SEO issues, see seo-audit.</description>\n    <location>~/.openclaw/workspace/skills/programmatic-seo/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, tidy, review, audit, or restructure AgentSkills and SKILL.md files.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow</name>\n    <description>Coordinate multi-step detached tasks as one durable TaskFlow job with owner context, state, waits, and child tasks.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow-inbox-triage</name>\n    <description>Example TaskFlow pattern for inbox triage, intent routing, waiting on replies, and later summaries.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>tmux</name>\n    <description>Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather, rain, temperature, and forecasts for locations or travel planning.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>web-reader-pro</name>\n    <description>Advanced web content extraction skill for OpenClaw using multi-tier fallback strategy (Jina → Scrapling → WebFetch) with intelligent routing, caching, quality scoring, and domain learning. Use when: reading article content, extracting web page text, scraping dynamic JS-heavy pages, or fetching WeChat official account articles.</description>\n    <location>~/.openclaw/workspace/skills/web-reader-pro/SKILL.md</location>\n  </skill>\n</available_skills>",
       "skills": [
         {
           "name": "clawhub",
@@ -14,6 +28,12 @@
           "requiredEnv": []
         },
         {
+          "name": "content-writer"
+        },
+        {
+          "name": "gog"
+        },
+        {
           "name": "healthcheck"
         },
         {
@@ -22,6 +42,9 @@
         },
         {
           "name": "node-connect"
+        },
+        {
+          "name": "programmatic-seo"
         },
         {
           "name": "skill-creator"
@@ -39,6 +62,9 @@
         {
           "name": "weather",
           "requiredEnv": []
+        },
+        {
+          "name": "web-reader-pro"
         }
       ],
       "resolvedSkills": [
@@ -69,6 +95,36 @@
             "scope": "project",
             "origin": "top-level",
             "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/coding-agent"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "content-writer",
+          "description": "Multi-platform content generator for Chinese social media. Produces publish-ready posts for 小红书, 知乎, 公众号, and 抖音 with platform-native formatting, hooks, and CTAs.",
+          "filePath": "/home/bhard/.openclaw/workspace/skills/content-writer/SKILL.md",
+          "baseDir": "/home/bhard/.openclaw/workspace/skills/content-writer",
+          "source": "openclaw-workspace",
+          "sourceInfo": {
+            "path": "/home/bhard/.openclaw/workspace/skills/content-writer/SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.openclaw/workspace/skills/content-writer"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "gog",
+          "description": "Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.",
+          "filePath": "/home/bhard/.openclaw/workspace/skills/gog/SKILL.md",
+          "baseDir": "/home/bhard/.openclaw/workspace/skills/gog",
+          "source": "openclaw-workspace",
+          "sourceInfo": {
+            "path": "/home/bhard/.openclaw/workspace/skills/gog/SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.openclaw/workspace/skills/gog"
           },
           "disableModelInvocation": false
         },
@@ -114,6 +170,21 @@
             "scope": "project",
             "origin": "top-level",
             "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/node-connect"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "programmatic-seo",
+          "description": "When the user wants to create SEO-driven pages at scale using templates and data. Also use when the user mentions \"programmatic SEO,\" \"template pages,\" \"pages at scale,\" \"directory pages,\" \"location pages,\" \"[keyword] + [city] pages,\" \"comparison pages,\" \"integration pages,\" or \"building many pages for SEO.\" For auditing existing SEO issues, see seo-audit.",
+          "filePath": "/home/bhard/.openclaw/workspace/skills/programmatic-seo/SKILL.md",
+          "baseDir": "/home/bhard/.openclaw/workspace/skills/programmatic-seo",
+          "source": "openclaw-workspace",
+          "sourceInfo": {
+            "path": "/home/bhard/.openclaw/workspace/skills/programmatic-seo/SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.openclaw/workspace/skills/programmatic-seo"
           },
           "disableModelInvocation": false
         },
@@ -191,26 +262,37 @@
             "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/weather"
           },
           "disableModelInvocation": false
+        },
+        {
+          "name": "web-reader-pro",
+          "description": "Advanced web content extraction skill for OpenClaw using multi-tier fallback strategy (Jina → Scrapling → WebFetch) with intelligent routing, caching, quality scoring, and domain learning. Use when: reading article content, extracting web page text, scraping dynamic JS-heavy pages, or fetching WeChat official account articles.",
+          "filePath": "/home/bhard/.openclaw/workspace/skills/web-reader-pro/SKILL.md",
+          "baseDir": "/home/bhard/.openclaw/workspace/skills/web-reader-pro",
+          "source": "openclaw-workspace",
+          "sourceInfo": {
+            "path": "/home/bhard/.openclaw/workspace/skills/web-reader-pro/SKILL.md",
+            "source": "openclaw-workspace",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.openclaw/workspace/skills/web-reader-pro"
+          },
+          "disableModelInvocation": false
         }
       ],
       "version": 0
     },
-    "sessionFile": "/home/bhard/.openclaw/agents/main/sessions/356a65ba-8787-4ece-94e8-a5396a65508d.jsonl",
-    "contextTokens": 1048576,
-    "modelProvider": "openrouter",
-    "model": "google/gemini-2.5-pro",
-    "agentHarnessId": "pi",
-    "abortedLastRun": false,
+    "status": "done",
+    "startedAt": 1778829081139,
     "systemPromptReport": {
       "source": "run",
-      "generatedAt": 1777124248742,
-      "sessionId": "356a65ba-8787-4ece-94e8-a5396a65508d",
+      "generatedAt": 1778829081053,
+      "sessionId": "8128c0ca-49a4-4b44-a501-58123a004f69",
       "sessionKey": "agent:main:main",
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-pro",
+      "provider": "custom-bifrost-776692075676-us-central1-run-app",
+      "model": "gpt-5.4-mini",
       "workspaceDir": "/home/bhard/.openclaw/workspace",
-      "bootstrapMaxChars": 12000,
-      "bootstrapTotalMaxChars": 60000,
+      "bootstrapMaxChars": 50000,
+      "bootstrapTotalMaxChars": 300000,
       "bootstrapTruncation": {
         "warningMode": "once",
         "warningShown": false,
@@ -223,9 +305,9 @@
         "sandboxed": false
       },
       "systemPrompt": {
-        "chars": 27421,
+        "chars": 35346,
         "projectContextChars": 11728,
-        "nonProjectContextChars": 15693
+        "nonProjectContextChars": 23618
       },
       "injectedWorkspaceFiles": [
         {
@@ -286,7 +368,7 @@
         }
       ],
       "skills": {
-        "promptChars": 3106,
+        "promptChars": 4754,
         "entries": [
           {
             "name": "clawhub",
@@ -295,6 +377,14 @@
           {
             "name": "coding-agent",
             "blockChars": 286
+          },
+          {
+            "name": "content-writer",
+            "blockChars": 322
+          },
+          {
+            "name": "gog",
+            "blockChars": 214
           },
           {
             "name": "healthcheck",
@@ -307,6 +397,10 @@
           {
             "name": "node-connect",
             "blockChars": 281
+          },
+          {
+            "name": "programmatic-seo",
+            "blockChars": 612
           },
           {
             "name": "skill-creator",
@@ -327,12 +421,16 @@
           {
             "name": "weather",
             "blockChars": 251
+          },
+          {
+            "name": "web-reader-pro",
+            "blockChars": 488
           }
         ]
       },
       "tools": {
         "listChars": 0,
-        "schemaChars": 16735,
+        "schemaChars": 16393,
         "entries": [
           {
             "name": "read",
@@ -431,12 +529,6 @@
             "propertiesCount": 3
           },
           {
-            "name": "image",
-            "summaryChars": 260,
-            "schemaChars": 342,
-            "propertiesCount": 6
-          },
-          {
             "name": "memory_search",
             "summaryChars": 385,
             "schemaChars": 260,
@@ -451,29 +543,21 @@
         ]
       }
     },
-    "inputTokens": 21820,
-    "outputTokens": 395,
-    "totalTokensFresh": false,
     "cacheRead": 0,
     "cacheWrite": 0,
-    "systemSent": true,
-    "authProfileOverride": "openrouter:default",
-    "authProfileOverrideSource": "auto",
-    "authProfileOverrideCompactionCount": 0,
-    "chatType": "direct",
-    "deliveryContext": {
-      "channel": "webchat"
-    },
-    "lastChannel": "webchat",
-    "origin": {
-      "provider": "webchat",
-      "surface": "webchat",
-      "chatType": "direct"
-    },
-    "status": "failed",
-    "startedAt": 1777124248916,
-    "estimatedCostUsd": 0.03384775,
-    "endedAt": 1777124249750,
-    "runtimeMs": 834
+    "totalTokensFresh": true,
+    "thinkingLevel": "low",
+    "agentHarnessId": "pi",
+    "reasoningLevel": "stream",
+    "fastMode": false,
+    "modelProvider": "custom-bifrost-776692075676-us-central1-run-app",
+    "model": "gpt-5.4-mini",
+    "contextTokens": 128000,
+    "inputTokens": 13146,
+    "outputTokens": 21,
+    "estimatedCostUsd": 0,
+    "totalTokens": 13146,
+    "endedAt": 1778829086196,
+    "runtimeMs": 5057
   }
 }

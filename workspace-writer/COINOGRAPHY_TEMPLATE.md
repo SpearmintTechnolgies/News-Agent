@@ -1,128 +1,142 @@
-# COINOGRAPHY EDITORIAL TEMPLATE
+# COINOGRAPHY EDITORIAL RULES
 
-This document is your absolute source of truth. You MUST write the article EXACTLY following the numbered sections below. Deviation is strictly prohibited.
-
-## 🔴 CRITICAL WRITING RULES (READ FIRST)
-- **NO EM-DASHES:** Never use the `—` character anywhere in the article. Replace with a comma, a period, or restructure the sentence.
-- **NATURAL WRITING:** Never use AI phrases: "it's worth noting", "it is important to note", "delve into", "in conclusion", "furthermore", "moreover", "in summary", "the crypto landscape", "the world of crypto", "a testament to", "shed light on".
-- **TONE:** Direct. Trader-focused. Analytical. No hype, no fluff, no adjectives like "amazing" or "shocking."
-- **PARAGRAPHS:** 1–4 sentences max. Break aggressively. One idea per paragraph.
-- **BULLET LISTS:** 3–4 items only. Used inside H3 sections only. Never in the conclusion or opening.
-- **ANCHOR LINKS:** You MUST naturally embed 2-3 markdown links inside the body text. These links MUST point to the exact source URLs provided in your RESEARCH_JSON. Example: `[according to recent data from Decrypt](https://decrypt.co/...)`
-- **CHART SOURCES:** Embed exactly 2 mentions of "Source: TradingView" or "Source: CoinGecko" with an image placeholder.
-- **KEYWORD PLACEMENT:** 
-  - Primary keyword in H1 (first 5 words)
-  - Primary keyword in first 100 words (opening hook)
-  - Primary keyword in at least one H2 and the Conclusion
-  - Secondary keywords must appear in H2 headings and their body paragraphs.
-
-## 🛠️ PRE-FLIGHT CHECKLIST
-Before generating any text, in your `<thinking>` block, confirm:
-- [ ] I have the primary and secondary keywords.
-- [ ] I have the source URLs from the `RESEARCH_JSON` input.
-- [ ] I will write EXACTLY in this order: META → Hook → H2#1 → H2#2 → Conclusion → FAQs → Sources.
-- [ ] I will write NOTHING outside this order.
-
-============================
-ARTICLE STRUCTURE (STRICT)
-============================
-
-### SECTION 1 (REQUIRED): META BLOCK
-Output this exact block at the very top. No conversational filler before it. The very first word must be "META".
-- SEO Title: [50–60 characters maximum — MUST follow formula: Primary Keyword + Brand Name + Value]
-- Meta Description: [150–160 characters maximum — MUST follow formula: What the article offers + Unique angle + Call to Action]
-- URL Slug: [lowercase-hyphens-only, e.g. bitcoin-price-hits-new-all-time-high]
-- Categories: [e.g. Bitcoin News, Latest News]
-- Primary Keyword: [e.g. "Bitcoin price drop"]
-- Secondary Keywords: [e.g. "BTC resistance", "crypto market pullback", "$80K Bitcoin"]
+Follow these rules for every article. Interior structure (how many sections, headings, hook style) is your editorial decision within the borders below.
 
 ---
 
-### SECTION 2 (REQUIRED): OPENING HOOK
-**# [H1 Title — must contain primary keyword in first 5 words, include a price or number]**
+## Hard rules (never break)
 
-*(Do NOT add an H2 heading above these paragraphs)*
-Para 1: State the core event with a specific price or data point. 2–3 sentences. Start with the primary keyword naturally. Be direct.
-Para 2: Market reaction or supporting data. One additional observation (volume, altcoins, funding rates). 2–3 sentences.
-Para 3: One-line reframe that sets the article's tone. ("This isn't panic. It looks like traders taking money off the table after a strong run.")
+**Content quality**
+- **NO EM-DASHES:** Never use `—`. Use a comma, period, or restructure.
+- **NATURAL WRITING:** Never use: "it's worth noting", "it is important to note", "delve into", "in conclusion", "furthermore", "moreover", "in summary", "the crypto landscape", "the world of crypto", "a testament to", "shed light on".
+- **TONE:** Direct. Trader-focused. Analytical. No hype or fluff ("amazing", "shocking").
+- **PARAGRAPHS:** 1–4 sentences max. One idea per paragraph.
+- **BULLET LISTS:** 3–4 items only, inside H3 sections if you use them. Never in Conclusion or opening hook.
 
----
+**SEO and links**
+- **ANCHOR LINKS:** Exactly **2** markdown links to URLs from `RESEARCH_JSON.source_urls` (distinct URLs, no repeats). Both in the **opening hook or first H2 only**. No x.com or twitter.com links in the body.
+- **KEYWORDS:** Primary keyword in H1 (first 5 words); in first 100 words; in at least one H2 and in Conclusion. Use secondary keywords in H2/H3 where natural.
 
-### SECTION 3 (REQUIRED): FIRST H2 SECTION
-**## [Secondary Keyword 1]: [What It Means / Signals / Shows]**
+**Length**
+- **Word count:** Body **1000–1200** words (aim **1100**). Count body only; META, Sources, and `[Word Count:]` line are not counted.
 
-[1–2 intro paragraphs explaining the news at a high level.]
-[Optional: Source: TradingView chart placeholder]
-
-**### [Sub-angle 1: e.g. "Profit-Taking Shows Up at Resistance"]**
-[1–2 short paragraphs]
-[Optional 3-item bullet list]
-
-**### [Sub-angle 2: e.g. "Altcoins Start Losing Steam"]**
-[2–3 very short paragraphs — 1 to 3 sentences each]
-
----
-
-### SECTION 4 (REQUIRED): SECOND H2 SECTION
-**## Key [Levels / Data Signals / Numbers] Traders Should Watch [Now / Next]**
-
-[1 intro paragraph]
-[Source: TradingView chart placeholder]
-
-**### [Level/Signal 1: e.g. "$75K Needs to Hold"]**
-[1 paragraph — what this level means, what happens if it holds/breaks]
-
-**### [Level/Signal 2: e.g. "$80K Remains the Barrier"]**
-[1 paragraph]
-[Required 3-item bullet list starting with "Look for:"]
+**Fixed section order**
+```
+META → H1 (hook) → H2 body sections → ## Conclusion → ## FAQs → **Sources:** → [Word Count: NNNN]
+```
+- **## Conclusion** must appear immediately before **## FAQs**.
+- **## FAQs** must be the **last** section in the content body (immediately before **Sources:**).
+- Do not put FAQs before Conclusion or interleave FAQs in the body.
 
 ---
 
-### SECTION 5 (REQUIRED): CONCLUSION
-**## Conclusion**
+## Structure borders (you decide inside these limits)
 
-Para 1: Restate the core event in one sentence using the primary keyword. Name the key level or data point.
-Para 2: What it means for the near-term structure. One or two clean sentences.
-Para 3: Actionable close for the reader. What they should do or watch. End on a direct, confident note.
+| Element | Minimum | Maximum |
+|---------|---------|---------|
+| H2 body sections (excluding Conclusion, FAQs) | 2 | 4 |
+| H3 subsections (`###`) total | 3 | 6 |
+| FAQ items under `## FAQs` | 3 | 6 |
 
----
+Within these borders, you choose:
+- How many H2s, H3s, and FAQs to use
+- Heading text and angle for each section
+- How to open the article (2–4 paragraphs under H1)
+- Section depth, bullet lists, and flow
 
-### SECTION 6 (REQUIRED): FAQS
-**## FAQs**
+There is **no** prescribed mapping from fact count to section count. Decide what structure best serves **this** story.
 
-**1. Why did [primary event] happen?**
-[3–4 sentence answer. Target ~60 words.]
-
-**2. Is this the start of a bigger [correction/rally/trend]?**
-[3–4 sentence answer. Target ~60 words.]
-
-**3. What [levels/signals] should traders watch now?**
-[3–4 sentence answer. Target ~60 words.]
-
-**4. How does this affect [related asset/market sector]?**
-[3–4 sentence answer. Target ~60 words.]
-
-**5. What is the historical context for this move?**
-[3–4 sentence answer. Target ~60 words.]
-
-**6. What are the short-term risks for investors?**
-[3–4 sentence answer. Target ~60 words.]
+Each H3 should draw on distinct material from research; do not pad with empty sections.
 
 ---
 
-### SECTION 7 (REQUIRED): SOURCES FOOTER
+## META block (required first)
+
+The first word of the file must be **META**.
+
+Count characters in `<thinking>` before writing:
+
+| Field | Your max | Rank Math cap |
+|-------|----------|---------------|
+| SEO Title | **55** | 60 |
+| Meta Description | **155** | 160 |
+| URL Slug | **70** | 75 |
+
+```
+META
+- SEO Title: [primary keyword early; add | Coinography only if ≤55 chars total]
+- Meta Description: [hook + detail; ≤155 chars]
+- URL Slug: [lowercase hyphens; 3–5 words; ≤70 chars]
+- Categories: [e.g. Regulation, Latest News]
+- Primary Keyword: [...]
+- Secondary Keywords: [...]
+```
+
+---
+
+## H1 and body
+
+After META and `---`, write **one** H1:
+
+`# [Primary keyword in first 5 words; include a price or number when relevant]`
+
+Then your hook and H2/H3 body sections. Heading names and section count are your choice within the borders above.
+
+---
+
+## Conclusion (required)
+
+`## Conclusion`
+
+Restate the event with primary keyword and actionable close for traders. Length is your call within the total word band.
+
+---
+
+## FAQs (required, last before Sources)
+
+`## FAQs`
+
+Write questions that fit **this** story (no fixed question bank). **3–6** items within the FAQ border.
+
+Format each item:
+```
+**1. Your question here?**
+
+Answer paragraph, 3–4 sentences.
+```
+
+Renumber 1..N. Do not use markdown list syntax for questions.
+
+---
+
+## Sources footer (required)
+
+Do not use `## Sources` or `## Word Count` as headings.
+
+```
 **Sources:**
-- [Publication Name]: [source URL from research facts]
-- [Publication Name]: [source URL from research facts]
+- [Publication]: [URL]
+- [Publication]: [URL]
 
-STOP GENERATING HERE. DO NOT ADD ANY BROADER CONTEXT SECTIONS. 
-State your final word count on the last line of your output as: [Word Count: XXXX]
+[Word Count: 1100]
+```
 
-## 🛡️ POST-OUTPUT VERIFICATION
-Before finalizing your generation, mentally verify:
-[ ] Exactly 1 H1, 2 H2s, 4 H3s, Conclusion, FAQs, Sources?
-[ ] No em-dashes anywhere?
-[ ] Primary keyword in H1 first 5 words?
-[ ] 2-3 anchor links embedded in body text pointing to source URLs?
-[ ] Word count stated on final line?
-[ ] No sections added beyond the 7 defined above?
+Final line: `[Word Count: NNNN]` with digits only.
+
+---
+
+## Pre-flight (in `<thinking>`)
+
+- [ ] META char counts within limits
+- [ ] 2 source URLs planned for hook/first H2
+- [ ] Structure choices within H2/H3/FAQ borders
+- [ ] Body word budget 1000–1200
+- [ ] Order: Conclusion then FAQs then Sources
+
+## Post-output check
+
+- [ ] 1 H1; H2/H3/FAQ counts within borders
+- [ ] Conclusion before FAQs; FAQs before Sources
+- [ ] 1000–1200 body words
+- [ ] Exactly 2 source links in hook/first H2
+- [ ] No em-dashes or banned phrases

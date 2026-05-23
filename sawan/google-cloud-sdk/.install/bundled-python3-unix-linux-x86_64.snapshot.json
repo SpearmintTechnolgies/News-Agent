@@ -1,0 +1,44 @@
+{
+  "components": [
+    {
+      "data": {
+        "contents_checksum": "f50469c8f4c18be8ad66191dea8b93c930c0aeaf028a6fbb8fdef9d32a6f2cc3",
+        "source": "",
+        "type": "tar"
+      },
+      "dependencies": [
+        "bundled-python3-unix",
+        "core"
+      ],
+      "details": {
+        "description": "Provides stand-alone Python 3.13.11 installation for UNIX.",
+        "display_name": "Bundled Python 3.13 (Platform Specific)"
+      },
+      "gdu_only": false,
+      "id": "bundled-python3-unix-linux-x86_64",
+      "is_configuration": false,
+      "is_hidden": true,
+      "is_required": false,
+      "platform": {
+        "architectures": [
+          "x86_64"
+        ],
+        "operating_systems": [
+          "LINUX"
+        ]
+      },
+      "platform_required": false,
+      "version": {
+        "build_number": 20260424041539,
+        "version_string": "3.13.11"
+      }
+    }
+  ],
+  "revision": 20260424041539,
+  "schema_version": {
+    "no_update": false,
+    "url": "https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz",
+    "version": 3
+  },
+  "version": "566.0.0"
+}

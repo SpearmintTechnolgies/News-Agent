@@ -6,7 +6,7 @@ _Learn about the person you're helping. Update this as you go._
 - **What to call them:**
 - **Pronouns:** _(optional)_
 - **Timezone:**
-- **Notes:**
+- **Notes:** prefers `sessions_spawn` + `sessions_yield` for long-running pipeline work because direct `exec` completion handling has broken the pipeline before.
 
 ## Context
 

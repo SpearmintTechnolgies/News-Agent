@@ -1,0 +1,6 @@
+{
+  "traceSchema": "openclaw-trajectory-pointer",
+  "schemaVersion": 1,
+  "sessionId": "mistral-pipeline-001",
+  "runtimeFile": "/home/bhard/.openclaw/agents/orchestrator/sessions/mistral-pipeline-001.trajectory.jsonl"
+}
