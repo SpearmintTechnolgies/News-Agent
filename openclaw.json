@@ -2,7 +2,7 @@
   "env": {
     "GOOGLE_CLOUD_PROJECT": "project-133cdfbf-a67a-492b-91c",
     "GOOGLE_CLOUD_LOCATION": "us-central1",
-    "AWS_BEARER_TOKEN_BEDROCK": "ABSKQmVkcm9ja0FQSUtleS1iZHM5LWF0LTk3MjQ2MTIxODAzNDpHU1NHeFFmZlpNM2I5NTZidlNvdEZ4SkNIbzJZUWlGZTdVdWRPQTM3QmVoZ214SzVUc1pOUURrODdsMD0="
+    "AWS_BEARER_TOKEN_BEDROCK": "ABSKQmVkcm9ja0FQS********5LWF0LTk3MjQ2MTIxODAzNDpHU1NHeFFmZlpNM2I5NTZidlNvdEZ4SkNIbzJZUWlGZTdVdWRPQTM3QmVoZ214SzVUc1pOUURrODdsMD0="
   },
   "agents": {
     "defaults": {
@@ -114,7 +114,7 @@
     "mode": "replace",
     "providers": {
       "local-bifrost": {
-        "baseUrl": "http://172.30.176.1:8080/v1",
+        "baseUrl": "http://172.**.176.1:8080/v1",
         "api": "openai-completions",
         "apiKey": "dummy",
         "models": [
@@ -174,7 +174,7 @@
     "mode": "local",
     "auth": {
       "mode": "token",
-      "token": "7ef54bbf642eb84c84cd24a14d36ff03934dcef364617b8b"
+      "token": "7ef54bbf642eb84c84cd24a**d36ff03934dcef364617b8b"
     },
     "port": 18789,
     "bind": "loopback",
@@ -269,7 +269,7 @@
   "channels": {
     "telegram": {
       "enabled": true,
-      "botToken": "8788660586:AAGnipTMSAWK1uSBI-62UIyGIlXiXKNsZS0",
+      "botToken": "8788660586:AAGnipT**AWK1uSBI-62UIyGIlXiXKNsZS0",
       "groupPolicy": "open",
       "groups": {
         "*": {
