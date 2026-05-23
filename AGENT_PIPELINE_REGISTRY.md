@@ -1,6 +1,6 @@
 # Agent Pipeline Registry
 
-**Last updated:** 2026-05-23  
+**Last updated:** 2026-05-23    
 **Purpose:** Canonical living reference for the OpenClaw crypto news pipeline — all agents, subagents, prompts, tools, skills, and pipeline steps.  
 **Config source of truth:** [`openclaw.json`](openclaw.json)
 
@@ -385,3 +385,4 @@ Legacy `/tmp/...` paths are symlinks into this bundle.
 | Date | Change |
 |------|--------|
 | 2026-05-23 | Initial registry created; replaces `MULTI_AGENT_SYSTEM_DOCUMENTATION.md` |
+| 2026-05-23 | Added `PLANS/tweet-embed-duckduckgo.md` — deferred tweet embed spec (not implemented) |
