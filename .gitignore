@@ -1,15 +1,72 @@
+# Dependencies
 node_modules/
-*.log
-*.bak
-*.bak.*
-*.clobbered.*
-update-check.json
-exec-approvals.json
-logs/
-memory/
-canvas/
-completions/
-.DS_Store
+
+# Environment & secrets
 .env
 .env.*
 !.env.example
+credentials/
+identity/
+devices/
+exec-approvals.json
+agents/*/agent/auth-profiles.json
+openclaw.json
+openclaw.json.bak
+openclaw.json.bak.*
+openclaw.json.last-good
+openclaw.json.clobbered.*
+
+# Runtime databases & state
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+article_history.db
+tasks/
+flows/
+subagents/
+delivery-queue/
+cron/
+telegram/
+update-check.json
+data/
+
+# Agent session logs (ephemeral runtime)
+agents/*/sessions/
+
+# Logs & cache
+*.log
+logs/
+memory/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# IDE & OS
+.cursor/
+.DS_Store
+.vscode/
+
+# Build/runtime artifacts
+*.bak
+*.bak.*
+*.clobbered.*
+canvas/
+completions/
+
+# Media uploads (inbound temp)
+media/inbound/
+
+# Third-party SDK (install locally, not in repo)
+sawan/
+
+# Workspace runtime state
+workspace-orchestrator/state/*.db
+workspace-orchestrator/state/*.sqlite
+workspace-orchestrator/state/recent_topics.json
+
+# Research cache/output (regenerated at runtime)
+workspace-researcher/*_parsed.txt
+workspace-researcher/all_articles.txt
+workspace-researcher/titles.txt

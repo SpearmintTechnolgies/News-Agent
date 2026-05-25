@@ -1,1 +1,11 @@
-
+      <title>SEC postpones plan allowing 'innovation exemption' for tokenized stocks: Report</title>
+      <pubDate>Mon, 25 May 2026 03:45:13 +0000</pubDate>
+      <atom:updated>Mon, 25 May 2026 03:45:13 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/news/sec-postpones-plan-allowing-innovation-exemption-for-tokenized-stocks-report</guid>
+      <link><![CDATA[https://cointelegraph.com/news/sec-postpones-plan-allowing-innovation-exemption-for-tokenized-stocks-report?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://images.cointelegraph.com/images/528_aHR0cHM6Ly9zMy1pbWFnZXMuY3RtZWRpYS5pby9tZWRpYS9hcnRpY2xlLWNvdmVycy9oaS13aHktcmVndWxhdGlvbi1pcy10aGUtYmVzdC10aGluZy1mb3ItY3J5cHRvLXNlYy5qcGc=.jpg" alt="SEC postpones plan allowing 'innovation exemption' for tokenized stocks: Report" class="type:primaryImage"></p><p>The SEC has reportedly delayed releasing a proposal permitting tokenized stock trading after receiving industry concerns.</p>]]></description>
+      <dc:creator>Cointelegraph by Brayden Lindrea</dc:creator>
+      <media:content url="https://images.cointelegraph.com/images/528_aHR0cHM6Ly9zMy1pbWFnZXMuY3RtZWRpYS5pby9tZWRpYS9hcnRpY2xlLWNvdmVycy9oaS13aHktcmVndWxhdGlvbi1pcy10aGUtYmVzdC10aGluZy1mb3ItY3J5cHRvLXNlYy5qcGc=.jpg" width="528" medium="image"/>
+      <enclosure url="https://images.cointelegraph.com/images/528_aHR0cHM6Ly9zMy1pbWFnZXMuY3RtZWRpYS5pby9tZWRpYS9hcnRpY2xlLWNvdmVycy9oaS13aHktcmVndWxhdGlvbi1pcy10aGUtYmVzdC10aGluZy1mb3ItY3J5cHRvLXNlYy5qcGc=.jpg" length="528" type="image/jpg"/>
+      <category>Latest News</category>
+    </item>

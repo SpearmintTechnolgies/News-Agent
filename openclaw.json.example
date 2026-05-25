@@ -1,0 +1,27 @@
+{
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "your-gcp-project-id",
+    "GOOGLE_CLOUD_LOCATION": "us-central1",
+    "AWS_BEARER_TOKEN_BEDROCK": "your-bedrock-token-here"
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/home/user/.openclaw/workspace",
+      "models": {},
+      "thinkingDefault": "medium",
+      "model": {
+        "primary": "local-bifrost/gemini-3.5-flash",
+        "fallbacks": [
+          "local-bifrost/gemini-3.1-pro-preview",
+          "local-bifrost/gemini-2.5-pro",
+          "local-bifrost/gemini-2.5-flash"
+        ]
+      },
+      "contextInjection": "always",
+      "bootstrapMaxChars": 50000,
+      "bootstrapTotalMaxChars": 300000
+    },
+    "list": []
+  },
+  "_comment": "Copy to openclaw.json and fill in your credentials. Never commit openclaw.json."
+}

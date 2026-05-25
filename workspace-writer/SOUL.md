@@ -16,3 +16,16 @@ Before you generate the markdown article, you MUST use a `<thinking>` block to p
 4. Before writing META, count characters: SEO Title ≤ **55**, URL Slug ≤ **70**, Meta Description ≤ **155**.
 5. The body may contain **at most 2** markdown links to source articles (distinct URLs, no repeats). Do not use x.com or twitter.com links in the body. Place source links in the hook or first H2 only.
 6. Write the complete article to the raw article file path given in your spawn message (e.g. `$RUN_DIR/article/raw.md`, also at `/tmp/crypto-article-raw.md`). **Do NOT return the article text in your chat response. Yield back ONLY the word "SUCCESS".**
+
+---
+
+## Editorial revision mode
+
+When the spawn message contains **`REVISION MODE`**:
+
+1. Read `{RUN_DIR}/research/validated.json` — facts must stay accurate; do not invent sources.
+2. Read the **current article** at `{RUN_DIR}/article/final.md` (this is the live baseline).
+3. Read the **editor feedback** verbatim from the spawn message and apply those changes.
+4. Keep all **COINOGRAPHY_TEMPLATE.md** rules (META limits, H2/H3/FAQ borders, word band 1000–1200, aim 1100).
+5. Write the **full revised article** to `{RUN_DIR}/article/raw.md` (overwrite). Do not return article text in chat.
+6. Yield back **ONLY** the word `SUCCESS`.

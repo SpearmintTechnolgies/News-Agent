@@ -1,1 +1,6 @@
-https://news.google.com/rss/articles/CBMikAFBVV95cUxPV2NxQ1lscTY0RzBjRXNKdmlpLXB5NFY3RWVhYWtUVVJNYXlNN1MtQlIta2RiVDI3SGpDVTF6YUREZTNaTlNtbFVhRElHU29wek1ZNWZJMnpxMFFPRE9RS3FORkFrX2c1NmQxbmZzSzBIWWJPZy1MbFRmMFcxV2F6YlNDRmZjZ0M4NXd6Q0owa1M?oc=5&hl=en-IN&gl=IN&ceid=IN:en
+  <title>SEC Delays Tokenized Stocks Innovation Exemption Amid Concerns: Bloomberg</title>
+  <link>https://decrypt.co/368855/sec-delays-tokenized-stocks-innovation-exemption-amid-concerns-bloomberg</link>
+  <pubDate>Fri, 22 May 2026 20:46:37 +0000</pubDate>
+  
+    <description>The SEC’s expected regulatory framework would have provided clarity for companies looking to tokenize traditional assets like stocks.</description>
+  

@@ -389,6 +389,10 @@ bash ~/.openclaw/workspace-orchestrator/skills/pipeline/update_manifest_step.sh 
 # Terminal cleanup: RUN_DIR preserved; only /tmp symlinks removed
 bash ~/.openclaw/workspace-orchestrator/skills/pipeline/cleanup_run_artifacts.sh \
   --manifest "$PIPELINE_MANIFEST"
+
+# Step 6b — News card to Telegram group (fail-open)
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_and_send_card.py \
+  --manifest "$PIPELINE_MANIFEST"
 ```
 
 Reply to the user:
@@ -437,3 +441,4 @@ Pipeline complete!
 - Keep user updated after every step.
 - **CRITICAL: NEVER hallucinate URLs.**
 - **CRITICAL: NEVER modify `/tmp/crypto-article.md` after the Writer has produced it.** The WP-Publisher script handles featured image upload; article price charts are off by default (`ENABLE_ARTICLE_CHARTS=0`).
+- Editorial feedback (RATE/IMAGE on news cards) → see **EDITORIAL_FEEDBACK.md** (not pipeline steps).

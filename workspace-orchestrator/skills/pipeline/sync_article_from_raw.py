@@ -196,26 +196,42 @@ def url_matches_any(url: str, research_urls: list[str]) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--manifest", required=True)
+    parser.add_argument("--manifest", help="Path to pipeline manifest.json")
+    parser.add_argument("--run-dir", help="Run bundle directory (alternative to --manifest)")
+    parser.add_argument(
+        "--editorial",
+        action="store_true",
+        help="Editorial revision mode: freshness vs .revision_started",
+    )
     args = parser.parse_args()
 
-    manifest_path = os.path.realpath(args.manifest)
-    if not os.path.exists(manifest_path):
-        print(f"ARTICLE_INVALID: manifest not found: {manifest_path}")
+    if args.run_dir:
+        run_dir = os.path.realpath(args.run_dir)
+        raw_path = os.path.join(run_dir, "article", "raw.md")
+        final_path = os.path.join(run_dir, "article", "final.md")
+        validated_path = os.path.join(run_dir, "research", "validated.json")
+        structure_path = os.path.join(run_dir, "research", "structure.json")
+        freshness_path = os.path.join(run_dir, ".revision_started" if args.editorial else ".run_started")
+    elif args.manifest:
+        manifest_path = os.path.realpath(args.manifest)
+        if not os.path.exists(manifest_path):
+            print(f"ARTICLE_INVALID: manifest not found: {manifest_path}")
+            return 1
+        try:
+            manifest = load_json(manifest_path)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"ARTICLE_INVALID: cannot parse manifest: {e}")
+            return 1
+        artifacts = manifest.get("artifacts", {})
+        raw_path = artifacts.get("article_raw", "")
+        final_path = artifacts.get("article_final", "")
+        validated_path = artifacts.get("research_validated", "")
+        structure_path = artifacts.get("article_structure", "")
+        run_dir = manifest.get("run_dir", "")
+        freshness_path = os.path.join(run_dir, ".run_started")
+    else:
+        print("ARTICLE_INVALID: provide --manifest or --run-dir")
         return 1
-
-    try:
-        manifest = load_json(manifest_path)
-    except (OSError, json.JSONDecodeError) as e:
-        print(f"ARTICLE_INVALID: cannot parse manifest: {e}")
-        return 1
-
-    artifacts = manifest.get("artifacts", {})
-    raw_path       = artifacts.get("article_raw", "")
-    final_path     = artifacts.get("article_final", "")
-    validated_path = artifacts.get("research_validated", "")
-    structure_path = artifacts.get("article_structure", "")
-    run_dir        = manifest.get("run_dir", "")
 
     # ── 1. Check raw file exists and is fresh ─────────────────────────────
     if not raw_path or not os.path.exists(raw_path):
@@ -227,18 +243,19 @@ def main() -> int:
         print("ARTICLE_INVALID: article/raw.md is empty — writer did not write the file")
         return 1
 
-    # Check raw is newer than .run_started (freshness: written this run)
-    run_started_path = os.path.join(run_dir, ".run_started")
-    if os.path.exists(run_started_path):
+    if os.path.exists(freshness_path):
         try:
-            with open(run_started_path) as f:
-                run_started_epoch = float(f.read().strip())
-            if raw_stat.st_mtime < run_started_epoch:
-                print("ARTICLE_STALE: article/raw.md mtime is older than this run's .run_started — "
-                      "writer did not update the file in this run")
+            with open(freshness_path) as f:
+                started_epoch = float(f.read().strip())
+            if raw_stat.st_mtime < started_epoch:
+                stamp = os.path.basename(freshness_path)
+                print(
+                    f"ARTICLE_STALE: article/raw.md mtime is older than {stamp} — "
+                    "writer did not update the file in this revision"
+                )
                 return 1
         except (ValueError, OSError):
-            pass  # If we can't read the stamp, skip this check
+            pass
 
     # ── 2. Read and sanitize raw ──────────────────────────────────────────
     with open(raw_path, "r", encoding="utf-8", errors="ignore") as f:
