@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+# =============================================================================
+# publish.sh — WordPress Publishing Skill for Scribe (wp-publisher agent)
+# =============================================================================
+# Usage:
+#   bash publish.sh [--title "Title"] [--excerpt "Excerpt"]
+#                  [--article /path/to/article.md] [--image /path/to/image.jpg]
+#
+# Smart extraction: reads SEO Title, Meta Description, URL Slug directly from
+# the Writer's META block in the article — no manual passing needed.
+#
+# Pipeline cleanup: strips META block, Word Count line, and thinking blocks
+# before publishing so only clean article content reaches WordPress.
+#
+# Output:
+#   Exit 0 → /tmp/wp-result.txt contains the WordPress draft post URL
+#   Exit 1 → /tmp/wp-error.log  contains the human-readable error reason
+# =============================================================================
+
+set -euo pipefail
+
+# --- Config ------------------------------------------------------------------
+WP_URL="https://slateblue-reindeer-775070.hostingersite.com"
+WP_API="${WP_URL}/wp-json/wp/v2"
+WP_USER="spearmintmarketingpro@gmail.com"
+WP_PASS="B1u0 7AQI Aw5a IQK7 0KWX PtGU"
+CATEGORY_ID=3
+POST_STATUS="draft"
+
+ARTICLE_PATH="/tmp/crypto-article.md"
+IMAGE_PATH="/tmp/crypto-feature.jpg"
+CLEAN_MD="/tmp/crypto-article-clean.md"
+HTML_PATH="/tmp/crypto-article.html"
+RESULT_FILE="/tmp/wp-result.txt"
+ERROR_FILE="/tmp/wp-error.log"
+MAX_RETRIES=3
+
+# --- Argument Parsing --------------------------------------------------------
+TITLE=""
+EXCERPT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --title)   TITLE="$2";   shift 2 ;;
+    --excerpt) EXCERPT="$2"; shift 2 ;;
+    --article) ARTICLE_PATH="$2"; shift 2 ;;
+    --image)   IMAGE_PATH="$2";   shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+# --- Helpers -----------------------------------------------------------------
+log_info()  { echo "[INFO]  $*"; }
+log_error() { echo "[ERROR] $*" | tee -a "$ERROR_FILE"; }
+fatal()     { log_error "$*"; exit 1; }
+
+# --- Setup -------------------------------------------------------------------
+rm -f "$ERROR_FILE" "$RESULT_FILE" "$CLEAN_MD" "$HTML_PATH" /tmp/wp-meta.txt
+
+if [ ! -f "$ARTICLE_PATH" ]; then
+  fatal "Article not found at '$ARTICLE_PATH'. Has the Writer agent run yet?"
+fi
+
+# =============================================================================
+# PHASE 0: Extract metadata from META block + produce clean article
+# =============================================================================
+log_info "Parsing article — extracting metadata and stripping pipeline internals..."
+
+python3 - <<PYEOF
+import re
+
+with open("${ARTICLE_PATH}", "r", encoding="utf-8") as f:
+    raw = f.read()
+
+# --- Extract META block values -----------------------------------------------
+meta_title = ""
+meta_desc  = ""
+meta_slug  = ""
+
+meta_match = re.search(r'^META\b(.*?)^---', raw, re.MULTILINE | re.DOTALL)
+if meta_match:
+    block = meta_match.group(1)
+    t = re.search(r'[-*]\s*SEO Title:\s*(.+)',          block)
+    d = re.search(r'[-*]\s*Meta Description:\s*(.+)',   block)
+    s = re.search(r'[-*]\s*URL Slug:\s*(.+)',           block)
+    if t: meta_title = t.group(1).strip()
+    if d: meta_desc  = d.group(1).strip()
+    if s: meta_slug  = s.group(1).strip().lower()
+
+with open("/tmp/wp-meta.txt", "w") as mf:
+    mf.write("META_TITLE=" + meta_title + "\n")
+    mf.write("META_DESC="  + meta_desc  + "\n")
+    mf.write("META_SLUG="  + meta_slug  + "\n")
+
+# --- Strip pipeline-internal content from article ----------------------------
+clean = raw
+
+# 1. Remove META block (from line starting with "META" to first "---")
+clean = re.sub(r'^META\b.*?^---[ \t]*\n', '', clean, count=1, flags=re.MULTILINE | re.DOTALL)
+
+# 2. Remove <thinking>...</thinking> blocks
+clean = re.sub(r'<thinking>.*?</thinking>', '', clean, flags=re.DOTALL | re.IGNORECASE)
+
+# 3. Remove Word Count line in any format: "Word Count: 1,198" or "[Word Count: 1198]"
+clean = re.sub(r'^\[?Word Count:.*?\]?\s*$', '', clean, flags=re.MULTILINE | re.IGNORECASE)
+
+# 4. Collapse more than 2 consecutive blank lines into 1
+clean = re.sub(r'\n{3,}', '\n\n', clean)
+
+clean = clean.strip() + "\n"
+
+with open("${CLEAN_MD}", "w", encoding="utf-8") as f:
+    f.write(clean)
+
+print("[INFO]  META block extracted:")
+print(f"[INFO]    SEO Title:        {meta_title[:70]}")
+print(f"[INFO]    Meta Description: {meta_desc[:80]}")
+print(f"[INFO]    URL Slug:         {meta_slug}")
+print(f"[INFO]  Clean article written to ${CLEAN_MD}")
+PYEOF
+
+# --- Read extracted meta into bash -------------------------------------------
+EXTRACTED_TITLE=""
+EXTRACTED_DESC=""
+EXTRACTED_SLUG=""
+
+if [ -f /tmp/wp-meta.txt ]; then
+  while IFS='=' read -r key value; do
+    case "$key" in
+      META_TITLE) EXTRACTED_TITLE="$value" ;;
+      META_DESC)  EXTRACTED_DESC="$value"  ;;
+      META_SLUG)  EXTRACTED_SLUG="$value"  ;;
+    esac
+  done < /tmp/wp-meta.txt
+  rm -f /tmp/wp-meta.txt
+fi
+
+# --- Resolve final title (CLI → META block → H1 → date fallback) -------------
+if [ -z "$TITLE" ]; then
+  if [ -n "$EXTRACTED_TITLE" ]; then
+    TITLE="$EXTRACTED_TITLE"
+    log_info "Title source: META block SEO Title"
+  else
+    TITLE=$(grep -m 1 "^# " "$CLEAN_MD" 2>/dev/null | sed 's/^# //' || echo "")
+    [ -z "$TITLE" ] && TITLE="Crypto News - $(date +%Y-%m-%d)"
+    log_info "Title source: H1 heading (META block not found)"
+  fi
+fi
+
+# --- Resolve final excerpt (CLI → META description → first 3 body lines) -----
+if [ -z "$EXCERPT" ]; then
+  if [ -n "$EXTRACTED_DESC" ]; then
+    EXCERPT="$EXTRACTED_DESC"
+    log_info "Excerpt source: META block Meta Description"
+  else
+    EXCERPT=$(grep -v "^#" "$CLEAN_MD" 2>/dev/null | grep -v "^[[:space:]]*$" | \
+              head -3 | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-300 || echo "")
+    log_info "Excerpt source: first body paragraphs"
+  fi
+fi
+
+SLUG="$EXTRACTED_SLUG"
+
+log_info "Final Title:   $TITLE"
+log_info "Final Slug:    ${SLUG:-<WordPress auto-generate>}"
+log_info "Post Status:   $POST_STATUS | Category ID: $CATEGORY_ID"
+
+# =============================================================================
+# PHASE 1: Upload Featured Image
+# =============================================================================
+MEDIA_ID=0
+
+if [ -f "$IMAGE_PATH" ]; then
+  FILE_SIZE=$(stat -c%s "$IMAGE_PATH" 2>/dev/null || stat -f%z "$IMAGE_PATH" 2>/dev/null || echo 0)
+  if [ "$FILE_SIZE" -gt 51200 ]; then
+    log_info "Uploading featured image ($FILE_SIZE bytes)..."
+
+    MEDIA_RESPONSE=$(curl --silent --write-out "\n__STATUS__%{http_code}" \
+      --user "${WP_USER}:${WP_PASS}" \
+      --request POST "${WP_API}/media" \
+      --header "Content-Disposition: attachment; filename=crypto-feature.jpg" \
+      --header "Content-Type: image/jpeg" \
+      --data-binary @"$IMAGE_PATH" \
+      --max-time 60)
+
+    MEDIA_BODY=$(echo "$MEDIA_RESPONSE" | sed '$d')
+    MEDIA_STATUS=$(echo "$MEDIA_RESPONSE" | tail -1 | sed 's/__STATUS__//')
+    log_info "Image upload: HTTP $MEDIA_STATUS"
+
+    if [ "$MEDIA_STATUS" = "201" ] || [ "$MEDIA_STATUS" = "200" ]; then
+      MEDIA_ID=$(echo "$MEDIA_BODY" | python3 -c \
+        "import json,sys; print(json.load(sys.stdin).get('id', 0))" 2>/dev/null || echo 0)
+      log_info "Image uploaded. Media ID: $MEDIA_ID"
+    elif [ "$MEDIA_STATUS" = "401" ] || [ "$MEDIA_STATUS" = "403" ]; then
+      log_error "Image upload auth error (HTTP $MEDIA_STATUS). Proceeding without image."
+    else
+      log_error "Image upload failed (HTTP $MEDIA_STATUS). Proceeding without featured image."
+    fi
+  else
+    log_error "Image file too small ($FILE_SIZE bytes). Skipping."
+  fi
+else
+  log_info "No image at '$IMAGE_PATH'. Publishing without featured image."
+fi
+
+# =============================================================================
+# PHASE 2: Convert Clean Markdown → HTML
+# =============================================================================
+log_info "Converting clean article to HTML..."
+
+if command -v pandoc &>/dev/null; then
+  if pandoc "$CLEAN_MD" -t html -o "$HTML_PATH" 2>/dev/null; then
+    log_info "Pandoc conversion successful."
+  else
+    log_error "Pandoc failed. Using raw content fallback."
+    cp "$CLEAN_MD" "$HTML_PATH"
+  fi
+else
+  log_error "Pandoc not installed. Using raw markdown as content."
+  cp "$CLEAN_MD" "$HTML_PATH"
+fi
+
+# =============================================================================
+# PHASE 3: Create WordPress Post (with retry + exponential backoff)
+# =============================================================================
+log_info "Creating WordPress draft post (max $MAX_RETRIES attempts)..."
+
+POST_URL=""
+POST_ID=""
+RETRY_DELAY=5
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+  log_info "Post attempt $attempt of $MAX_RETRIES..."
+
+  PAYLOAD=$(python3 - <<PYEOF
+import json
+
+title    = """${TITLE}"""
+excerpt  = """${EXCERPT}"""
+slug     = """${SLUG}"""
+media_id = int("${MEDIA_ID}") if "${MEDIA_ID}" else 0
+
+with open("${HTML_PATH}", "r", encoding="utf-8") as f:
+    content = f.read()
+
+data = {
+    "title":      title,
+    "content":    content,
+    "excerpt":    excerpt,
+    "status":     "${POST_STATUS}",
+    "categories": [${CATEGORY_ID}]
+}
+
+if slug:
+    data["slug"] = slug
+
+if media_id > 0:
+    data["featured_media"] = media_id
+
+print(json.dumps(data))
+PYEOF
+)
+
+  POST_RESPONSE=$(curl --silent --write-out "\n__STATUS__%{http_code}" \
+    --user "${WP_USER}:${WP_PASS}" \
+    --request POST "${WP_API}/posts" \
+    --header "Content-Type: application/json" \
+    --data "$PAYLOAD" \
+    --max-time 45)
+
+  POST_BODY=$(echo "$POST_RESPONSE" | sed '$d')
+  POST_HTTP=$(echo "$POST_RESPONSE" | tail -1 | sed 's/__STATUS__//')
+  log_info "Response: HTTP $POST_HTTP"
+
+  # Fatal errors — do not retry
+  [ "$POST_HTTP" = "401" ] && fatal "Auth failed (401). Check username and Application Password. Not retrying."
+  [ "$POST_HTTP" = "403" ] && fatal "Permission denied (403). User needs Author/Editor role. Not retrying."
+  [ "$POST_HTTP" = "404" ] && fatal "API not found (404). REST API may be disabled at $WP_URL. Not retrying."
+  [ "$POST_HTTP" = "422" ] && fatal "Invalid post data (422). Body: ${POST_BODY:0:300}. Not retrying."
+
+  # Success
+  if [ "$POST_HTTP" = "201" ]; then
+    POST_URL=$(echo "$POST_BODY" | python3 -c \
+      "import json,sys; print(json.load(sys.stdin).get('link',''))" 2>/dev/null || echo "")
+    POST_ID=$(echo "$POST_BODY" | python3 -c \
+      "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+    if [ -n "$POST_URL" ]; then
+      log_info "Post created! ID: $POST_ID | URL: $POST_URL"
+      break
+    else
+      log_error "HTTP 201 but no link in response. Body: ${POST_BODY:0:200}"
+    fi
+  fi
+
+  # Transient — retry with backoff
+  log_error "Transient error (HTTP $POST_HTTP). Retrying in ${RETRY_DELAY}s..."
+  sleep $RETRY_DELAY
+  RETRY_DELAY=$((RETRY_DELAY * 2))
+done
+
+# =============================================================================
+# PHASE 4: Validate & Write Result
+# =============================================================================
+if [ -z "$POST_URL" ]; then
+  fatal "Failed after $MAX_RETRIES attempts. Last HTTP: $POST_HTTP. Body: ${POST_BODY:0:300}"
+fi
+
+if ! echo "$POST_URL" | grep -q "^http"; then
+  fatal "Invalid post URL returned: '$POST_URL'"
+fi
+
+echo "$POST_URL" > "$RESULT_FILE"
+
+log_info "================================================"
+log_info "SUCCESS — WordPress draft saved!"
+log_info "  Post ID:   $POST_ID"
+log_info "  Post URL:  $POST_URL"
+log_info "  Title:     $TITLE"
+log_info "  Slug:      ${SLUG:-<auto>}"
+log_info "  Image ID:  $MEDIA_ID"
+log_info "  Status:    $POST_STATUS (draft)"
+log_info "================================================"
+log_info "Clean article: $CLEAN_MD"
+log_info "Review draft:  $POST_URL?preview=true"
+echo "SUCCESS: $POST_URL"
+exit 0

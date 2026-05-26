@@ -18,7 +18,8 @@ Follow these rules for every article. Interior structure (how many sections, hea
 - **KEYWORDS:** Primary keyword in H1 (first 5 words); in first 100 words; in at least one H2 and in Conclusion. Use secondary keywords in H2/H3 where natural.
 
 **Length**
-- **Word count:** Body **1000–1200** words (aim **1100**). Count body only; META, Sources, and `[Word Count:]` line are not counted.
+- **Word count:** Body **1000–1200** words (aim **1100**). Count body only; META, Sources, and `[Word Count:]` line are not counted. Body includes hook, H2 sections, Conclusion, and FAQs.
+- **Verify before footer:** Run `python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/count_article_body_words.py --path <raw.md>`. The `[Word Count: N]` line must equal the script's `BODY_WORDS` exactly — never guess.
 
 **Fixed section order**
 ```

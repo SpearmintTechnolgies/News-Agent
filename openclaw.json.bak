@@ -1,0 +1,288 @@
+{
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "project-133cdfbf-a67a-492b-91c",
+    "GOOGLE_CLOUD_LOCATION": "us-central1",
+    "AWS_BEARER_TOKEN_BEDROCK": "ABSKQmVkcm9ja0FQSUtleS1iZHM5LWF0LTk3MjQ2MTIxODAzNDpHU1NHeFFmZlpNM2I5NTZidlNvdEZ4SkNIbzJZUWlGZTdVdWRPQTM3QmVoZ214SzVUc1pOUURrODdsMD0="
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/home/bhard/.openclaw/workspace",
+      "models": {},
+      "thinkingDefault": "medium",
+      "model": {
+        "primary": "local-bifrost/gpt-5.4-mini",
+        "fallbacks": [
+          "local-bifrost/gpt-5.4",
+          "local-bifrost/gpt-5.3-codex"
+        ]
+      },
+      "contextInjection": "always",
+      "bootstrapMaxChars": 50000,
+      "bootstrapTotalMaxChars": 300000
+    },
+    "list": [
+      {
+        "id": "main",
+        "workspace": "/home/bhard/.openclaw/workspace",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4-mini"
+        }
+      },
+      {
+        "id": "orchestrator",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator",
+        "subagents": {
+          "allowAgents": [
+            "researcher",
+            "writer",
+            "chart-generator",
+            "creator",
+            "publisher",
+            "wp-publisher"
+          ]
+        },
+        "model": {
+          "primary": "local-bifrost/gpt-5.4"
+        },
+        "tools": {
+          "profile": "coding",
+          "alsoAllow": [
+            "agents_list",
+            "nodes",
+            "message",
+            "gateway",
+            "browser",
+            "canvas",
+            "tts",
+            "sessions_spawn",
+            "sessions_yield",
+            "subagents"
+          ]
+        }
+      },
+      {
+        "id": "researcher",
+        "workspace": "/home/bhard/.openclaw/workspace-researcher",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4"
+        }
+      },
+      {
+        "id": "writer",
+        "workspace": "/home/bhard/.openclaw/workspace-writer",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4"
+        }
+      },
+      {
+        "id": "creator",
+        "workspace": "/home/bhard/.openclaw/workspace-creator",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4-mini"
+        }
+      },
+      {
+        "id": "publisher",
+        "workspace": "/home/bhard/.openclaw/workspace-publisher",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4-mini"
+        }
+      },
+      {
+        "id": "wp-publisher",
+        "workspace": "/home/bhard/.openclaw/workspace-wp-publisher",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4-mini"
+        }
+      },
+      {
+        "id": "chart-generator",
+        "workspace": "/home/bhard/.openclaw/workspace-chart-generator",
+        "model": {
+          "primary": "local-bifrost/gpt-5.4-mini"
+        }
+      }
+    ]
+  },
+  "models": {
+    "mode": "replace",
+    "providers": {
+      "local-bifrost": {
+        "baseUrl": "http://172.30.176.1:8080/v1",
+        "api": "openai-completions",
+        "apiKey": "dummy",
+        "models": [
+          {
+            "id": "gpt-5.4-mini",
+            "name": "GPT-5.4 Mini (Bifrost Azure)",
+            "contextWindow": 128000,
+            "maxTokens": 16384,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true
+          },
+          {
+            "id": "gpt-5.4",
+            "name": "GPT-5.4 (Bifrost Azure)",
+            "contextWindow": 200000,
+            "maxTokens": 32768,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true
+          },
+          {
+            "id": "gpt-5.3-codex",
+            "name": "GPT-5.3 Codex (Bifrost Azure)",
+            "contextWindow": 128000,
+            "maxTokens": 16384,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true
+          }
+        ]
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "7ef54bbf642eb84c84cd24a14d36ff03934dcef364617b8b"
+    },
+    "port": 18789,
+    "bind": "loopback",
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "controlUi": {
+      "allowInsecureAuth": true
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "contacts.add",
+        "calendar.add",
+        "reminders.add",
+        "sms.send",
+        "sms.search"
+      ]
+    }
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "tools": {
+    "profile": "coding",
+    "exec": {
+      "security": "full",
+      "ask": "off"
+    },
+    "web": {
+      "search": {
+        "provider": "searxng",
+        "enabled": true
+      }
+    }
+  },
+  "auth": {
+    "profiles": {
+      "openrouter:default": {
+        "provider": "openrouter",
+        "mode": "api_key"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "searxng": {
+        "enabled": true,
+        "config": {
+          "webSearch": {
+            "baseUrl": "https://paulgo.io"
+          }
+        }
+      },
+      "amazon-bedrock": {
+        "enabled": false
+      },
+      "openrouter": {
+        "enabled": true
+      },
+      "browser": {
+        "enabled": true
+      }
+    }
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "session-memory": {
+          "enabled": true
+        },
+        "boot-md": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "wizard": {
+    "lastRunAt": "2026-05-05T10:55:05.791Z",
+    "lastRunVersion": "2026.4.23",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.4.23",
+    "lastTouchedAt": "2026-05-18T10:25:57.028Z"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "8788660586:AAGnipTMSAWK1uSBI-62UIyGIlXiXKNsZS0",
+      "groupPolicy": "open",
+      "groups": {
+        "*": {
+          "requireMention": true
+        }
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "orchestrator",
+      "match": {
+        "channel": "telegram"
+      }
+    }
+  ],
+  "skills": {
+    "install": {
+      "nodeManager": "npm"
+    }
+  }
+}

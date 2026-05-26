@@ -1,0 +1,37 @@
+{
+  "entries": {
+    "/home/bhard/.openclaw/openclaw.json": {
+      "lastKnownGood": {
+        "hash": "ffef07a585e0287d81b0a51d4b61d9c77c5b3fd3a1321cd87a6594ef7e924a2b",
+        "bytes": 7259,
+        "mtimeMs": 1779772170579.6035,
+        "ctimeMs": 1779772170579.6035,
+        "dev": "2080",
+        "ino": "331937",
+        "mode": 33152,
+        "nlink": 1,
+        "uid": 1000,
+        "gid": 1000,
+        "hasMeta": true,
+        "gatewayMode": "local",
+        "observedAt": "2026-05-26T05:11:03.590Z"
+      },
+      "lastObservedSuspiciousSignature": null,
+      "lastPromotedGood": {
+        "hash": "ffef07a585e0287d81b0a51d4b61d9c77c5b3fd3a1321cd87a6594ef7e924a2b",
+        "bytes": 7259,
+        "mtimeMs": 1779772170579.6035,
+        "ctimeMs": 1779772170579.6035,
+        "dev": "2080",
+        "ino": "331937",
+        "mode": 33152,
+        "nlink": 1,
+        "uid": 1000,
+        "gid": 1000,
+        "hasMeta": true,
+        "gatewayMode": "local",
+        "observedAt": "2026-05-26T05:11:03.590Z"
+      }
+    }
+  }
+}

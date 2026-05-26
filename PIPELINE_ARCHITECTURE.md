@@ -124,8 +124,7 @@ Every pipeline execution creates one isolated run-bundle under `/tmp/crypto-run-
 |-------|-------|--------|
 | Scout | RSS feeds | `research/raw.json` |
 | validate_research.py | raw.json | `research/validated.json` |
-| pick_article_structure.py | validated.json | `research/structure.json` |
-| Quill | validated + structure | `article/raw.md` |
+| Quill | validated.json | `article/raw.md` |
 | sync_article_from_raw.py | raw.md + validated | `article/final.md` |
 | pandoc | with-image.md | `article/article.docx` |
 | WordPress / Drive | article_final / docx | `publish/*.json` |

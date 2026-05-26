@@ -129,8 +129,8 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/sync_article_from_raw
 ```
    - Prints `ARTICLE_SYNCED: <N> words` → proceed (word count may be up to writer max + 100 buffer; that is OK).
    - Prints `ARTICLE_STALE: H1 topic mismatch` → topic repair (does not use up length repair). Retry writer with the message below.
-   - Prints `ARTICLE_INVALID: Too short/long` → length repair only if over writer max + buffer (see word count policy). Allowed even after a topic repair.
-   - **Writer retries:** initial spawn = attempt 1. Max **2 repairs per failure type** (topic/source stale, length, structure, anchors). Stop only if the **same** error repeats **three** times. Topic repair does **not** block a later length repair.
+   - Prints `ARTICLE_INVALID: Too short/long` → length repair (see below; inject measured `NNN` from sync output). Allowed even after a topic repair.
+   - **Writer retries:** initial spawn = attempt 1. Max **2 repairs per failure type**. **Length, structure, and anchor failures are counted separately.** Stop only when the **same validator type** fails **three times in a row** after repairs. Topic repair does **not** block a later length repair.
 
 **C. Structural and anchor validation:**
 ```bash
@@ -151,31 +151,58 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/verify_artifacts.py \
 
 **If any validator fails — retry rules:**
 
-Every repair message **must** begin with the full writer contract. Do not send a one-liner. Use the exact format below, replacing `[REASON]` with the specific failure:
+Every repair message **must** include the full writer contract below. Do not send a one-liner.
+
+**Shared contract block** (append to every repair):
 
 ```
-REPAIR REQUIRED — [REASON].
-
 Re-read $RUN_DIR/research/validated.json and COINOGRAPHY_TEMPLATE.md before writing.
 
 Full contract (all rules apply — do not skip any):
 - H1: SEO title using primary_keyword from validated.json; topic must clearly match research.
 - Structure: within borders — H2 body sections 2-4, H3 subsections 3-6, FAQ items 3-6; ## Conclusion then ## FAQs last before Sources.
 - Links: exactly 2 distinct source anchors in hook/first H2 only (URLs from source_urls in validated.json).
-- Footer: **Sources:** with URL bullets; final line [Word Count: NNNN] (body words only, footers not counted).
+- Footer: **Sources:** with URL bullets; final line [Word Count: NNNN] — N must come from count_article_body_words.py (never guess).
 - Length: 1000–1200 body words (aim 1100).
 - META: SEO Title ≤55 chars, URL Slug ≤70 chars, Meta Description ≤155 chars (count before writing).
+- Before SUCCESS: python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/count_article_body_words.py --path $RUN_DIR/article/raw.md
 - Write the full article to $RUN_DIR/article/raw.md. Yield SUCCESS only.
 ```
 
-Specific `[REASON]` per failure type:
-- `ARTICLE_STALE: H1 topic mismatch` → reason: `Your H1 title does not match the research topic. Use primary_keyword from validated.json as the basis for your H1.`
-- `ARTICLE_INVALID: Too long` → reason: `Your article body exceeds 1200 words (writer maximum). Compress toward 1100 words. Tighten sentences; do not cut required sections.`
-- `ARTICLE_INVALID: Too short` → reason: `Your article body is below 1000 words. Expand with more detail, analysis, or context from aggregated_raw_content.`
-- Wrong structure / section order → reason: `Fix structure per COINOGRAPHY_TEMPLATE.md: H2 count 2-4, H3 count 3-6, FAQ count 3-6, Conclusion before FAQs, FAQs before Sources.`
-- Too many/duplicate source links → reason: `Your article has too many or duplicate source links. Use exactly 2 distinct source anchors, in hook/first H2 only.`
+**A. Topic repair** (`ARTICLE_STALE: H1 topic mismatch`):
+```
+REPAIR REQUIRED — Your H1 title does not match the research topic. Use primary_keyword from validated.json as the basis for your H1.
+[paste shared contract]
+```
 
-Max 2 repairs per issue type. If the same error repeats three times after repairs → stop and report.
+**B. Length repair** (`ARTICLE_INVALID: Too long` or `Too short`) — **you MUST paste the measured count from sync**, e.g. `Too long (1667 body words …)`:
+```
+REPAIR REQUIRED — Length. Validator measured NNN body words (target 1100; min 1000 max 1200).
+Adjust by approximately (1100 - NNN) words. Run count_article_body_words.py before SUCCESS; put the measured count in [Word Count: N].
+[paste shared contract]
+```
+
+**C. Structure or anchor repair AFTER sync passed** (`ARTICLE_SYNCED` already printed for this draft; `final.md` is the baseline):
+
+Use **REVISION MODE** (writer reads `final.md`):
+```
+REVISION MODE — Structure/anchor only.
+Read $RUN_DIR/article/final.md (validated baseline).
+Fix only: [paste exact validator errors from validate_article_structure.py or validate_anchor_links.py].
+Do NOT full-rewrite. Preserve body length within ±50 words of the baseline unless fixing anchors requires minimal edits.
+[paste shared contract]
+```
+
+**D. Structure or anchor repair BEFORE any sync pass** (sync never passed on this draft):
+
+```
+REPAIR REQUIRED — Structure/anchor.
+Read $RUN_DIR/article/raw.md and fix only: [paste exact validator errors].
+Do NOT full-rewrite from scratch. Stay within 1000–1200 body words.
+[paste shared contract]
+```
+
+Max 2 repairs per issue type (length / structure / anchors / topic each separate). If the **same validator type** fails three times in a row → stop and report.
 
 5. Update manifest:
 ```bash

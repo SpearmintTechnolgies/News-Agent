@@ -20,7 +20,6 @@
 #     research/
 #       raw.json            (Scout output)
 #       validated.json      (Step 1 validator output)
-#       structure.json      (pick_article_structure output)
 #     article/
 #       raw.md              (Quill output)
 #       final.md            (sync + sanitize output)
@@ -53,7 +52,6 @@ mkdir -p \
 touch \
   "${RUN_DIR}/research/raw.json" \
   "${RUN_DIR}/research/validated.json" \
-  "${RUN_DIR}/research/structure.json" \
   "${RUN_DIR}/article/raw.md" \
   "${RUN_DIR}/article/final.md" \
   "${RUN_DIR}/article/with-image.md" \
@@ -81,7 +79,6 @@ manifest = {
     "artifacts": {
         "research_raw":       f"{run_dir}/research/raw.json",
         "research_validated": f"{run_dir}/research/validated.json",
-        "article_structure":  f"{run_dir}/research/structure.json",
         "article_raw":        f"{run_dir}/article/raw.md",
         "article_final":      f"{run_dir}/article/final.md",
         "article_with_image": f"{run_dir}/article/with-image.md",
@@ -116,7 +113,6 @@ _symlink() {
 
 _symlink "/tmp/research.json"           "${RUN_DIR}/research/validated.json"
 _symlink "/tmp/researcher-raw.txt"      "${RUN_DIR}/research/raw.json"
-_symlink "/tmp/article-structure.json"  "${RUN_DIR}/research/structure.json"
 _symlink "/tmp/crypto-article-raw.md"   "${RUN_DIR}/article/raw.md"
 _symlink "/tmp/crypto-article.md"       "${RUN_DIR}/article/final.md"
 _symlink "/tmp/crypto-with-image.md"    "${RUN_DIR}/article/with-image.md"

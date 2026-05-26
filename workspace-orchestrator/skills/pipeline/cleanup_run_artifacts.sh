@@ -43,7 +43,6 @@ fi
 LEGACY_PATHS=(
     "/tmp/research.json"
     "/tmp/researcher-raw.txt"
-    "/tmp/article-structure.json"
     "/tmp/crypto-article-raw.md"
     "/tmp/crypto-article.md"
     "/tmp/crypto-with-image.md"

@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+# =============================================================================
+# generate.sh — Leonardo AI Image Generation Skill for Pixel (Creator Agent)
+# =============================================================================
+# Usage:
+#   bash generate.sh "<IMAGE PROMPT>"
+#
+# Output:
+#   Exit 0 → /tmp/image-result.txt contains the file path
+#   Exit 1 → /tmp/image-error.log contains the human-readable error reason
+# =============================================================================
+
+set -euo pipefail
+
+# --- Config ------------------------------------------------------------------
+PROMPT="${1:-}"
+API_KEY="dddd08ff-d8c3-4fec-98d9-9e8c060f4619"
+MODEL_ID="6bef9f1b-29cb-40c7-b9df-32b51c1f67d3"  # Leonardo Diffusion XL — uses apiPaidTokens
+API_BASE="https://cloud.leonardo.ai/api/rest/v1"
+OUTPUT_PATH="/tmp/crypto-feature.jpg"
+RESULT_FILE="/tmp/image-result.txt"
+ERROR_FILE="/tmp/image-error.log"
+LOGO_PATH="$HOME/.openclaw/assets/logo.png"
+MAX_GENERATE_RETRIES=3
+POLL_ATTEMPTS=6
+POLL_INTERVAL=10  # seconds between polls (6 x 10s = 60s max)
+
+# --- Helpers -----------------------------------------------------------------
+log_error() {
+  echo "[ERROR] $*" | tee -a "$ERROR_FILE"
+}
+
+log_warn() {
+  echo "[WARNING] $*"
+}
+
+log_info() {
+  echo "[INFO]  $*"
+}
+
+fatal() {
+  log_error "$*"
+  exit 1
+}
+
+# --- Validate Input ----------------------------------------------------------
+rm -f "$ERROR_FILE" "$RESULT_FILE"
+
+if [ -z "$PROMPT" ]; then
+  fatal "No prompt provided. Usage: bash generate.sh \"<prompt>\""
+fi
+
+if [ ${#PROMPT} -gt 1000 ]; then
+  fatal "Prompt too long (${#PROMPT} chars). Max 1000 characters."
+fi
+
+log_info "Starting image generation for prompt: ${PROMPT:0:80}..."
+
+# --- Phase 1: Submit Generation Request (with retry + backoff) ---------------
+GENERATION_ID=""
+RETRY_DELAY=5
+
+for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
+  log_info "Generation attempt $attempt of $MAX_GENERATE_RETRIES..."
+
+  HTTP_RESPONSE=$(curl --silent --write-out "\n__HTTP_STATUS__%{http_code}" \
+    --request POST \
+    --url "$API_BASE/generations" \
+    --header "accept: application/json" \
+    --header "authorization: Bearer $API_KEY" \
+    --header "content-type: application/json" \
+    --data "{
+      \"prompt\": $(echo "$PROMPT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))'),
+      \"modelId\": \"$MODEL_ID\",
+      \"num_images\": 1,
+      \"width\": 1024,
+      \"height\": 576
+    }" \
+    --max-time 30)
+
+  HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+  HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -1 | sed 's/__HTTP_STATUS__//')
+
+  log_info "API response status: $HTTP_STATUS"
+
+  # --- Error Classification ---
+  if [ "$HTTP_STATUS" = "401" ]; then
+    fatal "Authentication failed (401). API key is invalid or expired. Not retrying."
+  fi
+
+  if [ "$HTTP_STATUS" = "403" ]; then
+    fatal "Access forbidden (403). Account may be suspended or quota exceeded. Not retrying."
+  fi
+
+  if [ "$HTTP_STATUS" = "422" ]; then
+    fatal "Invalid request (422). The prompt may contain disallowed content. Body: $HTTP_BODY. Not retrying."
+  fi
+
+  if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
+    # Success — extract generationId
+    GENERATION_ID=$(echo "$HTTP_BODY" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+gen = data.get('sdGenerationJob', {})
+gid = gen.get('generationId', '')
+print(gid)
+" 2>/dev/null || echo "")
+
+    if [ -n "$GENERATION_ID" ]; then
+      log_info "Generation submitted. ID: $GENERATION_ID"
+      break
+    else
+      log_error "Got HTTP 200 but no generationId in response. Body: ${HTTP_BODY:0:200}"
+    fi
+  fi
+
+  # Transient failure (5xx, 429, network issue) — retry with backoff
+  log_error "Transient error (status=$HTTP_STATUS). Waiting ${RETRY_DELAY}s before retry..."
+  sleep $RETRY_DELAY
+  RETRY_DELAY=$((RETRY_DELAY * 2))  # Exponential backoff: 5s, 10s, 20s
+done
+
+if [ -z "$GENERATION_ID" ]; then
+  fatal "Failed to submit generation after $MAX_GENERATE_RETRIES attempts. Giving up."
+fi
+
+# --- Phase 2: Poll for Completion (up to 60 seconds) -------------------------
+log_info "Polling for generation completion (max ${POLL_ATTEMPTS} polls x ${POLL_INTERVAL}s = $((POLL_ATTEMPTS * POLL_INTERVAL))s)..."
+
+IMAGE_URL=""
+for poll in $(seq 1 $POLL_ATTEMPTS); do
+  sleep $POLL_INTERVAL
+
+  log_info "Poll $poll of $POLL_ATTEMPTS..."
+
+  # Pipe curl directly into python — avoids sed/bash-variable corruption of URL
+  POLL_RESULT=$(curl --silent \
+    --request GET \
+    --url "$API_BASE/generations/$GENERATION_ID" \
+    --header "authorization: Bearer $API_KEY" \
+    --max-time 15)
+
+  IMAGE_URL=$(echo "$POLL_RESULT" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+gen = data.get('generations_by_pk', {})
+status = gen.get('status', '')
+images = gen.get('generated_images', [])
+if status == 'COMPLETE' and images:
+    print(images[0].get('url', '').strip())
+" 2>/dev/null || echo "")
+
+  if [ -n "$IMAGE_URL" ]; then
+    log_info "Image ready! URL length: ${#IMAGE_URL} chars"
+    log_info "Image URL: $IMAGE_URL"
+    break
+  else
+    GEN_STATUS=$(echo "$POLL_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('generations_by_pk',{}).get('status','unknown'))" 2>/dev/null || echo 'unknown')
+    log_info "Image not ready yet. Generation status: $GEN_STATUS"
+  fi
+done
+
+if [ -z "$IMAGE_URL" ]; then
+  fatal "Image generation timed out after $((POLL_ATTEMPTS * POLL_INTERVAL)) seconds. GenerationId: $GENERATION_ID"
+fi
+
+
+# --- Phase 3: Download & Validate --------------------------------------------
+# IMPORTANT: Leonardo's CDN (CloudFlare) blocks the default curl User-Agent.
+# Must send browser-like headers or the CDN returns a rejection body.
+#
+# IMPORTANT: OUTPUT_PATH may be a symlink (e.g. /tmp/crypto-feature.jpg ->
+# /tmp/crypto-run-*/feature.jpg). curl -o writes through the symlink correctly,
+# but stat on the symlink inode reports ~43 bytes (path length), not image size.
+# Always download to a temp file, then copy to the resolved real path.
+EFFECTIVE_OUTPUT="$OUTPUT_PATH"
+if [ -L "$OUTPUT_PATH" ]; then
+  EFFECTIVE_OUTPUT=$(readlink -f "$OUTPUT_PATH")
+fi
+mkdir -p "$(dirname "$EFFECTIVE_OUTPUT")" 2>/dev/null || true
+
+TEMP_DOWNLOAD="/tmp/leonardo-dl-${GENERATION_ID}.jpg"
+log_info "Downloading image to $EFFECTIVE_OUTPUT (via $TEMP_DOWNLOAD)..."
+
+HTTP_DL_STATUS=$(curl --silent --location --write-out "%{http_code}" \
+  --output "$TEMP_DOWNLOAD" \
+  --max-time 60 \
+  -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+  -H "Accept: image/webp,image/apng,image/*,*/*;q=0.8" \
+  -H "Accept-Language: en-US,en;q=0.9" \
+  -H "Referer: https://app.leonardo.ai/" \
+  "$IMAGE_URL")
+
+if [ "$HTTP_DL_STATUS" != "200" ]; then
+  rm -f "$TEMP_DOWNLOAD"
+  fatal "Download failed with HTTP $HTTP_DL_STATUS. URL: $IMAGE_URL"
+fi
+
+FILE_SIZE=$(stat -c%s "$TEMP_DOWNLOAD" 2>/dev/null || stat -f%z "$TEMP_DOWNLOAD" 2>/dev/null || echo "0")
+if [ "$FILE_SIZE" -lt 51200 ]; then
+  log_error "CDN body preview: $(head -c 200 "$TEMP_DOWNLOAD" 2>/dev/null | tr -d '\0')"
+  rm -f "$TEMP_DOWNLOAD"
+  fatal "Downloaded file is too small (${FILE_SIZE} bytes). URL: $IMAGE_URL"
+fi
+
+cp -f "$TEMP_DOWNLOAD" "$EFFECTIVE_OUTPUT"
+rm -f "$TEMP_DOWNLOAD"
+
+# Validate it's actually a JPEG
+FILE_TYPE=$(file -b "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "unknown")
+if ! echo "$FILE_TYPE" | grep -qi "JPEG\|jpg"; then
+  log_warn "WARNING: File type check returned: $FILE_TYPE — may not be a valid JPEG, but proceeding."
+fi
+
+log_info "Image downloaded successfully. Size: ${FILE_SIZE} bytes. Type: ${FILE_TYPE:0:30}"
+
+
+# --- Phase 4: Logo Stamping (non-fatal) --------------------------------------
+if command -v convert &>/dev/null; then
+  if [ -f "$LOGO_PATH" ]; then
+    log_info "Stamping logo onto image..."
+    TEMP_LOGO="/tmp/temp_logo_$$.png"
+
+    if convert "$LOGO_PATH" -resize 150x "$TEMP_LOGO" 2>/dev/null && \
+       composite -gravity SouthEast -geometry +20+20 "$TEMP_LOGO" "$EFFECTIVE_OUTPUT" "$EFFECTIVE_OUTPUT" 2>/dev/null; then
+      log_info "Logo stamped successfully."
+    else
+      log_warn "WARNING: Logo stamping failed — image saved without watermark. Continuing."
+    fi
+
+    rm -f "$TEMP_LOGO"
+  else
+    log_warn "WARNING: Logo not found at $LOGO_PATH — skipping watermark. Continuing."
+  fi
+else
+  log_warn "WARNING: ImageMagick (convert) not installed — skipping watermark. Continuing."
+fi
+
+# --- Phase 5: Final Verification & Output ------------------------------------
+FINAL_SIZE=$(stat -c%s "$EFFECTIVE_OUTPUT" 2>/dev/null || stat -f%z "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "0")
+log_info "Final image at $EFFECTIVE_OUTPUT — size: ${FINAL_SIZE} bytes"
+
+echo "$EFFECTIVE_OUTPUT" > "$RESULT_FILE"
+log_info "Done. Result written to $RESULT_FILE"
+echo "SUCCESS: $EFFECTIVE_OUTPUT"
+exit 0

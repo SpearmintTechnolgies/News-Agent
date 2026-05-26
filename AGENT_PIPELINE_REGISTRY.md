@@ -1,6 +1,6 @@
 # Agent Pipeline Registry
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-05-25    
 **Purpose:** Canonical living reference for the OpenClaw crypto news pipeline — all agents, subagents, prompts, tools, skills, and pipeline steps.  
 **Config source of truth:** [`openclaw.json`](openclaw.json)
 
@@ -41,8 +41,7 @@ flowchart TD
     S4 --> S5[Step5_user_confirmation]
     S5 -->|yes| S6[Step6_Scribe_wp_publisher]
     S5 -->|no| DONE[Pipeline_complete]
-    S6 --> CardSend[build_and_send_card.py]
-    CardSend --> DONE
+    S6 --> DONE
 ```
 
 **Delegation:** `sessions_spawn` + `sessions_yield` only. Do **not** use `openclaw agent ... --deliver` in bash.
@@ -57,9 +56,9 @@ flowchart TD
 
 | Setting | Value |
 |---------|-------|
-| Default model | `local-bifrost/gemini-3.5-flash` |
+| Default model | `local-bifrost/gpt-5.4-mini` |
 | Default workspace | `/home/bhard/.openclaw/workspace` |
-| LLM backend | Bifrost Vertex proxy — Gemini via `shreyadelhi-vertex` (`local-bifrost` in `openclaw.json`) |
+| LLM backend | Bifrost Azure proxy (`local-bifrost` provider in `openclaw.json`) |
 | Tools profile | `coding` |
 | Exec security | `full`, `ask: off` |
 | Context injection | `always` |
@@ -67,31 +66,20 @@ flowchart TD
 | Hooks | `session-memory`, `boot-md` |
 | Gateway | Local port 18789, token auth |
 
-### LLM models (Gemini via Bifrost Vertex)
-
-| Model ID | Tier | Used by |
-|----------|------|---------|
-| `gemini-3.1-pro-preview` | Smartest | orchestrator |
-| `gemini-2.5-pro` | Smart | writer |
-| `gemini-3.5-flash` | Fast | main, researcher, creator, publisher, wp-publisher, chart-generator (default primary) |
-| `gemini-2.5-flash` | Fallback | default fallback chain |
-
-Bifrost key: `shreyadelhi-vertex` (Vertex only).
-
 ---
 
 ## Agent registry matrix
 
 | Agent ID | Persona | Workspace | Model | Pipeline step |
 |----------|---------|-----------|-------|---------------|
-| `main` | (default) | `workspace/` | gemini-3.5-flash | Not in pipeline |
-| `orchestrator` | Nexus | `workspace-orchestrator/` | gemini-3.1-pro-preview | Controller (Steps 0–6) |
-| `researcher` | Scout | `workspace-researcher/` | gemini-3.5-flash | Step 1 — Research |
-| `writer` | Quill | `workspace-writer/` | gemini-2.5-pro | Step 2 — Write |
-| `chart-generator` | Pixel | `workspace-chart-generator/` | gemini-3.5-flash | Step 2.5 — Chart (optional) |
-| `creator` | Pixel | `workspace-creator/` | gemini-3.5-flash | Step 3 — Feature image |
-| `publisher` | Press | `workspace-publisher/` | gemini-3.5-flash | Step 4 — Google Drive |
-| `wp-publisher` | Scribe | `workspace-wp-publisher/` | gemini-3.5-flash | Step 6 — WordPress (user-gated) |
+| `main` | (default) | `workspace/` | gpt-5.4-mini | Not in pipeline |
+| `orchestrator` | Nexus | `workspace-orchestrator/` | gpt-5.4 | Controller (Steps 0–6) |
+| `researcher` | Scout | `workspace-researcher/` | gpt-5.4 | Step 1 — Research |
+| `writer` | Quill | `workspace-writer/` | gpt-5.4 | Step 2 — Write |
+| `chart-generator` | Pixel | `workspace-chart-generator/` | gpt-5.4-mini | Step 2.5 — Chart (optional) |
+| `creator` | Pixel | `workspace-creator/` | gpt-5.4-mini | Step 3 — Feature image |
+| `publisher` | Press | `workspace-publisher/` | gpt-5.4-mini | Step 4 — Google Drive |
+| `wp-publisher` | Scribe | `workspace-wp-publisher/` | gpt-5.4-mini | Step 6 — WordPress (user-gated) |
 
 **Orchestrator subagent allowlist:** `researcher`, `writer`, `chart-generator`, `creator`, `publisher`, `wp-publisher`
 
@@ -124,7 +112,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Workspace | `workspace-orchestrator/` |
 | SOUL | `workspace-orchestrator/SOUL.md` (~440 lines) |
 | Role | Sequence workers, validate every step, never write/publish content |
-| Model | gemini-3.1-pro-preview |
+| Model | gpt-5.4 |
 
 **Tools (config extras):** `agents_list`, `nodes`, `message`, `gateway`, `browser`, `canvas`, `tts`, `sessions_spawn`, `sessions_yield`, `subagents`
 
@@ -164,7 +152,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |-------|-------|
 | Workspace | `workspace-researcher/` |
 | SOUL | `workspace-researcher/SOUL.md` |
-| Model | gemini-3.5-flash |
+| Model | gpt-5.4 |
 | Pipeline step | 1 |
 
 **Job:** Fetch 8–9 RSS feeds via `curl`, cross-reference last-24h stories, pick one topic (≥2 sources), deep-read with `trafilatura`, write structured JSON to disk.
@@ -196,7 +184,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Workspace | `workspace-writer/` |
 | SOUL | `workspace-writer/SOUL.md` |
 | Template | `workspace-writer/COINOGRAPHY_TEMPLATE.md` |
-| Model | gemini-2.5-pro |
+| Model | gpt-5.4 |
 | Pipeline step | 2 |
 
 **Job:** Read `validated.json`, write SEO article per COINOGRAPHY rules, output to `$RUN_DIR/article/raw.md`, yield `SUCCESS`.
@@ -211,7 +199,6 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |--------|---------|
 | `skills/validate_article_structure.py` | H2/H3/FAQ counts, section order |
 | `skills/validate_anchor_links.py` | Exactly 2 distinct source URLs |
-| `skills/pick_article_structure.py` | Structure picker |
 
 **Output artifact:** `$RUN_DIR/article/raw.md` → synced to `final.md` at `/tmp/crypto-article.md`
 
@@ -223,7 +210,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |-------|-------|
 | Workspace | `workspace-chart-generator/` |
 | SOUL | `workspace-chart-generator/SOUL.md` |
-| Model | gemini-3.5-flash |
+| Model | gpt-5.4-mini |
 | Pipeline step | 2.5 (skipped when `ENABLE_ARTICLE_CHARTS=0`) |
 
 **Job:** Parse `CHART_COIN` / `CHART_DAYS` / `CHART_OUTPUT` → CoinGecko chart script → return `CHART_DONE:` or `CHART_ERROR:`.
@@ -240,7 +227,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |-------|-------|
 | Workspace | `workspace-creator/` |
 | SOUL | `workspace-creator/SOUL.md` |
-| Model | gemini-3.5-flash |
+| Model | gpt-5.4-mini |
 | Pipeline step | 3 |
 
 **Job:** Craft editorial prompt (human + crypto asset + Reuters-style suffix) → run Leonardo skill → verify JPEG.
@@ -258,7 +245,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |-------|-------|
 | Workspace | `workspace-publisher/` |
 | SOUL | `workspace-publisher/SOUL.md` |
-| Model | gemini-3.5-flash |
+| Model | gpt-5.4-mini |
 | Pipeline step | 4 |
 
 **Job:** Nexus often pre-builds DOCX with pandoc; Press runs `gog drive upload` and returns `webViewLink`.
@@ -275,7 +262,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |-------|-------|
 | Workspace | `workspace-wp-publisher/` |
 | SOUL | `workspace-wp-publisher/SOUL.md` |
-| Model | gemini-3.5-flash |
+| Model | gpt-5.4-mini |
 | Pipeline step | 6 (only after explicit user "yes") |
 
 **Job:** Run `publish.sh` → read `/tmp/wp-result.txt` or `/tmp/wp-error.log`.
@@ -299,7 +286,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Field | Value |
 |-------|-------|
 | Workspace | `workspace/` |
-| Model | gemini-3.5-flash |
+| Model | gpt-5.4-mini |
 | Role | Default general OpenClaw workspace |
 
 **Extra skills:** `content-writer`, `programmatic-seo`, `web-reader-pro`, `gog`
@@ -319,12 +306,9 @@ All under `workspace-orchestrator/skills/pipeline/`:
 | `update_recent_topics.py` | Register researched/published topics |
 | `verify_artifacts.py` | Stage gates: `pre_write`, `pre_sync`, `post_sync`, `pre_drive`, `pre_wp` |
 | `sync_article_from_raw.py` | Sanitize raw.md → final.md; word count + topic gate |
+| `count_article_body_words.py` | Body word count (same logic as sync; writer pre-flight) |
 | `update_manifest_step.sh` | Record step status in manifest |
 | `cleanup_run_artifacts.sh` | Remove `/tmp` symlinks on terminal state |
-| `build_and_send_card.py` | Build `news-card.json`, send photo+caption to Telegram group, insert into `editorial.db` (fail-open) |
-| `editorial_db.py` | SQLite schema + CRUD for articles and feedback events (`~/.openclaw/data/editorial.db`) |
-| `handle_card_feedback.py` | Process RATE/IMAGE/DRAFT/PUBLISH/EDIT feedback; log to DB + Telegram confirmation |
-| `wp_post_actions.sh` | WP post update: set-status draft + update-content from markdown |
 
 ---
 
@@ -334,9 +318,9 @@ All under `workspace-orchestrator/skills/pipeline/`:
 
 | Agent | Skill / scripts |
 |-------|-----------------|
-| Orchestrator | Pipeline scripts (12 files above) + `wp_post_actions.sh` |
+| Orchestrator | Pipeline scripts (9 files above) |
 | Researcher | `verify_feeds.sh`, `article_history.sh`, `web-reader-pro` |
-| Writer | `validate_article_structure.py`, `validate_anchor_links.py`, `pick_article_structure.py` |
+| Writer | `validate_article_structure.py`, `validate_anchor_links.py` |
 | Chart-generator | `skills/chart-generator/` (global) |
 | Creator | `generate-image/` |
 | Publisher | `gog/` |
@@ -363,12 +347,9 @@ Each pipeline run creates an isolated folder:
 ├── article/
 │   ├── raw.md
 │   └── final.md
-├── media/
-│   └── feature.jpg
-└── publish/
-    ├── wordpress.json
-    ├── google-drive.json
-    └── news-card.json
+└── media/
+    ├── chart.png          (optional)
+    └── feature.jpg        (via symlink)
 ```
 
 Legacy `/tmp/...` paths are symlinks into this bundle.
@@ -405,8 +386,4 @@ Legacy `/tmp/...` paths are symlinks into this bundle.
 |------|--------|
 | 2026-05-23 | Initial registry created; replaces `MULTI_AGENT_SYSTEM_DOCUMENTATION.md` |
 | 2026-05-23 | Added `PLANS/tweet-embed-duckduckgo.md` — deferred tweet embed spec (not implemented) |
-| 2026-05-23 | Phase 1 news card: `build_and_send_card.py`, Telegram config, Step 6b hook |
-| 2026-05-23 | Phase 1.5: inline URL button tiles on news card (Read Article, Google Doc) |
-| 2026-05-23 | Phase 2: `editorial.db`, rate callback tiles, `handle_card_feedback.py`, `EDITORIAL_FEEDBACK.md` |
-| 2026-05-23 | Phase 3: DRAFT unpublish + EDIT with confirm-apply, `wp_post_actions.sh`, `article_versions` |
-| 2026-05-23 | Phase 3b: Publish button on news card (`oc_publish:` confirm flow) |
+| 2026-05-25 | Writer length reliability: `count_article_body_words.py`; removed `pick_article_structure.py`; SOUL repair policy (measured length, REVISION MODE for structure/anchor after sync) |

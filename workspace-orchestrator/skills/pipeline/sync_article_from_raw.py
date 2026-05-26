@@ -8,7 +8,6 @@ Usage:
 
 Reads:   manifest.artifacts.article_raw
          manifest.artifacts.research_validated
-         manifest.artifacts.article_structure  (for word band)
 Writes:  manifest.artifacts.article_final (atomic write)
 
 Exit 0 + prints ARTICLE_SYNCED: <word_count> words
@@ -210,7 +209,6 @@ def main() -> int:
         raw_path = os.path.join(run_dir, "article", "raw.md")
         final_path = os.path.join(run_dir, "article", "final.md")
         validated_path = os.path.join(run_dir, "research", "validated.json")
-        structure_path = os.path.join(run_dir, "research", "structure.json")
         freshness_path = os.path.join(run_dir, ".revision_started" if args.editorial else ".run_started")
     elif args.manifest:
         manifest_path = os.path.realpath(args.manifest)
@@ -226,7 +224,6 @@ def main() -> int:
         raw_path = artifacts.get("article_raw", "")
         final_path = artifacts.get("article_final", "")
         validated_path = artifacts.get("research_validated", "")
-        structure_path = artifacts.get("article_structure", "")
         run_dir = manifest.get("run_dir", "")
         freshness_path = os.path.join(run_dir, ".run_started")
     else:
@@ -281,19 +278,9 @@ def main() -> int:
     if not re.search(r'word count', content, re.IGNORECASE):
         errors.append("No Word Count block")
 
-    # Gate = writer band + buffer (optional structure.json may tighten, not widen past gate max)
+    # Gate = writer band + orchestrator buffer (never tell writer about buffer)
     word_min = WRITER_WORD_MIN
-    gate_max = WRITER_WORD_MAX + GATE_BUFFER_WORDS
-    word_max = gate_max
-    if structure_path and os.path.exists(structure_path):
-        try:
-            spec = load_json(structure_path)
-            if spec.get("word_min") is not None:
-                word_min = int(spec["word_min"])
-            if spec.get("word_max") is not None:
-                word_max = min(int(spec["word_max"]), gate_max)
-        except (OSError, json.JSONDecodeError, ValueError):
-            pass
+    word_max = WRITER_WORD_MAX + GATE_BUFFER_WORDS
 
     words = len(body_for_word_count(content).split())
     raw_words = len(content.split())

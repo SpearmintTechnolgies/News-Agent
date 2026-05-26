@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "20b9ebf1-8ce9-403c-9136-64394697f287",
+      "agentId": "researcher",
+      "sessionKey": "agent:researcher:main",
+      "name": "Fetch the top 3 crypto news stories from1 the last 24 hours…",
+      "enabled": true,
+      "createdAtMs": 1777116429867,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 900000,
+        "anchorMs": 1777116429867
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Fetch the top 3 crypto news stories from1 the last 24 hours and return them as JSON."
+      },
+      "delivery": {
+        "mode": "announce"
+      },
+      "state": {}
+    }
+  ]
+}

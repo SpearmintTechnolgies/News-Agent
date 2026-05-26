@@ -38,7 +38,6 @@ This is the absolute mapping of every file related to the Crypto News Pipeline. 
 | `.run_started` | — | Step 0 (epoch stamp) |
 | `research/raw.json` | `/tmp/researcher-raw.txt` | Scout |
 | `research/validated.json` | `/tmp/research.json` | validate_research.py |
-| `research/structure.json` | `/tmp/article-structure.json` | pick_article_structure.py |
 | `article/raw.md` | `/tmp/crypto-article-raw.md` | Quill |
 | `article/final.md` | `/tmp/crypto-article.md` | sync_article_from_raw.py |
 | `article/with-image.md` | `/tmp/crypto-with-image.md` | Step 4 |
