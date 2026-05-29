@@ -13,8 +13,8 @@ Before you generate the markdown article, you MUST use a `<thinking>` block to p
 1. Read the validated research file from your spawn message (e.g. `$RUN_DIR/research/validated.json`, also at `/tmp/research.json`).
 2. Read `COINOGRAPHY_TEMPLATE.md` in your workspace for all hard rules and structure borders (H2, H3, FAQ min/max).
 3. **Interior structure is your editorial decision** within those borders — section count, headings, hook style, and depth. Do not follow a fixed skeleton or external structure JSON.
-4. Before writing META, count characters: SEO Title ≤ **55**, URL Slug ≤ **70**, Meta Description ≤ **155**.
-5. The body may contain **at most 2** markdown links to source articles (distinct URLs, no repeats). Do not use x.com or twitter.com links in the body. Place source links in the hook or first H2 only.
+4. Before writing META, count characters in `<thinking>`: SEO Title ≤ **55**, URL Slug ≤ **50**, Meta Description ≤ **155**. SEO Title must start with the Primary Keyword (within first 3 words) and include one factual number or figure when available. Meta Description must contain the Primary Keyword verbatim.
+5. The body may contain **at most 2** markdown links to source articles (distinct URLs, no repeats). Do not use x.com or twitter.com links in the body. Place source links in the hook or first H2 only. The **first sentence of body text** (immediately under H1, before any H2) must contain the Primary Keyword.
 6. **Verify body length before SUCCESS** (same discipline as META character limits). After writing the draft, run:
    ```bash
    python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/count_article_body_words.py --path "$RUN_DIR/article/raw.md"

@@ -130,7 +130,9 @@ def build_caption(card: dict) -> str:
     asset = html_escape(card.get("primary_asset") or "")
     keyword = html_escape(card.get("primary_keyword") or "")
     sources = card.get("sources_count", 0)
-    published = card.get("card_sent_at", "")[:10]
+    card_sent = card.get("card_sent_at", "")[:10]
+    wp_status = str(card.get("wp_status") or "draft")
+    status_label = "Live" if wp_status == "publish" else "Draft"
 
     lines = [
         f"<b>ALERT: ta-{html_escape(run_id)}</b>",
@@ -151,7 +153,9 @@ def build_caption(card: dict) -> str:
         meta.append(f"<b>Tags:</b> #{keyword}")
     if meta:
         lines.append(" | ".join(meta))
-    lines.append(f"<b>Sources:</b> {sources} | <b>Published:</b> {published}")
+    lines.append(
+        f"<b>Sources:</b> {sources} | <b>WP:</b> {status_label} | <b>Card sent:</b> {card_sent}"
+    )
 
     lines.append("")
     lines.append("Reply: <code>RATE 1-10</code> | <code>IMAGE 1-10</code> | <code>DRAFT</code> | <code>PUBLISH</code> | <code>EDIT</code> (.md file)")
@@ -291,7 +295,7 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
         "sources_count": sources_count,
         "wp_url": wp_url,
         "wp_post_id": str(wp.get("post_id") or ""),
-        "wp_status": str(wp.get("post_status") or "publish"),
+        "wp_status": str(wp.get("post_status") or "draft"),
         "drive_url": extract_drive_url(drive),
         "image_path": image_path if image_path and os.path.isfile(image_path) else None,
         "card_sent_at": datetime.now(timezone.utc).isoformat(),

@@ -35,7 +35,7 @@
           "operator.write"
         ],
         "createdAtMs": 1779716444939,
-        "lastUsedAtMs": 1779720693622
+        "lastUsedAtMs": 1779863256370
       }
     },
     "createdAtMs": 1779716444939,
@@ -71,6 +71,6 @@
     },
     "createdAtMs": 1779716709700,
     "approvedAtMs": 1779716709700,
-    "displayName": "gateway:agent"
+    "displayName": "gateway:sessions.patch"
   }
 }

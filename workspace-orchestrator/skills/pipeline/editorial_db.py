@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS articles (
   telegram_message_id INTEGER NOT NULL,
   card_sent_at TEXT,
   run_dir TEXT,
-  wp_status TEXT DEFAULT 'publish',
+  wp_status TEXT DEFAULT 'draft',
+  wp_author_id INTEGER,
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_articles_tg_msg ON articles(telegram_group, telegram_message_id);
@@ -88,7 +89,8 @@ class Article:
     telegram_message_id: int
     card_sent_at: str | None
     run_dir: str | None = None
-    wp_status: str = "publish"
+    wp_status: str = "draft"
+    wp_author_id: int | None = None
 
 
 @dataclass
@@ -126,8 +128,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if not _column_exists(conn, "articles", "run_dir"):
         conn.execute("ALTER TABLE articles ADD COLUMN run_dir TEXT")
     if not _column_exists(conn, "articles", "wp_status"):
-        conn.execute("ALTER TABLE articles ADD COLUMN wp_status TEXT DEFAULT 'publish'")
-    conn.execute("UPDATE articles SET wp_status = 'publish' WHERE wp_status IS NULL")
+        conn.execute("ALTER TABLE articles ADD COLUMN wp_status TEXT DEFAULT 'draft'")
+    if not _column_exists(conn, "articles", "wp_author_id"):
+        conn.execute("ALTER TABLE articles ADD COLUMN wp_author_id INTEGER")
+    conn.execute("UPDATE articles SET wp_status = 'draft' WHERE wp_status IS NULL")
 
 
 def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
@@ -151,7 +155,12 @@ def _row_to_article(row: sqlite3.Row) -> Article:
         telegram_message_id=row["telegram_message_id"],
         card_sent_at=row["card_sent_at"],
         run_dir=row["run_dir"] if "run_dir" in keys else None,
-        wp_status=(row["wp_status"] if "wp_status" in keys else None) or "publish",
+        wp_status=(row["wp_status"] if "wp_status" in keys else None) or "draft",
+        wp_author_id=(
+            int(row["wp_author_id"])
+            if "wp_author_id" in keys and row["wp_author_id"] is not None
+            else None
+        ),
     )
 
 
@@ -206,7 +215,7 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
                 int(message_id),
                 str(card.get("card_sent_at") or "") or None,
                 str(card.get("run_dir") or "") or None,
-                str(card.get("wp_status") or "publish"),
+                str(card.get("wp_status") or "draft"),
             ),
         )
         conn.commit()
@@ -220,6 +229,16 @@ def set_wp_status(article_id: int, status: str, db_path: str = DEFAULT_DB_PATH) 
     init_db(db_path)
     with _connect(db_path) as conn:
         conn.execute("UPDATE articles SET wp_status = ? WHERE id = ?", (status, article_id))
+        conn.commit()
+
+
+def set_wp_author(article_id: int, author_id: int, db_path: str = DEFAULT_DB_PATH) -> None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE articles SET wp_author_id = ? WHERE id = ?",
+            (int(author_id), article_id),
+        )
         conn.commit()
 
 

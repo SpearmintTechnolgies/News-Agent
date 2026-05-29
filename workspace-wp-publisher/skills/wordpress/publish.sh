@@ -21,13 +21,13 @@
 set -euo pipefail
 
 # --- Config ------------------------------------------------------------------
-WP_URL="https://slateblue-reindeer-775070.hostingersite.com"
+WP_URL="https://coinography.com"
 WP_API="${WP_URL}/wp-json/wp/v2"
 RM_API="${WP_URL}/wp-json/rankmath/v1"
-WP_USER="spearmintmarketingpro@gmail.com"
-WP_PASS="B1u0 7AQI Aw5a IQK7 0KWX PtGU"
-CATEGORY_ID=3
-POST_STATUS="publish"
+WP_USER="renu@coinography.com"
+WP_PASS="PXjy ZopD 4q7z VDqq E1EC 5Dox"
+CATEGORY_ID=17
+POST_STATUS="draft"
 
 ARTICLE_PATH="/tmp/crypto-article.md"
 IMAGE_PATH="/tmp/crypto-feature.jpg"

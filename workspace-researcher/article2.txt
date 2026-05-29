@@ -1,109 +1,60 @@
-Title: 
+# Ethereum whale opens $100M short as Vitalik Buterin vows to 'sell less ETH'
 
-URL Source: https://www.coindesk.com/markets/bitcoin-slides-toward-75000-eth-sol-xrp-drop-as-oil-hits-four-year-high
+ETH’s rebound toward the whale’s liquidation zone near $2,150 puts its short at risk of over $1 million in potential losses.
 
-Warning: Target URL returned error 404: Not Found
+A crypto whale opened a leveraged Ether (ETH) short position worth more than $100 million, even as Ethereum co-founder Vitalik Buterin pledged fewer token sales via the Ethereum Foundation.
 
-Markdown Content:
-Search
+**Key takeaways:**
 
-/
+- The whale may face over $1 million in potential losses as the ETH price rebounds toward short liquidation levels.
+- Buterin says the Ethereum Foundation will "sell less ETH" despite offloading over 60,000 ETH earlier this year.
 
-[](https://www.coindesk.com/)
-*   News 
-*   Video 
-*   [Prices](https://www.coindesk.com/price)
-*   [Research](https://www.coindesk.com/research)
-*   Consensus 2026 
-*   Data & Indices 
-*   [Sponsored](https://www.coindesk.com/sponsored-content)
+## ETH whale faces over $1 million in potential losses
 
-Search
+As of Monday, the wallet '0x50b...' held a 47,600 ETH short position worth about $100.72 million, according to Hypurrscan data. The trade used roughly 23x cross-margin leverage, with an entry price near $2,094.92.
 
-/
+ETH was trading around $2,115, leaving the position with an unrealized loss just shy of $994,000. The trader had also paid roughly $2,145 in funding, adding to the cost of maintaining the bearish bet.
 
-en
+*Ethereum whale's short position data. Source: Hypurrscan.IO*
 
-[CoinDesk 20$2,059.65 2.51%](https://www.coindesk.com/price/cd20)[Bitcoin$76,003.47 2.08%](https://www.coindesk.com/price/bitcoin)[Ethereum$2,260.92 3.11%](https://www.coindesk.com/price/ethereum)[XRP$1.37 1.95%](https://www.coindesk.com/price/xrp)[Solana$82.99 2.54%](https://www.coindesk.com/price/solana)
+The position’s liquidation price sat near $2,150, leaving little room for error. A modest ETH move higher could push the whale’s losses past $1 million and potentially wipe out the short.
 
-[![Image 1](https://cdn.sanity.io/images/s3y3vcno/production/e3ccf2c7dfe53a58a3fb077817dc4e9394cf9ecc-119x66.png?auto=format) Consensus Last Days to Save Register by May 1 at 4 p.m. ET 01 DAY 09 HOURS 01 MINUTE 16 SECONDS Consensus Last Days to Save Register by May 1 at 4 p.m. ET 01 DAY 09 HOURS 01 MINUTE 16 SECONDS Register now](https://consensus.coindesk.com/register)
+That puts the whale in a vulnerable position if Ethereum continues to rebound from its weekend low at around $2,000, especially as global risk sentiment improves due to signs of easing US–Iran tensions.
 
-# 404
+**Related: ****Ethereum traders warn of ‘nasty’ ETH price drop if $2K support breaks**
 
-## Hmm, that's weird. Could've sworn the page was around here somewhere...
+Still, the size of the trade shows that some large traders remain willing to bet aggressively against ETH despite recent attempts by Ethereum's big names to calm market concerns.
 
-![Image 2: 404-image](https://www.coindesk.com/_next/image?url=%2F_next%2Fstatic%2Fmedia%2F404.064b5fc4.png&w=828&q=75&dpl=dpl_DHV4kwZeLv9RRjWnMvfi8t5GsGqQ)[Go To Homepage](https://www.coindesk.com/)
+## Ethereum Foundation to "sell less ETH," says Vitalik Buterin
 
-* * *
+Co-founder Vitalik Buterin pledged that the Ethereum Foundation will “sell less ETH” as part of a broader effort to make the organization leaner, more focused and longer-lasting.
 
-[](https://www.coindesk.com/ "CoinDesk homepage")
+The commitment appeared in a lengthy X post where Buterin defended the foundation’s direction after a wave of researcher departures.
 
-* * *
+He said the EF is choosing "longevity over breadth," meaning it will reduce spending, narrow its mission and avoid acting like Ethereum’s central command structure.
 
-About
+The Ethereum Foundation has faced repeated backlash over token sales, with critics arguing that sustained selling can pressure ETH during weak market conditions.
 
-*   [About Us](https://www.coindesk.com/about)
-*   [Masthead](https://www.coindesk.com/masthead)
-*   [Careers](https://bullish.wd3.myworkdayjobs.com/CoinDesk)
-*   [Blog](https://data.coindesk.com/blogs)
-*   [Investor Relations](https://investors.bullish.com/overview/default.aspx)
+The Foundation sold about 20,000 ETH in 2026, raising more than $45 million, according to data resource Arkham Intelligence. while still holding around 103,000 ETH in liquid treasury assets, and another 70,000 ETH staked.
 
-Contact
+*Ethereum Foundation's ETH balance. Source: Arkham Intelligence*
 
-*   [Contact Us](https://www.coindesk.com/contact-us)
-*   [Accessibility](https://www.coindesk.com/accessibility-help)
-*   [Advertise](https://www.coindesk.com/advertise)
-*   [Media Kit](https://www.coindesk.com/mediakit)
-*   [](https://www.coindesk.com/es/sitemap)[](https://www.coindesk.com/uk/sitemap)[](https://www.coindesk.com/ru/sitemap)[](https://www.coindesk.com/fil/sitemap)[](https://www.coindesk.com/it/sitemap)[](https://www.coindesk.com/fr/sitemap)[](https://www.coindesk.com/pt-br/sitemap)[](https://www.coindesk.com/de/sitemap)[](https://www.coindesk.com/nl/sitemap)[](https://www.coindesk.com/ko/sitemap)[](https://www.coindesk.com/zh/sitemap)[](https://www.coindesk.com/tr/sitemap)[](https://www.coindesk.com/id/sitemap)[](https://www.coindesk.com/ja/sitemap)[Sitemap](https://www.coindesk.com/sitemap)
-*   [System status](https://status.coindesk.com/)
+Nevertheless, Buterin’s reassurance comes as institutional conviction in Ethereum appears to be weakening.
 
-[Newsletters](https://www.coindesk.com/newsletters)
-*   [CoinDesk Headlines](https://www.coindesk.com/newsletters/the-node)
-*   [Crypto Daybook Americas](https://www.coindesk.com/newsletters/daybook-us)
-*   [The Protocol](https://www.coindesk.com/newsletters/the-protocol)
-*   [State of Crypto](https://www.coindesk.com/newsletters/state-of-crypto)
-*   [Crypto for Advisors](https://www.coindesk.com/newsletters/crypto-for-advisors)
-*   [Crypto Long & Short](https://www.coindesk.com/newsletters/crypto-long-short)
+In 2026, several large holders trimmed ETH exposure amid weak price action and a multi-year slump versus Bitcoin.
 
-[News](https://www.coindesk.com/latest-crypto-news)
-*   [Markets](https://www.coindesk.com/markets)
-*   [Finance](https://www.coindesk.com/business)
-*   [Tech](https://www.coindesk.com/tech)
-*   [Policy](https://www.coindesk.com/policy)
-*   [Focus](https://www.coindesk.com/focus)
+Harvard Management Company reportedly exited its $87 million Ethereum ETF position after just one quarter, while Goldman Sachs cut its ETH ETF holdings by roughly 70%, leaving about $114 million invested.
 
-[Videos](https://www.coindesk.com/videos)
-*   [CoinDesk Daily](https://www.coindesk.com/videos/coindesk-daily)
-*   [Editor's Picks](https://www.coindesk.com/videos/editors-picks)
-*   [Shorts](https://www.coindesk.com/videos/shorts)
-*   [Spotlight](https://www.coindesk.com/videos/coindesk-spotlight)
+Spot Ethereum ETFs have continued to bleed capital, recording more than $295 million in net outflows in May and over $945 million in withdrawals so far in 2026.
 
-Podcasts
+*ETH US spot ETF net flows. Source: Glassnode*
 
-*   [CoinDesk Podcast Network](https://www.coindesk.com/podcasts/coindesk-podcast-network)
-*   [Markets Outlook](https://www.coindesk.com/podcasts/markets-daily)
-*   [Gen C](https://www.coindesk.com/podcasts/generation-c)
+Bankless co-founder David Hoffman, one of Ethereum’s most visible long-time advocates, said he sold all his personal ETH holdings, adding symbolic weight to concerns that even Ethereum-native investors are reassessing their conviction.
 
-Cryptocurrencies
+*Source: X*
 
-*   [Prices](https://www.coindesk.com/price)
-*   [Bitcoin (BTC)](https://www.coindesk.com/price/bitcoin)
-*   [Ethereum (ETH)](https://www.coindesk.com/price/ethereum)
-*   [XRP](https://www.coindesk.com/price/xrp)
-*   [Solana (SOL)](https://www.coindesk.com/price/solana)
+However, some analysts, including Tanaka, continue to view Ethereum as a strong long-term buy, arguing that its core on-chain economy remains difficult for rival blockchains to match.
 
-[Data & Indices](https://indices.coindesk.com/institutions)
-*   [Market Data](https://data.coindesk.com/)
-*   [Index Offering](https://indices.coindesk.com/offerings)
-*   [API](https://developers.coindesk.com/documentation/data-api/introduction)
-*   [Research Insights](https://data.coindesk.com/reports)
-*   [Documentation and Governance](https://indices.coindesk.com/documentation-and-governance)
+Ethereum still anchors much of crypto’s real activity, hosting roughly $43 billion in DeFi liquidity, more than $165 billion in stablecoins, and about 55% of tokenized assets tracked across public blockchains, according to Token Terminal data.
 
-Consensus
-
-*   [Consensus Miami](https://consensus.coindesk.com/)
-*   [CoinDesk: Policy & Regulation](https://policy-regulation.coindesk.com/)
-*   [Webinars](https://events.coindesk.com/#section-webinars)
-
-[Sponsored](https://www.coindesk.com/sponsored-content)
-*   [Bitcoin Treasuries Theme Week](https://ww
+More on the subject

@@ -35,6 +35,7 @@ from editorial_db import (
     record_editorial_action,
     record_rating,
     save_article_version,
+    set_wp_author,
     set_wp_status,
     upsert_edit_session,
 )
@@ -42,6 +43,15 @@ from editorial_db import (
 OPENCLAW_JSON = os.path.expanduser("~/.openclaw/openclaw.json")
 WP_ACTIONS = os.path.expanduser(
     "~/.openclaw/workspace-wp-publisher/skills/wordpress/wp_post_actions.sh"
+)
+WP_AUTHORS_JSON = os.path.expanduser(
+    "~/.openclaw/workspace-orchestrator/config/wp_authors.json"
+)
+RECENT_TOPICS_REGISTRY = os.path.expanduser(
+    "~/.openclaw/workspace-orchestrator/state/recent_topics.json"
+)
+UPDATE_RECENT_TOPICS = os.path.expanduser(
+    "~/.openclaw/workspace-orchestrator/skills/pipeline/update_recent_topics.py"
 )
 
 _RE_ARTICLE_RATE = re.compile(r"^oc_r:(.+):(\d{1,2})$")
@@ -51,8 +61,9 @@ _RE_DRAFT = re.compile(r"^oc_draft:(.+)$")
 _RE_DRAFT_YES = re.compile(r"^oc_draft_yes:(.+)$")
 _RE_DRAFT_NO = re.compile(r"^oc_draft_no:(.+)$")
 _RE_PUBLISH = re.compile(r"^oc_publish:(.+)$")
-_RE_PUBLISH_YES = re.compile(r"^oc_publish_yes:(.+)$")
-_RE_PUBLISH_NO = re.compile(r"^oc_publish_no:(.+)$")
+_RE_PUB_AUTHOR = re.compile(r"^oc_pub_a:([^:]+):(\d+)$")
+_RE_PUB_YES = re.compile(r"^oc_pub_y:([^:]+):(\d+)$")
+_RE_PUB_NO = re.compile(r"^oc_pub_n:(.+)$")
 _RE_EDIT = re.compile(r"^oc_edit:(.+)$")
 _RE_EDIT_APPLY = re.compile(r"^oc_edit_apply:(.+)$")
 _RE_EDIT_CANCEL = re.compile(r"^oc_edit_cancel:(.+)$")
@@ -224,12 +235,67 @@ def build_draft_confirm_keyboard(run_id: str) -> dict:
     }
 
 
-def build_publish_confirm_keyboard(run_id: str) -> dict:
+def load_wp_authors() -> list[dict]:
+    try:
+        with open(WP_AUTHORS_JSON, encoding="utf-8") as f:
+            data = json.load(f)
+        authors = data.get("authors") or []
+        return [a for a in authors if isinstance(a, dict) and a.get("id")]
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def author_by_id(author_id: int) -> dict | None:
+    for author in load_wp_authors():
+        if int(author.get("id", -1)) == author_id:
+            return author
+    return None
+
+
+def _author_callback_data(run_id: str, author_id: int) -> str:
+    data = f"oc_pub_a:{run_id}:{author_id}"
+    if len(data.encode("utf-8")) > 64:
+        raise ValueError(f"callback_data too long for Telegram: {data!r}")
+    return data
+
+
+def author_picker_labels() -> str:
+    labels = [str(a.get("label") or a.get("name") or a["id"]) for a in load_wp_authors()]
+    if not labels:
+        return "an author"
+    if len(labels) == 1:
+        return labels[0]
+    return f"{', '.join(labels[:-1])} or {labels[-1]}"
+
+
+def build_author_picker_keyboard(run_id: str, authors: list[dict]) -> dict:
+    buttons = []
+    for a in authors:
+        author_id = int(a["id"])
+        buttons.append(
+            {
+                "text": str(a.get("label") or a.get("name") or author_id),
+                "callback_data": _author_callback_data(run_id, author_id),
+            }
+        )
+    if not buttons:
+        return {"inline_keyboard": []}
+    # Two per row so three authors (Toby / Ahmed / Golan) fit cleanly on mobile.
+    rows: list[list[dict]] = []
+    for i in range(0, len(buttons), 2):
+        rows.append(buttons[i : i + 2])
+    return {"inline_keyboard": rows}
+
+
+def build_publish_author_confirm_keyboard(run_id: str, author_id: int, label: str) -> dict:
     return {
         "inline_keyboard": [
             [
-                {"text": "Yes, publish", "callback_data": f"oc_publish_yes:{run_id}"},
-                {"text": "Cancel", "callback_data": f"oc_publish_no:{run_id}"},
+                {
+                    "text": f"Yes, publish as {label}",
+                    "callback_data": f"oc_pub_y:{run_id}:{author_id}",
+                },
+                {"text": "Cancel", "callback_data": f"oc_pub_n:{run_id}"},
             ]
         ]
     }
@@ -294,13 +360,28 @@ def extract_alert_from_text(text: str) -> str | None:
 def parse_input(payload: str | None, message_text: str | None) -> dict | None:
     if payload:
         p = payload.strip()
+        pub_yes = _RE_PUB_YES.match(p)
+        if pub_yes:
+            return {
+                "action": "publish_yes",
+                "run_id": pub_yes.group(1).strip(),
+                "author_id": int(pub_yes.group(2)),
+            }
+        pub_author = _RE_PUB_AUTHOR.match(p)
+        if pub_author:
+            return {
+                "action": "publish_author_pick",
+                "run_id": pub_author.group(1).strip(),
+                "author_id": int(pub_author.group(2)),
+            }
+        pub_no = _RE_PUB_NO.match(p)
+        if pub_no:
+            return {"action": "publish_no", "run_id": pub_no.group(1).strip()}
         for pattern, action in (
             (_RE_IMAGE_MENU, "image_menu"),
             (_RE_DRAFT_YES, "draft_yes"),
             (_RE_DRAFT_NO, "draft_no"),
             (_RE_DRAFT, "draft"),
-            (_RE_PUBLISH_YES, "publish_yes"),
-            (_RE_PUBLISH_NO, "publish_no"),
             (_RE_PUBLISH, "publish"),
             (_RE_EDIT_APPLY, "edit_apply"),
             (_RE_EDIT_CANCEL, "edit_cancel"),
@@ -346,6 +427,9 @@ def parse_input(payload: str | None, message_text: str | None) -> dict | None:
 
 
 def resolve_article_markdown(article: Article, db_path: str) -> str | None:
+    applied = get_latest_version(article.id, "applied", db_path)
+    if applied and applied.content_md.strip():
+        return applied.content_md
     snap = get_latest_version(article.id, "published_snapshot", db_path)
     if snap and snap.content_md.strip():
         return snap.content_md
@@ -467,40 +551,139 @@ def handle_publish_request(
                 reply_to_message_id=reply_id,
             )
         return f"PUBLISH_ALREADY: {article.alert_id}"
+    authors = load_wp_authors()
+    if not authors:
+        if token and chat_id:
+            send_message(token, chat_id, "Author list not configured.", reply_to_message_id=reply_id)
+        return "PUBLISH_FAILED: no authors config"
     if token and chat_id:
         send_message(
             token,
             chat_id,
-            f"Publish <code>{article.alert_id}</code> on WordPress?",
+            f"Choose author for <code>{article.alert_id}</code>:",
             reply_to_message_id=reply_id,
-            reply_markup=build_publish_confirm_keyboard(article.run_id),
+            reply_markup=build_author_picker_keyboard(article.run_id, authors),
         )
-    return f"PUBLISH_CONFIRM_SENT: {article.alert_id}"
+    return f"PUBLISH_AUTHOR_PICKER_SENT: {article.alert_id}"
+
+
+def handle_publish_author_pick(
+    article: Article,
+    author_id: int,
+    token: str,
+    chat_id: str,
+    reply_id: int | None,
+) -> str:
+    author = author_by_id(author_id)
+    if not author:
+        if token and chat_id:
+            send_message(token, chat_id, "Unknown author.", reply_to_message_id=reply_id)
+        return "PUBLISH_FAILED: invalid author"
+    label = str(author.get("label") or author.get("name") or author_id)
+    name = str(author.get("name") or label)
+    if token and chat_id:
+        send_message(
+            token,
+            chat_id,
+            f"Publish as <b>{html_escape(name)}</b>?",
+            reply_to_message_id=reply_id,
+            reply_markup=build_publish_author_confirm_keyboard(article.run_id, author_id, label),
+        )
+    return f"PUBLISH_CONFIRM_SENT: {article.alert_id} author={author_id}"
+
+
+def html_escape(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def update_topic_registry_published(article: Article, published_url: str) -> None:
+    if not article.run_dir:
+        return
+    validated = os.path.join(article.run_dir, "research", "validated.json")
+    if not os.path.isfile(validated):
+        return
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                UPDATE_RECENT_TOPICS,
+                "--current",
+                validated,
+                "--registry",
+                RECENT_TOPICS_REGISTRY,
+                "--run-id",
+                article.run_id,
+                "--status",
+                "published",
+                "--published-url",
+                published_url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except Exception:
+        pass
 
 
 def handle_publish_yes(
-    article: Article, user_id: str | None, source: str, raw: str | None, db_path: str, token: str, chat_id: str, reply_id: int | None
+    article: Article,
+    author_id: int,
+    user_id: str | None,
+    source: str,
+    raw: str | None,
+    db_path: str,
+    token: str,
+    chat_id: str,
+    reply_id: int | None,
 ) -> str:
     if not article.wp_post_id:
         if token and chat_id:
             send_message(token, chat_id, "No WordPress post ID on file.", reply_to_message_id=reply_id)
         return "PUBLISH_FAILED: no wp_post_id"
-    ok, msg = run_wp_action(["--post-id", article.wp_post_id, "--set-status", "publish"])
+    author = author_by_id(author_id)
+    if not author:
+        if token and chat_id:
+            send_message(token, chat_id, "Unknown author.", reply_to_message_id=reply_id)
+        return "PUBLISH_FAILED: invalid author"
+    author_name = str(author.get("name") or author.get("label") or author_id)
+    ok, msg = run_wp_action(
+        [
+            "--post-id",
+            article.wp_post_id,
+            "--set-status",
+            "publish",
+            "--author",
+            str(author_id),
+        ]
+    )
     if not ok:
         if token and chat_id:
             send_message(token, chat_id, f"Publish failed: {msg}", reply_to_message_id=reply_id)
         return f"PUBLISH_FAILED: {msg}"
     set_wp_status(article.id, "publish", db_path)
+    set_wp_author(article.id, author_id, db_path)
     record_editorial_action(article.id, "publish", user_id=user_id, source=source, raw_payload=raw, db_path=db_path)
     url = ""
-    if "url=" in msg:
-        url = msg.split("url=", 1)[-1].strip()
+    for part in msg.split():
+        if part.startswith("url="):
+            url = part[4:].strip()
+            break
+    if url:
+        update_topic_registry_published(article, url)
     if token and chat_id:
-        body = f"Published <code>{article.alert_id}</code> — now live on WordPress."
+        body = (
+            f"Published <code>{article.alert_id}</code> as <b>{html_escape(author_name)}</b> — now live."
+        )
         if url:
             body += f"\n\n{url}"
         send_message(token, chat_id, body, reply_to_message_id=reply_id)
-    return f"PUBLISH_OK: {article.alert_id}"
+    return f"PUBLISH_OK: {article.alert_id} author={author_id}"
 
 
 def handle_edit_start(
@@ -641,6 +824,13 @@ def handle_edit_apply(
     save_article_version(
         article.id,
         "applied",
+        suggested.content_md,
+        user_id=user_id,
+        db_path=db_path,
+    )
+    save_article_version(
+        article.id,
+        "published_snapshot",
         suggested.content_md,
         user_id=user_id,
         db_path=db_path,
@@ -828,8 +1018,41 @@ def main() -> int:
         print("DRAFT_CANCELLED")
     elif action == "publish":
         print(handle_publish_request(article, token, chat_id, reply_id, source, raw, args.db_path))
+    elif action == "publish_author_pick":
+        author_id = parsed.get("author_id")
+        if author_id is None:
+            print("PUBLISH_FAILED: missing author_id")
+            return 0
+        print(
+            handle_publish_author_pick(
+                article, int(author_id), token, chat_id, reply_id
+            )
+        )
     elif action == "publish_yes":
-        print(handle_publish_yes(article, args.user_id, source, raw, args.db_path, token, chat_id, reply_id))
+        author_id = parsed.get("author_id")
+        if author_id is None:
+            if token and chat_id:
+                send_message(
+                    token,
+                    chat_id,
+                    f"Choose an author first ({author_picker_labels()}).",
+                    reply_to_message_id=reply_id,
+                )
+            print("PUBLISH_FAILED: author required")
+            return 0
+        print(
+            handle_publish_yes(
+                article,
+                int(author_id),
+                args.user_id,
+                source,
+                raw,
+                args.db_path,
+                token,
+                chat_id,
+                reply_id,
+            )
+        )
     elif action == "publish_no":
         if token and chat_id:
             send_message(token, chat_id, "Publish cancelled.", reply_to_message_id=reply_id)

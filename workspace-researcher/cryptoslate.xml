@@ -1,0 +1,1171 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	xmlns:media="http://search.yahoo.com/mrss/"
+>
+
+<channel>
+	<title>CryptoSlate</title>
+	<atom:link href="https://cryptoslate.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://cryptoslate.com/</link>
+	<description>Cryptocurrency News and Real-time Coin Data</description>
+	<lastBuildDate>Mon, 25 May 2026 13:33:23 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.4.3</generator>
+
+<image>
+	<url>https://cryptoslate.com/wp-content/uploads/2023/06/cropped-cryptoslate-transparent-icon-256x256-1-32x32.png</url>
+	<title>CryptoSlate</title>
+	<link>https://cryptoslate.com/</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>Tether’s Georgia stablecoin plan moves early on national payment rails</title>
+		<link>https://cryptoslate.com/tether-georgia-stablecoin-plan/</link>
+		
+		<dc:creator><![CDATA[Liam 'Akiba' Wright]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 20:21:28 +0000</pubDate>
+				<category><![CDATA[Adoption]]></category>
+		<category><![CDATA[Banking]]></category>
+		<category><![CDATA[Culture]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Legal]]></category>
+		<category><![CDATA[Politics]]></category>
+		<category><![CDATA[Regulation]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=538045</guid>
+
+					<description><![CDATA[<p>Tether and the Government of Georgia plan to launch a stablecoin, pushing a national currency directly onto private stablecoin rails before most governments have settled on how that model should work. The Tether Georgia stablecoin plan centers on GEL₮, a stablecoin representing the Georgian lari. The May 25 announcement describes GEL₮ as the official stablecoin [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/tether-georgia-stablecoin-plan/">Tether’s Georgia stablecoin plan moves early on national payment rails</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>Tether and the Government of Georgia plan to launch a stablecoin, pushing a national currency directly onto private stablecoin rails before most governments have settled on how that model should work. The Tether Georgia stablecoin plan centers on <a href="https://tether.io/news/tether-and-the-government-of-georgia-to-launch-gelt-the-official-stablecoin-of-georgia/">GEL₮</a>, a stablecoin representing the Georgian lari.</p>
+<p>The May 25 announcement describes GEL₮ as the official stablecoin of Georgia and ties the project to the country's digital asset framework. It says the token is intended to lower transaction costs, settle near instantly, support programmable payments, and improve cross-border commerce, fintech development, and digital payments.</p>
+<p>That makes the Tether Georgia stablecoin plan larger than a single new token. Georgia is trying to turn lari-denominated value into a payment infrastructure while presenting its rulebook as compatible with the emerging U.S. stablecoin framework created under the GENIUS Act.</p>
+<p><a href="https://cryptoslate.com/coins/tether/">Tether</a> gives the plan scale and distribution credibility, but the announcement leaves the practical architecture unresolved: who issues GEL₮, where the reserves sit, who can redeem, which networks support it, and how far official oversight reaches.</p>
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a142798086c819191ecb7a22f78ec39.png" target="_blank" rel="noopener"><img fetchpriority="high" decoding="async" class="aligncenter wp-image-538065 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a142798086c819191ecb7a22f78ec39.png" alt="Infographic showing the Tether Georgia stablecoin GEL₮, also rendered as the GELT stablecoin, as a lari payment rail test." width="1024" height="1536" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a142798086c819191ecb7a22f78ec39.png 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a142798086c819191ecb7a22f78ec39-200x300.png 200w, https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a142798086c819191ecb7a22f78ec39-683x1024.png 683w, https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a142798086c819191ecb7a22f78ec39-768x1152.png 768w" sizes="(max-width: 1024px) 100vw, 1024px" /></a></p>
+<h2>A national currency on private stablecoin rails</h2>
+<p>GEL₮ lands at the intersection of two trends that have mostly developed separately: governments are writing stablecoin rules, while private issuers are building the payment rails people actually use.</p>
+<p>Georgia's announcement tries to join those tracks. The token is meant to represent the Georgian lari rather than the U.S. dollar, which makes it different from the dominant stablecoin model in crypto markets.</p>
+<p>It also comes with government support, giving it a public-sector policy frame that most local-currency stablecoins lack.</p>
+<p>The National Bank of Georgia had already moved in that direction. In March, the central bank said it had developed a regulation for the initial offering of stable virtual assets as part of a broader effort to strengthen consumer protection, risk management, and alignment with international standards.</p>
+<p>That gives the Georgia stablecoin framework a regulatory anchor alongside Tether’s private infrastructure.</p>
+<p>The underlying <a href="https://nbg.gov.ge/fm/%E1%83%A1%E1%83%90%E1%83%92%E1%83%90%E1%83%93%E1%83%90%E1%83%AE%E1%83%93%E1%83%9D/vasps/initial-coin-offering-stablecoin-final-eng.pdf">rule</a> applies to registered virtual asset service providers that want to offer stablecoins and bars stablecoin initial offerings in Georgia outside the National Bank's framework.</p>
+<p>The distinction is practical. GEL₮ is being pitched as infrastructure, not just as a trading instrument.</p>
+<p>A stablecoin can promise fast settlement, but it becomes useful only when the legal claim, reserve model, redemption process, and payment access are clear enough for businesses, wallets, exchanges, and payment processors to rely on it.</p>
+<p>For Georgia, the benefit is obvious if the structure works. A lari stablecoin could let domestic fintechs and cross-border businesses move GEL value through blockchain networks without waiting for older bank settlement paths.</p>
+<p>It could also make Georgia a regional test case for how smaller national currencies plug into crypto payment systems without surrendering the entire rails layer to dollar tokens.</p>
+<p>The risk is equally direct. If the token depends too heavily on a private issuer's infrastructure, users may get speed and reach at the cost of new dependencies around custody, freeze powers, redemption access, chain support, and reserve disclosure.</p>
+<h2>Why the Tether Georgia stablecoin plan matters</h2>
+<p>Tether's role is the reason this announcement carries more weight than a local pilot. CryptoSlate data lists USDT near $1 on May 25, with roughly $189 billion in market capitalization and tens of billions of dollars in 24-hour volume.</p>
+<p>USDT is also one of crypto's main liquidity rails for trading pairs, dollar settlement, DeFi liquidity, payments, remittances, and on-chain transfers.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/tethers-141-billion-treasury-pile-reveals-the-stablecoin-risk-now-embedded-in-us-debt/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/05/tether-treasury-debt-1024x576.jpg" alt="Tether’s $141 billion Treasury pile reveals the stablecoin risk now embedded in US debt" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Tether’s $141 billion Treasury pile reveals the stablecoin risk now embedded in US debt</h3>
+                            <div class="cs-article-embed__summary">Tether’s $141 billion Treasury exposure has turned the world’s largest stablecoin into an unlikely pillar of America’s debt machine.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">May 24, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Andjela Radmilac</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p>That scale gives Tether operational experience that a government pilot would struggle to match on its own. Tether already manages tokens across multiple blockchain networks and serves users who treat stablecoins as working payment and settlement tools rather than speculative assets.</p>
+<p>But scale is not the same as public accountability. The same market context lists USDT's key risk areas as peg stability, reserves, redemption access, issuer controls, regulation, chain-specific transfer risk, and market confidence.</p>
+<p>Those are precisely the categories that become more sensitive when the token is tied to a national currency and backed by government support.</p>
+<p>The announcement says Georgia's framework was developed with reserve management, redemption rights, issuer oversight, and AML compliance in mind. It also says further details on GEL₮'s structure, rollout, and regulatory implementation will come later.</p>
+<p>Until those details arrive, the project is best understood as a policy-forward launch plan rather than a finished payment system.</p>
+<p>The missing details are not minor technicalities. They define who has the claim on reserves, how quickly holders can redeem at par, whether retail users have direct rights or depend on intermediaries, and how law enforcement or sanctions requests are handled.</p>
+<p>They also define what happens if a supported blockchain becomes congested, compromised, or commercially irrelevant.</p>
+<p>Georgia and Tether are also using the language of regulatory interoperability. The announcement says Georgia's framework was designed to achieve substantive compatibility with emerging U.S. stablecoin regulation, including the GENIUS Act. Treasury announced the law's enactment in July 2025.</p>
+<p>That makes GENIUS Act stablecoin regulation a reference point for Georgia’s claim of compatibility, even without formal U.S. recognition,</p>
+<p>The <a href="https://www.congress.gov/bill/119th-congress/senate-bill/1582/text">Congress.gov text</a> requires permitted payment stablecoin issuers to maintain identifiable reserves backing outstanding payment stablecoins on at least a one-to-one basis with specified liquid assets.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/treasury-genius-rule-stablecoin-control-federal-oversight/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/04/us-treasury-stablecoin-1024x683.jpg" alt="Treasury’s first GENIUS rule tightens Washington’s grip on who can scale stablecoins" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Treasury’s first GENIUS rule tightens Washington’s grip on who can scale stablecoins</h3>
+                            <div class="cs-article-embed__summary">The proposal leaves states with a narrow lane while pushing large stablecoin issuers toward federal control.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">Apr 2, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Gino Matos</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p>Recent U.S. implementation has shifted attention toward issuer qualification, scale, and who controls the terms under which stablecoins can grow. That context is central for Georgia because compatibility is only meaningful if it translates into usable recognition by counterparties, exchanges, banks, and payment providers.</p>
+<p>A Georgian framework can mirror U.S. categories around reserves, redemption, oversight, and compliance without being formally recognized by U.S. authorities.</p>
+<p>The key distinction sits there: Georgia can design for alignment, but market participants will still want to know whether the framework creates enforceable rights and whether foreign counterparties treat GEL₮ as credible payment infrastructure.</p>
+<p>For readers, the practical issue is whether a national-currency stablecoin can give users faster payment rails without making them depend on a weaker legal claim than they would have through regulated bank money.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/congress-is-making-stablecoins-easier-to-use-while-bitcoin-still-waits-for-clarity/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/04/congress-stablecoin-clarity-1024x576.jpg" alt="Congress on verge of making regulated dollar stablecoins act almost like digital cash" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Congress on verge of making regulated dollar stablecoins act almost like digital cash</h3>
+                            <div class="cs-article-embed__summary">The GENIUS act has already defined what a legal payment stablecoin looks like. Now lawmakers are trying to make those digital dollars practical to use.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">Apr 18, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Andjela Radmilac</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a1427f12a948191b68854765dd2055a.png" target="_blank" rel="noopener"><img decoding="async" class="aligncenter wp-image-538066 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/ig_05b6956797ce7f75016a1427f12a948191b68854765dd2055a.png" alt="Infographic showing the issuer, reserve, user access, and regulatory recognition tests GEL₮ must prove next" width="1122" height="1402" /></a></p>
+<h2>The next test is implementation</h2>
+<p>GEL₮ will be judged by the parts of the announcement that remain blank.</p>
+<p>The first is issuance. The National Bank's stablecoin rule points to registered VASPs and regulator consent, but the announcement does not say which entity will issue GEL₮ or how responsibilities will be divided between Tether, Georgian authorities, and any local partners.</p>
+<p>The second is reserves. If GEL₮ is meant to represent the lari, users and payment firms will need to know what stablecoin reserves back it, where those assets are held, how frequently reserves are reported, and what happens during heavy redemptions.</p>
+<p>The third is access. A stablecoin can settle quickly on-chain, but it still needs reliable entry and exit points.</p>
+<p>Businesses will care which wallets, exchanges, banks, payment processors, and public-sector services support the token. Retail users will care whether they can move from GEL₮ back to lari at par without hidden spreads or institutional-only redemption gates.</p>
+<p>The fourth is legal durability. Tether's infrastructure can make GEL₮ more immediately useful than a central-bank sandbox token, but it also places a private issuer at the center of a national-currency payment experiment.</p>
+<p>That may be the model stablecoin adoption needs, or it may expose the unresolved tension between public money and private rails.</p>
+<p>Georgia is moving early. That gives it a chance to shape regional stablecoin infrastructure while larger jurisdictions are still turning laws into supervisory systems.</p>
+<p>It also means the burden shifts quickly from announcement to execution.</p>
+<p>If GEL₮ launches with clear issuer approval, transparent reserves, enforceable redemption rights, and real payment access, it could become one of the more important examples of a national currency entering stablecoin circulation through a private global issuer.</p>
+<p>If those details remain vague, the project will say more about the direction governments want to travel than about whether national-currency stablecoins are ready to work at scale.</p>
+<p>The post <a href="https://cryptoslate.com/tether-georgia-stablecoin-plan/">Tether’s Georgia stablecoin plan moves early on national payment rails</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/georgian-lari-stablecoin-tether.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/georgian-lari-stablecoin-tether.jpg" length="1672" type="image/jpg"/>
+	</item>
+		<item>
+		<title>CFTC may gain broader crypto oversight as staff who questioned major firms were reportedly sidelined</title>
+		<link>https://cryptoslate.com/cftc-crypto-oversight-clarity-act-independence-test/</link>
+		
+		<dc:creator><![CDATA[Liam 'Akiba' Wright]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 18:10:24 +0000</pubDate>
+				<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Legal]]></category>
+		<category><![CDATA[Legislation]]></category>
+		<category><![CDATA[Politics]]></category>
+		<category><![CDATA[Regulation]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=538044</guid>
+
+					<description><![CDATA[<p>CFTC crypto oversight is moving toward a larger role under the CLARITY Act, but the agency that Congress may soon ask to police much of the US crypto market is facing a more immediate test of its own independence. A New York Times investigation reported that senior Commodity Futures Trading Commission officials who raised concerns [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/cftc-crypto-oversight-clarity-act-independence-test/">CFTC may gain broader crypto oversight as staff who questioned major firms were reportedly sidelined</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>CFTC crypto oversight is moving toward a larger role under the CLARITY Act, but the agency that Congress may soon ask to police much of the US crypto market is facing a more immediate test of its own independence.</p>
+<p>A <a href="https://www.nytimes.com/2026/05/24/us/how-prediction-markets-and-crypto-firms-steamrolled-a-watchdog-agency.html">New York Times investigation</a> reported that senior Commodity Futures Trading Commission officials who raised concerns about Polymarket, Crypto.com, and a Gemini-linked prediction-market plan were suspended, investigated, pushed out, or cut out of relevant discussions as agency leaders helped those firms secure favorable regulatory outcomes.</p>
+<p>That report lands directly on top of Washington’s crypto market-structure fight and the broader debate over CFTC crypto oversight. The CLARITY Act would shift a large part of spot-market crypto oversight toward the CFTC, turning an agency already known for lean staffing into the likely federal watchdog for exchanges, intermediaries, surveillance rules, conflict controls, and customer-asset protections.</p>
+<p><em>CryptoSlate</em> recently reported that the bill would put the CFTC's <a href="https://cryptoslate.com/clarity-act-cftc-crypto-capacity-test/">crypto capacity to the test</a>. The Times report adds a harder test: whether the agency has the internal independence to use that capacity against politically connected firms.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/clarity-act-cftc-crypto-capacity-test/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/05/cftc-crypto-clarity-1024x576.jpg?ver=1779286813" alt="CLARITY Act will give crypto a new regulator before the CFTC has the staff to run it" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">CLARITY Act will give crypto a new regulator before the CFTC has the staff to run it</h3>
+                            <div class="cs-article-embed__summary">The CLARITY Act would push crypto spot markets under the CFTC. The unresolved test is whether an agency down 21.5% in payroll FTEs can turn that mandate into rules, registrations, surveillance, and enforcement.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">May 20, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Liam &#039;Akiba&#039; Wright</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/ig_0419ff6461c14d8d016a1417255e1c8191bac2516616ef28dc.png" target="_blank" rel="noopener"><img decoding="async" class="aligncenter wp-image-538054 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/ig_0419ff6461c14d8d016a1417255e1c8191bac2516616ef28dc.png" alt="Infographic showing the CFTC credibility test: reported staff sidelining, one current commissioner listed, CLARITY workload, and a $410 million FY2027 request for 650 FTEs." width="1122" height="1402" /></a></p>
+<h2>CFTC crypto oversight may expand as internal checks shrink</h2>
+<p>The CFTC was already a complicated fit for the next phase of CFTC crypto regulation because its historic remit is derivatives, while CLARITY would push it deeper into day-to-day spot crypto supervision.</p>
+<p>The bill would force the agency to write rules, register new market participants, monitor trading, police conflicts, and build enforcement capacity around a market far larger and faster than its traditional futures-and-swaps base.</p>
+<p>That would make the CFTC under the CLARITY Act the central gatekeeper for much of the market’s federal rulebook.</p>
+<p>The agency is asking for more resources. Its <a href="https://www.cftc.gov/sites/default/files/CFTC%20FY%202027%20President%27s%20Budget%20Book_CFTCGOV.pdf">FY2027 budget request</a> seeks $410 million and 650 full-time equivalents.</p>
+<p>That is real money for a small regulator, but resources alone do not answer the institutional risk now facing the CFTC.</p>
+<p>The commission's own <a href="https://www.cftc.gov/About/Commissioners/index.htm">current commissioners page</a>, accessed May 25, says the CFTC is structured as a five-commissioner body and lists Michael S. Selig as chairman under the current commissioners section.</p>
+<p>In practice, that leaves unusually concentrated authority at the top while the agency is expected to decide how aggressively it will supervise <a href="https://cryptoslate.com/crypto-exchanges/">crypto exchanges</a>, <a href="https://cryptoslate.com/prediction-markets/">prediction markets</a> and the firms trying to merge the two.</p>
+<p>A single listed commissioner is no proof of capture. It does mean fewer visible checks inside the body, Congress may soon rely on to convert crypto legislation into real market oversight. That makes CFTC independence a market-structure issue rather than an internal personnel dispute.</p>
+<p>For prediction market regulation, the timing is significant because the Times report describes three matters where CFTC career staff raised concerns. Public records and prior CryptoSlate coverage show why those firms carry relevance beyond the personnel dispute.</p>
+<table>
+<thead>
+<tr>
+<th>Company</th>
+<th>Public regulatory or business record</th>
+<th>Credibility test raised</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Polymarket</td>
+<td>CryptoSlate reported that Polymarket’s CFTC approval path ran through <a href="https://cryptoslate.com/cftc-grants-polymarket-green-light-for-us-return-through-regulatory-approval/">QCX/QC Clearing no-action relief</a> after its earlier US settlement, and that Donald Trump Jr. joined its advisory board amid a 1789 Capital investment.</td>
+<td>The Times reported that staff questioned Polymarket's anti-fraud protections before the firm received approval and a senior official was later placed on leave.</td>
+</tr>
+<tr>
+<td>Crypto.com</td>
+<td>Trump Media announced that Truth Social would offer prediction markets through an <a href="https://www.globenewswire.com/news-release/2025/10/28/3175429/0/en/Truth-Social-to-Become-World-s-First-Social-Media-Platform-Offering-Prediction-Markets-via-Exclusive-Partnership-with-Crypto-com.html">exclusive arrangement with Crypto.com Derivatives North America</a>, which the release described as a CFTC-registered exchange and clearinghouse.</td>
+<td>The Times reported that staff worried the firm was giving large trading companies an edge over smaller sports bettors without full disclosure, and that those staffers were cut out of discussions.</td>
+</tr>
+<tr>
+<td>Gemini Titan</td>
+<td>Gemini said its affiliate received a <a href="https://investors.gemini.com/node/7221/pdf">CFTC Designated Contract Market license</a> on Dec. 10, 2025, allowing it to offer prediction markets to US customers.</td>
+<td>The Times reported that a draft approval memo came from senior counsel Brigitte Weyls while the staff review was still underway; Weyls later joined Gemini Titan as general counsel.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/cftc-grants-polymarket-green-light-for-us-return-through-regulatory-approval/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2025/07/polymarket-qcex-1024x538.jpg" alt="CFTC grants Polymarket green light for US return through regulatory approval" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">CFTC grants Polymarket green light for US return through regulatory approval</h3>
+                            <div class="cs-article-embed__summary">The approval enables Polymarket to operate event contracts while maintaining compliance with federal derivatives regulations.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">Sep 3, 2025</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Gino Matos</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p>The pattern carries more weight than any single row. The record summarized here does not find that Polymarket, Crypto.com or Gemini committed misconduct.</p>
+<p>Polymarket told the Times it had strong safeguards, Crypto.com said it complies with federal regulations, and Gemini did not respond to the paper's questions. The public-policy test is whether career staff can press uncomfortable questions when the firms seeking approval are connected to powerful political and business interests.</p>
+<p>KuCoin is a separate enforcement-posture signal rather than a prediction-market approval story. The CFTC's March 2026 release says Peken Global, operator of KuCoin, was ordered to pay a <a href="https://www.cftc.gov/PressRoom/PressReleases/9203-26">$500,000 civil monetary penalty</a>, faced an injunction tied to US access without FBOT registration, and was not ordered to pay disgorgement.</p>
+<p>The Times reported that Pham wanted staff to drop the case and that the final penalty was far below what agency lawyers had expected.</p>
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/ig_0419ff6461c14d8d016a1417d2710081919cddb2cb1f80bd94.png" target="_blank" rel="noopener"><img decoding="async" class="aligncenter wp-image-538055 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/ig_0419ff6461c14d8d016a1417d2710081919cddb2cb1f80bd94.png" alt="Infographic matrix comparing Polymarket, Crypto.com, Gemini Titan, and KuCoin regulatory records and the credibility questions raised in the CFTC report." width="1122" height="1402" /></a></p>
+<h2>Capacity is now an independence problem</h2>
+<p>Before the Times investigation, the main CFTC crypto oversight concern around CLARITY was operational. A new crypto spot-market regime would need registrant categories, surveillance systems, recordkeeping standards, customer-asset rules, conflict controls, conduct rules and enforcement staff.</p>
+<p>That is a heavy buildout for an agency whose budget and headcount have always been modest compared with the Securities and Exchange Commission.</p>
+<p>After the Times report, the risk is broader. If CFTC enforcement staff who question crypto and prediction-market firms conclude that doing so may put their jobs at risk, then the number of full-time equivalents becomes less important than the incentives around those employees.</p>
+<p>An agency can hire staff and still lose oversight capacity if experts avoid hard questions.</p>
+<p>That is where prediction markets make the story more concrete for crypto readers. These markets have moved beyond a side curiosity for political gamblers.</p>
+<p>They sit at the intersection of crypto rails, sports-style consumer behavior, event contracts, market surveillance and federal-versus-state jurisdiction fights. CryptoSlate has covered the CFTC's stated focus on the <a href="https://cryptoslate.com/the-cftc-to-crack-down-on-the-growing-insider-problem-in-prediction-markets/">insider problem in prediction markets</a>, a concern that becomes more consequential if the officials responsible for market integrity lose influence inside the agency.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/the-cftc-to-crack-down-on-the-growing-insider-problem-in-prediction-markets/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/03/prediction-market-insider-trading-1024x538.jpg" alt="The CFTC says prediction markets have an insider trading problem" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">The CFTC says prediction markets have an insider trading problem</h3>
+                            <div class="cs-article-embed__summary">After listings exploded from about five a year to thousands, the CFTC is warning exchanges to catch manipulation before it hits headlines.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">Mar 15, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Gino Matos</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p>A regulator that cannot credibly question anti-fraud controls, trader advantages or customer safeguards is a problem for both crypto users and traditional market participants. The same supervisory gaps that let a prediction-market venue grow faster can also shape how spot crypto exchanges and intermediaries behave under a new federal regime.</p>
+<p>The CFTC's leadership and the firms involved have a different explanation for the shift. According to the Times, Selig said the agency had gone too far during the Biden administration by turning minor violations into court cases, and that enforcement remains focused on serious fraud, manipulation, abuse and insider trading.</p>
+<p>The White House denied conflicts of interest, and the CFTC declined to discuss specific personnel matters or case handling.</p>
+<p>That counterargument deserves space. Enforcement agencies do change priorities between administrations, and abandoned investigations can reflect weak evidence, resource choices or parallel proceedings rather than favoritism.</p>
+<p>A regulator can also decide that innovation should not be blocked by default.</p>
+<p>But the CFTC's public posture now has to carry more weight than ordinary policy change. The Times reported that the agency brought only two digital-currency cases in the second Trump era, both against individual operators rather than larger firms, and one prediction-market case against an individual accused of insider trading.</p>
+<p>That record sits beside the staff-sidelining allegations, the single-current-commissioner structure, the Trump Media-Crypto.com partnership, Gemini's political backstory and Polymarket's return to the US market.</p>
+<p>Taken together, those facts make CLARITY's CFTC bet harder to defend on capacity grounds alone. The bill's supporters can argue that the agency is a better home for crypto market supervision than the SEC.</p>
+<p>The tougher test is whether Congress is giving that authority to an agency that can push back against the firms most eager to benefit from it.</p>
+<h2>What would change the assessment next</h2>
+<p>The next stage is institutional.</p>
+<p>If the White House fills the commission, if the CFTC hires and retains enforcement staff, if conflict rules arrive with teeth, and if the agency brings major-firm cases where the facts justify them, the capture argument becomes harder to sustain.</p>
+<p>A focused CFTC could still become a serious crypto regulator if it pairs innovation policy with visible independence.</p>
+<p>If the agency stays concentrated in one chair, if career staff continue to exit, if enforcement remains centered on individuals while large firms get approvals, and if CLARITY moves forward without safeguards for vacancies, conflicts and supervision, the risk looks different.</p>
+<p>In that scenario, crypto's new market cop would be gaining power at the same moment its internal checks appear weakest.</p>
+<p>That is why the Times report changes the CFTC crypto oversight debate around CLARITY. The test has shifted from whether the CFTC has enough people to regulate crypto to whether those people will be free to ask the questions that shape oversight when the firms across the table have powerful friends.</p>
+<p>The post <a href="https://cryptoslate.com/cftc-crypto-oversight-clarity-act-independence-test/">CFTC may gain broader crypto oversight as staff who questioned major firms were reportedly sidelined</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/cftc-watchdog.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/cftc-watchdog.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>Bitcoin and Ethereum ETF outflows expose rotation into HYPE, XRP and Solana</title>
+		<link>https://cryptoslate.com/bitcoin-ethereum-etf-outflows-altcoin-rotation/</link>
+		
+		<dc:creator><![CDATA[Oluwapelumi Adejumo]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 16:15:09 +0000</pubDate>
+				<category><![CDATA[ETF]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Macro]]></category>
+		<category><![CDATA[Market]]></category>
+		<category><![CDATA[Price Watch]]></category>
+		<category><![CDATA[TradFi]]></category>
+		<category><![CDATA[Trading]]></category>
+		<category><![CDATA[Bitcoin]]></category>
+		<category><![CDATA[ethereum]]></category>
+		<category><![CDATA[Hyperliquid]]></category>
+		<category><![CDATA[Solana]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537936</guid>
+
+					<description><![CDATA[<p>Bitcoin and Ethereum ETF outflows have accelerated, with institutional investors pulling nearly $2.7 billion from spot Bitcoin and Ethereum exchange-traded funds over the past two weeks. However, rather than signaling a broad exit from digital assets, market data reveal a historic divergence, with these allocators simultaneously rotating into newly launched alternative cryptocurrency funds like Solana, [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/bitcoin-ethereum-etf-outflows-altcoin-rotation/">Bitcoin and Ethereum ETF outflows expose rotation into HYPE, XRP and Solana</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>Bitcoin and Ethereum ETF outflows have accelerated, with institutional investors pulling nearly $2.7 billion from spot <a href="https://cryptoslate.com/coins/bitcoin/">Bitcoin</a> and <a href="https://cryptoslate.com/coins/ethereum/">Ethereum</a> exchange-traded funds over the past two weeks.</p>
+<p>However, rather than signaling a broad exit from digital assets, market data reveal a historic divergence, with these allocators simultaneously rotating into newly launched alternative cryptocurrency funds like <a href="https://cryptoslate.com/coins/solana/">Solana</a>, <a href="https://cryptoslate.com/coins/hyperliquid/">Hyperliquid</a>, and <a href="https://cryptoslate.com/coins/xrp/">XRP</a>.</p>
+<p>The structural shift highlights a maturing market where digital assets are no longer traded as a monolith. That makes the current move a crypto ETF rotation rather than a uniform retreat from regulated digital asset exposure.</p>
+<p>Flagship cryptocurrencies like BTC and ETH are facing intense macroeconomic headwinds, while smaller ecosystems are attracting bids based on network-specific fundamentals and regulatory developments.</p>
+<h2>Bitcoin and Ethereum ETF outflows accelerate</h2>
+<p>The pace of institutional redemptions from the two largest digital assets has accelerated sharply in recent weeks.</p>
+<p>For context, <a href="https://sosovalue.com/assets/etf/us-btc-spot">data</a> compiled by SoSoValue show that <a href="https://cryptoslate.com/bitcoin-etf-demand-cracks-clarity-act-vote/">US spot Bitcoin ETF outflows</a> reached roughly $1.26 billion in cumulative net redemptions last week alone. That represents the heaviest weekly drain since late January.</p>
+<figure id="attachment_538038" aria-describedby="caption-attachment-538038" style="width: 1785px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-538038" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112405.jpg" alt="Spot Bitcoin ETFs Flows" width="1785" height="411" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112405.jpg 1785w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112405-300x69.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112405-1024x236.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112405-768x177.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112405-1536x354.jpg 1536w" sizes="(max-width: 1785px) 100vw, 1785px" /><figcaption id="caption-attachment-538038" class="wp-caption-text">Spot Bitcoin ETFs Flows (Source: SoSoValue)</figcaption></figure>
+<p>Combined with the previous week's figures, <a href="https://cryptoslate.com/bitcoins-boring-sideways-era-begins-with-over-1b-etf-outflow/">spot Bitcoin funds</a> have shed more than $2.26 billion in just 14 days, pushing the category's total assets under management below the $100 billion threshold.</p>
+<p><a href="https://cryptoslate.com/ethereum-etf-holders-suffer-5-billion-losses-as-market-slide-continues/">Ethereum ETF outflows</a> show a similarly sustained exodus. The nine funds tracking the second-largest cryptocurrency posted $471 million in combined outflows across the past two weeks.</p>
+<p>This extends their losing streak to 10 consecutive sessions, marking the category's most sustained period of outflows since March 2025.</p>
+<figure id="attachment_538039" aria-describedby="caption-attachment-538039" style="width: 1783px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-538039" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112615.jpg" alt="Spot EThereum Flows" width="1783" height="412" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112615.jpg 1783w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112615-300x69.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112615-1024x237.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112615-768x177.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-112615-1536x355.jpg 1536w" sizes="(max-width: 1783px) 100vw, 1783px" /><figcaption id="caption-attachment-538039" class="wp-caption-text">Spot Ethereum Flows (Source: SoSoValue)</figcaption></figure>
+<p>The velocity of the retreat in these funds is also clear in their daily trading averages. Timothy Misir, head of research at digital asset firm BRN, noted that the seven-day average of US spot ETF net flows recently fell to -$88 million per day, the sharpest daily outflow pace since mid-February.</p>
+<p>However, Misir pointed out a key structural distinction between the two periods. While the February outflows occurred during a period of market weakness, this latest round of redemptions took place as <a href="https://cryptoslate.com/iran-uae-escalation-pushes-bitcoins-bond-market-test-into-the-4-5-danger-zone/">Bitcoin traded near $80,000</a>.</p>
+<p>These numbers indicate that institutional managers used the price rebound to reduce their overall crypto exposure rather than add to existing positions.</p>
+<p>This distinction alters the interpretation of the current selling pressure. Redemptions during a market downturn typically reflect forced de-risking or defensive liquidations.</p>
+<p>In contrast, redemptions into price strength suggest that portfolio managers are capitalizing on available liquidity to rebalance their allocations, particularly when the broader macroeconomic backdrop becomes less favorable.</p>
+<h2>Macroeconomic triggers behind Bitcoin and Ethereum outflows</h2>
+<p>Meanwhile, SoSoValue noted that the synchronized selling in Bitcoin and Ethereum is also rooted in a fundamental repricing of macroeconomic expectations, rather than a failure of the underlying technology.</p>
+<p>In a May 25 <a href="https://x.com/SoSoValueCrypto/status/2058835450014683350">note</a>, the firm noted that the robust rally observed during the spring, which drew $2.9 billion in ETF inflows across March and April, was built entirely on the premise that the Federal Reserve would execute a series of <a href="https://cryptoslate.com/us-inflation-soars-to-3-3-in-largest-jump-since-2021-so-did-bitcoin-barely-move/">interest rate</a> cuts throughout 2026.</p>
+<p>However, that thesis has significantly reversed as recent economic prints show inflation remaining stubbornly high.</p>
+<p>Compounding the hawkish economic data is the recent leadership transition at the Federal Reserve.</p>
+<p>According to the firm, <a href="https://cryptoslate.com/people/kevin-warsh/">Kevin Warsh's</a> confirmation and recent swearing-in as Fed chair have injected fresh uncertainty into the central bank's policy reaction function.</p>
+<p>Consequently, traders are aggressively pricing out easing measures. Futures markets on the CME now reflect roughly a 39% probability of a rate hike at the forward 2026 meetings, while Polymarket pricing suggests a 62% chance of zero rate cuts for the entire calendar year.</p>
+<p>Because Bitcoin and ETH are now fully integrated into the traditional financial system, they respond to rate expectations with the same sensitivity as the tech-heavy <a href="https://cryptoslate.com/companies/nasdaq/">Nasdaq</a>. When the economic logic supporting a rate-cut environment disappears, the allocation justification vanishes with it.</p>
+<p>That repricing explains why Bitcoin and Ethereum ETF outflows have intensified even as capital remains available for narrower, asset-specific crypto strategies.</p>
+<h2>Alternative crypto fund inflows rise in HYPE, SOL and XRP</h2>
+<p>Alternative crypto fund inflows totaled roughly $226 million across single-asset products tied to Solana, XRP, and <a href="https://cryptoslate.com/hypes-path-to-100-runs-through-hyperliquid-becoming-cryptos-on-chain-wall-street-platform/">Hyperliquid’s HYPE token</a>.</p>
+<figure id="attachment_538046" aria-describedby="caption-attachment-538046" style="width: 1828px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-538046" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-113446.jpg" alt="Hyperliquid ETF Flows" width="1828" height="409" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-113446.jpg 1828w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-113446-300x67.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-113446-1024x229.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-113446-768x172.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-25-113446-1536x344.jpg 1536w" sizes="(max-width: 1828px) 100vw, 1828px" /><figcaption id="caption-attachment-538046" class="wp-caption-text">Hyperliquid ETF Flows (Source: SoSoValue)</figcaption></figure>
+<p>This divergence represents the primary tension in the digital asset market. Capital allocators are reducing exposure to the largest, most macro-sensitive investment vehicles while remaining willing to deploy money into products backed by distinct, asset-specific narratives.</p>
+<p>The split flows reveal a highly selective institutional client base. Bitcoin and Ethereum are increasingly evaluated through a top-down macroeconomic lens due to their size and systemic integration.</p>
+<p>Conversely, smaller altcoin products are being judged on bottom-up micro factors, including decentralized application activity, protocol fee generation, specific regulatory status, and cross-border payment utility.</p>
+<p>Alvin Kan, chief operating officer at Bitget Wallet, noted that the divergence between large-cap ETF liquidations and alternative fund inflows points to an internal market rotation rather than a structural collapse in digital asset demand.</p>
+<p>Kan stated that investors are looking beyond concentrated large-cap exposure to allocate capital toward ecosystems tied to specific operational milestones.</p>
+<p>He pointed to <a href="https://cryptoslate.com/guides/what-is-solana/">Solana’s high-throughput decentralized finance (DeFi)</a> expansion, <a href="https://cryptoslate.com/hypes-path-to-100-runs-through-hyperliquid-becoming-cryptos-on-chain-wall-street-platform/">Hyperliquid’s specialized derivative-trading infrastructure</a>, and <a href="https://cryptoslate.com/guides/what-is-xrp/">XRP’s</a> ongoing integration into cross-border payment networks as clear examples of independent themes attracting institutional interest.</p>
+<p>This trend highlights how the expansion of the crypto ETF wrapper is changing portfolio construction.</p>
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic-.jpg"><img decoding="async" class="aligncenter wp-image-538087 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic-.jpg" alt="Illustration of crypto ETF flows showing Bitcoin and Ethereum outflows while HYPE, XRP and Solana attract inflows." width="1280" height="720" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic-.jpg 1280w, https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic--300x169.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic--1024x576.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic--768x432.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic--480x270.jpg 480w, https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-etf-flow-comic--1200x675.jpg 1200w" sizes="(max-width: 1280px) 100vw, 1280px" /></a></p>
+<p>In prior market cycles, institutional investors seeking regulated, compliant vehicles were restricted almost exclusively to <a href="https://cryptoslate.com/insights/bitcoin-and-ethereum-etfs-lose-almost-400m-but-institutional-interest-still-active/">Bitcoin and, later, Ethereum. </a></p>
+<p>The arrival of diversified single-asset products allows managers to express granular investment views without interacting directly with blockchain protocols or managing exchange counterparty risk.</p>
+<p>Consequently, the institutional marketplace has become more competitive. While Bitcoin and Ethereum maintain an absolute monopoly over deep liquidity and total assets under management, they no longer monopolize regulated access to the asset class.</p>
+<p>Newer products can capture institutional mindshare when their underlying narratives appear less crowded or more aligned with active on-chain growth sectors.</p>
+<p>So, if this sector-driven approach persists, the diversification trend could support a much more resilient and sustainable growth cycle for the broader digital asset industry, even as individual assets navigate periods of macroeconomic volatility</p>
+<p>The post <a href="https://cryptoslate.com/bitcoin-ethereum-etf-outflows-altcoin-rotation/">Bitcoin and Ethereum ETF outflows expose rotation into HYPE, XRP and Solana</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-wallst.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/solana-xrp-hype-wallst.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>Nasdaq’s Bitcoin options win SEC approval, but Wall Street’s real battle is still ahead</title>
+		<link>https://cryptoslate.com/nasdaq-bitcoin-index-options-sec-approval/</link>
+		
+		<dc:creator><![CDATA[Gino Matos]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 14:05:28 +0000</pubDate>
+				<category><![CDATA[Derivatives]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Regulation]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537884</guid>
+
+					<description><![CDATA[<p>The SEC approved Nasdaq PHLX's proposed rule change to list Nasdaq Bitcoin Index Options on May 22, clearing a major regulatory step toward bringing cash-settled Bitcoin volatility trading inside the US-listed options infrastructure. The contracts, ticker QBTC, are cash-settled in US dollars against a Bitcoin benchmark and fit within the same account and margin framework [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/nasdaq-bitcoin-index-options-sec-approval/">Nasdaq’s Bitcoin options win SEC approval, but Wall Street’s real battle is still ahead</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>The SEC approved Nasdaq PHLX's proposed rule change to list Nasdaq Bitcoin Index Options on May 22, clearing a major regulatory step toward bringing cash-settled Bitcoin volatility trading inside the US-listed options infrastructure.</p>
+<p>The contracts, ticker QBTC, are cash-settled in US dollars against a Bitcoin benchmark and fit within the same account and margin framework used for equity index options.</p>
+<p>That places QBTC in the market for cash-settled Bitcoin options without requiring investors to hold BTC or use crypto-native derivatives venues.</p>
+<p>Trading begins only once the CFTC grants the necessary exemptive relief and the OCC receives approval to update the Options Disclosure Document, but that approval restructures what Bitcoin can be inside the machinery Wall Street uses every day.</p>
+<p>Spot Bitcoin ETFs gave traditional investors regulated <a href="https://cryptoslate.com/price-watch/">price</a> exposure to BTC, and options on those <a href="https://cryptoslate.com/etf/">ETFs</a> added hedging and speculation tools tied to specific fund shares. The distinction matters because Bitcoin ETF options track fund shares, while Nasdaq Bitcoin index options would reference a Bitcoin benchmark directly.</p>
+<p>QBTC creates an options market around <a href="https://cryptoslate.com/coins/bitcoin/">Bitcoin</a> exposure itself, inside the listed-index-options stack, priced against a real-time Bitcoin benchmark and cleared through OCC's standard infrastructure.</p>
+<p>The SEC order describes the contracts as European-style, P.M.-settled, and cash-settled, with final settlement value based on BRRNY, a New York close Bitcoin benchmark synchronized to 4:00 p.m. Eastern time.</p>
+<p>The underlying index is the CME CF Bitcoin Real Time Index (BRTI), divided by 100, with CF Benchmarks calculating the indicative value every 200 milliseconds during the trading day.</p>
+<p><a href="https://cryptoslate.com/companies/nasdaq/">Nasdaq</a> argued in its filing that the index options would allow investors in spot Bitcoin ETFs to hold QBTC contracts in the same securities account and under the same margin regime as their ETF exposure, integrating Bitcoin risk management into existing securities account workflows.</p>
+<table>
+<thead>
+<tr>
+<th>Product layer</th>
+<th>What it gives investors</th>
+<th>Market infrastructure</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spot Bitcoin ETFs</td>
+<td>Regulated BTC price exposure</td>
+<td>Securities account / ETF wrapper</td>
+<td>Mostly directional exposure</td>
+</tr>
+<tr>
+<td>Bitcoin ETF options</td>
+<td>Hedging and speculation on ETF shares</td>
+<td>Listed options on specific funds</td>
+<td>Fund-specific exposure</td>
+</tr>
+<tr>
+<td>CME Bitcoin futures/options</td>
+<td>Institutional derivatives exposure</td>
+<td>Futures-market infrastructure</td>
+<td>Futures account, margin and basis dynamics</td>
+</tr>
+<tr>
+<td>Cboe Bitcoin ETF Index options</td>
+<td>Cash-settled options on a spot Bitcoin ETF basket</td>
+<td>Listed index-options framework</td>
+<td>Indirect BTC exposure through ETF basket</td>
+</tr>
+<tr>
+<td>Nasdaq QBTC</td>
+<td>Cash-settled options on Bitcoin index exposure</td>
+<td>Equity index-options stack / OCC clearing</td>
+<td>Not live until CFTC and OCC conditions clear</td>
+</tr>
+</tbody>
+</table>
+<h2>The infrastructure Bitcoin is entering</h2>
+<p><a href="https://cryptoslate.com/companies/bitwise/">Bitwise</a> CIO <a href="https://cryptoslate.com/people/matthew-hougan/">Matt Hougan</a> said that <a href="https://cryptoslate.com/crypto-exchanges/options/">Bitcoin options</a> are essential for the asset class to <a href="https://www.reuters.com/technology/nasdaq-seeks-sec-approval-bitcoin-index-options-2024-08-27/">become fully normalized</a> when Nasdaq first sought approval.</p>
+<p>The infrastructure enabling that normalization is OCC, the clearinghouse that <a href="https://www.theocc.com/newsroom/views/2026/01-05-occ-annual-2025-and-december-2025-volume">processed 15.2 billion options contracts in 2025</a>, including 5.68 billion ETF options and 1.26 billion index options.</p>
+<p>In April 2026 alone, OCC <a href="https://www.theocc.com/newsroom/views/2026/05-04-april-2026-monthly-volume-report">cleared 1.45 billion total contracts</a>, with index options volume up 23.8% year over year.</p>
+<p>OCC clearing is the operational bridge between a Bitcoin volatility product and the same risk systems used by equity-index desks.</p>
+<figure id="attachment_537987" aria-describedby="caption-attachment-537987" style="width: 965px" class="wp-caption aligncenter"><img decoding="async" class="wp-image-537987 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/brave_LB5PINlDus.jpg" alt="The Bitcoin options machine" width="965" height="681" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/brave_LB5PINlDus.jpg 965w, https://cryptoslate.com/wp-content/uploads/2026/05/brave_LB5PINlDus-300x212.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/brave_LB5PINlDus-768x542.jpg 768w" sizes="(max-width: 965px) 100vw, 965px" /><figcaption id="caption-attachment-537987" class="wp-caption-text">A chart shows OCC cleared 15.2 billion options contracts in 2025, the market infrastructure Nasdaq's proposed QBTC Bitcoin index option would enter.</figcaption></figure>
+<p>Bitcoin index options would enter OCC's clearing machine, carrying all the margin treatment, brokerage integrations, and market maker relationships that infrastructure entails, placing Bitcoin volatility inside the same portfolio-margin systems and volatility desks equity indexes use.</p>
+<p><a href="https://cryptoslate.com/companies/cboe-global-markets/">Cboe</a> already offers cash-settled Bitcoin index products, such as Bitcoin US ETF Index options and Mini Bitcoin US ETF Index options, European-style contracts based on an index of US-listed spot Bitcoin ETFs.</p>
+<p>Nasdaq's QBTC uses BRTI as its underlying asset, tying the contract's value directly to Bitcoin's spot price.</p>
+<p>The SEC cited the spot Bitcoin market cap at approximately $1.52 trillion as of Apr. 29, and noted that proposed position and exercise limits would represent 0.12% of the outstanding Bitcoin supply.</p>
+<p>These are limits that the SEC set to contain the product's footprint relative to the underlying Bitcoin market while still allowing meaningful institutional scale.</p>
+<p>Nasdaq PHLX can list and trade QBTC only once it receives CFTC exemptive relief, satisfies all related conditions, and OCC receives approval to update the Options Disclosure Document.</p>
+<p>Whether those limits hold under stress, and whether the CFTC processes its exemptive relief on a timeline that allows 2026 <a href="https://cryptoslate.com/trading/">trading</a>, the approval itself leaves open.</p>
+<h2>The market maker test for QBTC options</h2>
+<p>If CFTC exemptive relief and OCC approval arrive and market makers deploy capital with tight spreads, Bitcoin gains a deep, liquid volatility surface inside equity options infrastructure, and banks and asset managers gain the toolkit to build collars, buffered notes, downside-protection strategies, and volatility-selling yield structures with BTC as the underlying.</p>
+<p>One QBTC contract would represent roughly one <a href="https://cryptoslate.com/nasdaq-proposes-raising-ibit-options-contract-limit-for-traders/">Bitcoin of notional exposure</a> at the $100 multiplier, and at Bitcoin around $76,593, 10,000 contracts would represent approximately $766 million of underlying notional.</p>
+<p>Covered-call Bitcoin ETFs have already demonstrated that yield-generating structures built on BTC carry real retail and advisor demand. An <a href="https://cryptoslate.com/exchanges/">exchange</a>-listed index option gives those strategies a more credible clearing foundation and a cleaner underlying.</p>
+<p>If the CFTC delays exemptive relief or attaches conditions that complicate Nasdaq's product design, thin <a href="https://cryptoslate.com/market/">market</a> maker participation becomes the chokepoint.</p>
+<p>Wide spreads discourage institutional use, which keeps spreads wide, and the approval stays symbolic, while <a href="https://cryptoslate.com/this-is-what-wall-street-crypto-looks-like-ibit-options-went-vertical-as-bitcoin-hit-60k-intraday/">IBIT options</a> and Cboe's ETF-index options keep capturing the <a href="https://cryptoslate.com/regulation/">regulated</a> Bitcoin options market.</p>
+<p>QBTC enters that market, building its dealer and brokerage network from scratch, without the market maker familiarity <a href="https://cryptoslate.com/products/ishares-bitcoin-trust/">IBIT</a> options accumulated alongside ETF adoption.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>What happens</th>
+<th>Signal to watch</th>
+<th>Bitcoin market impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bull case</td>
+<td>CFTC/OCC approvals clear and market makers quote tight spreads</td>
+<td>Strong opening volume, narrow bid-ask spreads, institutional flow</td>
+<td>BTC gains a deeper listed volatility surface</td>
+</tr>
+<tr>
+<td>Base case</td>
+<td>QBTC launches but grows gradually beside IBIT options and Cboe ETF-index options</td>
+<td>Moderate volume, ETF hedging use cases, gradual broker adoption</td>
+<td>Incremental improvement in BTC risk-management tools</td>
+</tr>
+<tr>
+<td>Bear case</td>
+<td>CFTC relief is delayed or conditions complicate product design</td>
+<td>No launch timeline, weak dealer commitment</td>
+<td>Approval remains symbolic</td>
+</tr>
+<tr>
+<td>Liquidity trap</td>
+<td>Product launches, but spreads stay wide</td>
+<td>Low open interest, thin depth, limited market-maker capital</td>
+<td>Institutions keep using IBIT options or futures instead</td>
+</tr>
+</tbody>
+</table>
+<p>The SEC's approval reflects that Bitcoin is a $1.52 trillion asset class, with spot ETFs, CME futures, ETF options, and a pending listed index options product calibrated to US market close mechanics.</p>
+<p>Nasdaq Bitcoin index options show that Bitcoin’s next institutional phase runs through options clearinghouses, margin systems, and structured-product desks, and the SEC has now confirmed it is willing to let that integration proceed.</p>
+<p>The post <a href="https://cryptoslate.com/nasdaq-bitcoin-index-options-sec-approval/">Nasdaq’s Bitcoin options win SEC approval, but Wall Street’s real battle is still ahead</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/nasdaq-bitcoin-options.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/nasdaq-bitcoin-options.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>Bitcoin Iran-deal rally faces its real test in oil flows and Fed pricing</title>
+		<link>https://cryptoslate.com/bitcoin-iran-deal-rally-oil-fed/</link>
+		
+		<dc:creator><![CDATA[Liam 'Akiba' Wright]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 12:35:22 +0000</pubDate>
+				<category><![CDATA[Analysis]]></category>
+		<category><![CDATA[Deals]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Macro]]></category>
+		<category><![CDATA[Market]]></category>
+		<category><![CDATA[Politics]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=538053</guid>
+
+					<description><![CDATA[<p>The Bitcoin Iran deal rally on renewed U.S.-Iran deal optimism is a credible first-order macro signal. The move still needs confirmation in oil flows, gasoline prices, inflation compensation, and Fed pricing before traders can treat it as a reopened path to rate cuts. The immediate market logic is straightforward. A reported framework could extend the [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/bitcoin-iran-deal-rally-oil-fed/">Bitcoin Iran-deal rally faces its real test in oil flows and Fed pricing</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>The <a href="https://cryptoslate.com/coins/bitcoin/">Bitcoin</a> Iran deal rally on renewed U.S.-Iran deal optimism is a credible first-order macro signal. The move still needs confirmation in oil flows, gasoline prices, inflation compensation, and Fed pricing before traders can treat it as a reopened path to rate cuts.</p>
+<p>The immediate market logic is straightforward. A <a href="https://www.axios.com/2026/05/24/iran-deal-strait-hormuz-sanctions-nuclear">reported framework</a> could extend the ceasefire for 60 days, reopen the Strait of Hormuz, allow Iranian oil sales through sanctions waivers, and move nuclear concessions into follow-on negotiations.</p>
+<p>If that sequence holds, the war premium in crude can fall. Gasoline pressure can ease, inflation readings can cool, Treasury yields can soften, and Bitcoin can trade less like an asset trapped under real-rate pressure.</p>
+<p>The bounce is therefore as much a liquidity signal as a geopolitical one. BTC traded between $77,400 and $77,500 on May 25, still far below its October 2025 high of $126,198.</p>
+<p>In that context, any signal that pulls the market away from higher oil prices and a tougher Fed policy can trigger an outsized relief move.</p>
+<p>The stronger interpretation is that markets are paying up front for a deal whose value depends on as-yet-unsettled facts: physical shipping through the Hormuz Strait, oil and LNG flows, gasoline pass-through, inflation compensation, Fed communication, and durable nuclear limits.</p>
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/ig_07e56faec1eff0d6016a14301e646081918bb7a8d3040d8b88.png" target="_blank" rel="noopener"><img decoding="async" class="aligncenter wp-image-538072 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/ig_07e56faec1eff0d6016a14301e646081918bb7a8d3040d8b88.png" alt="Infographic showing how a reported U.S.-Iran framework could move Bitcoin through oil relief, Hormuz flow data, and Fed pricing confirmation." width="1122" height="1402" /></a></p>
+<h2>Oil is the first Bitcoin Iran deal rally test</h2>
+<p>The fastest transmission channel from the reported deal to Bitcoin runs through crude. <a href="https://apnews.com/article/stocks-markets-iran-trump-oil-0b569925695e498e6fd7ece7b183e085">Global shares mostly rose</a> while WTI crude fell $4.77 to $91.83 and Brent fell $4.86 to $98.68 after President Donald Trump said Iran talks were progressing.</p>
+<p>U.S. markets were closed for Memorial Day, so the move is best read as a global-market and oil-futures reaction rather than a full U.S. risk-asset close. Even with that caveat, the direction was clear: lower oil, less immediate inflation pressure, and more room for risk assets to recover.</p>
+<p>The reported deal terms explain the move. The draft framework would extend the ceasefire, reopen Hormuz, allow Iran to sell oil, and begin negotiations over curbing Iran's nuclear program.</p>
+<p>A similar outline described a <a href="https://apnews.com/article/iran-united-states-deal-explainer-war-b1659232611edc10808612e30647c17d">gradual reopening</a> of the waterway, sanctions waivers for oil sales, and unresolved details around enrichment and nuclear material.</p>
+<p>For Bitcoin, the oil channel is central to the trade. The asset has spent much of the Iran war period behaving like a liquidity-sensitive risk asset, under pressure from higher energy costs and tighter Fed pricing.</p>
+<p>A credible reduction in the oil shock can support crypto by lowering the probability that policymakers need to keep policy restrictive for longer, or respond to a renewed inflation pulse with a more hawkish stance.</p>
+<p>That makes the relief rally rational and conditional. The first move in crude signals to traders that the geopolitical premium can unwind quickly when the market sees a path to the reopening of Hormuz.</p>
+<p>The second move has to come from physical energy data and inflation readings. Without those, the rally remains a bet on implementation rather than a confirmed macro turn.</p>
+<p>That distinction keeps the market signal anchored in data. Bitcoin can react immediately to futures pricing, but the Fed will need evidence from energy flows and inflation indicators before treating the shock as temporary.</p>
+<h2>Hormuz relief needs physical normalization</h2>
+<p>The physical energy backdrop remains large enough that a diplomatic outline still has to become a functioning oil market.</p>
+<p>The International Energy Agency said Gulf output affected by the Hormuz closure was <a href="https://www.iea.org/reports/oil-market-report-may-2026">14.4 million barrels per day below pre-war levels</a>, while observed global inventories drew by about 250 million barrels over March and April.</p>
+<p>The U.S. Energy Information Administration's <a href="https://www.eia.gov/outlooks/steo/report/energysecurity/article.php">chokepoint data</a> showed oil flows through the Strait of Hormuz falling from 20.7 million barrels per day in the fourth quarter of 2025 to 14.6 million barrels per day in the first quarter of 2026.</p>
+<p>LNG flows fell from 10.1 billion cubic feet per day to 7.3 billion over the same period.</p>
+<p>Those numbers explain why reopening Hormuz would register immediately across risk assets. They also show the scale of the implementation gap.</p>
+<p>Oil and LNG flows, Gulf production, and inventories have to move back toward normal before lower futures prices become a durable disinflation signal.</p>
+<table>
+<thead>
+<tr>
+<th>Relief signal</th>
+<th>Why it helps Bitcoin</th>
+<th>What still has to resolve</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ceasefire extension and Hormuz reopening</td>
+<td>Reduces the immediate oil-risk premium and supports risk assets</td>
+<td>Oil and LNG flows have to recover in actual data</td>
+</tr>
+<tr>
+<td>Iranian oil sales under waivers</td>
+<td>Adds potential supply and lowers pressure on crude futures</td>
+<td>Exports, sanctions mechanics, and regional security terms remain implementation risks</td>
+</tr>
+<tr>
+<td>Nuclear follow-on talks</td>
+<td>Could reduce the geopolitical premium if concessions are verifiable</td>
+<td>Enrichment limits, uranium removal, inspections, and duration remain unresolved</td>
+</tr>
+<tr>
+<td>Lower oil and gasoline pressure</td>
+<td>Can ease inflation and real-rate pressure on crypto</td>
+<td>April inflation data already show a large energy pass-through that has to reverse</td>
+</tr>
+</tbody>
+</table>
+<p>The positive case is clear: reopening Hormuz and restoring oil flows would lower the inflation impulse that has been weighing on liquidity expectations.</p>
+<p>The unresolved case is equally important: a slow recovery in flows, persistent disruption in Gulf production, or elevated gasoline prices would leave the Fed with less room to validate the market's relief trade.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/ceasefire-calmed-hormuz-panic-bitcoin-still-faces-oil-risk/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/04/hormuz-mine-blockade-1024x683.jpg" alt="Bitcoin’s rebound looks like a trap as real Hormuz threat may not be over" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Bitcoin’s rebound looks like a trap as real Hormuz threat may not be over</h3>
+                            <div class="cs-article-embed__summary">Banks and energy forecasters see a slower repair in oil flows, keeping inflation and Fed risk alive for Bitcoin.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">Apr 8, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Gino Matos</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<h2>The Bitcoin Iran deal rally runs through the Fed rate-cut path</h2>
+<p>Bitcoin is rallying because de-escalation can change the rate conversation through energy prices. A cooler energy market can pull inflation readings and inflation compensation away from the worst Iran-war scenarios, making the Fed less likely to delay cuts further or keep the risk of a hike alive.</p>
+<p>The April inflation data explain the sensitivity. The Bureau of Labor Statistics said <a href="https://www.bls.gov/news.release/cpi.nr0.htm?form=MG0AV3">CPI rose 0.6%</a> month over month and 3.8% year over year, while energy rose 17.9% and gasoline jumped 28.4% over 12 months.</p>
+<p>That is the kind of pass-through that turns foreign-policy shocks into domestic rate pressure.</p>
+<p>The Fed had already reacted to that backdrop. Its <a href="https://www.federalreserve.gov/newsevents/pressreleases/monetary20260429a.htm">April statement</a> held the federal funds target range at 3.50% to 3.75%, cited elevated inflation partly reflecting global energy prices, and showed internal tension around easing language.</p>
+<p><a href="https://www.federalreserve.gov/monetarypolicy/fomcminutes20260429.htm">Minutes from the April meeting</a> said expected cuts had shifted later into the third and fourth quarters of 2026 and the first quarter of 2027, while options pricing implied about a 30% probability of a rate hike by the first quarter of 2027.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/fed-minutes-confirmed-bitcoins-worst-macro-twist-markets-were-pricing-hikes-not-cuts/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/05/liquidity-ratehike-bitcoin-1024x576.jpg" alt="Fed minutes turn Bitcoin’s rate-cut trade into a hike-risk problem" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Fed minutes turn Bitcoin’s rate-cut trade into a hike-risk problem</h3>
+                            <div class="cs-article-embed__summary">Bitcoin&#039;s 2026 bull case rested on one assumption: that the Fed&#039;s next serious move would be a cut, but Wednesday&#039;s minutes made clear that assumption is no longer safe.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">May 24, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Andjela Radmilac</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p>That last point is the core Bitcoin problem. Crypto can absorb a geopolitical shock more easily if the shock lowers rates or brings liquidity back into view.</p>
+<p>It struggles when the same shock raises oil, lifts inflation compensation, keeps yields high, and delays cuts. The recent Fed minutes backdrop already turned the market's worst macro twist into a move from pricing cuts to pricing some risk of hikes.</p>
+<p>A U.S.-Iran deal can reverse that pressure only if it changes the inflation data and market-implied inflation path. Lower crude futures help. Lower gasoline prices help more.</p>
+<p>A decline in breakeven inflation and a softer Fed communication path would be the strongest signals that the central bank can look through the oil shock before the 2026 midterms.</p>
+<p>That sequence is why Bitcoin's move should be read as a conditional rates trade. The asset can rebound before every geopolitical question is settled. It still needs sufficient energy relief to shift the inflation-versus-Fed-pricing balance away from the hike-risk scenario that dominated after the April minutes.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/bitcoin-etf-flows-macro-risk-test/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/05/bitcoin-cliff-1024x576.jpg" alt="Bitcoin ETF flows expose the split inside crypto’s $1 billion selloff" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Bitcoin ETF flows expose the split inside crypto’s $1 billion selloff</h3>
+                            <div class="cs-article-embed__summary">Bitcoin ETF flows snapped a six-week inflow streak as Iran-driven oil and rate fears pushed allocators to cut risk, testing whether BTC support can hold.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">May 20, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Gino Matos</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<h2>Durable nuclear limits decide how long oil relief lasts</h2>
+<p>The political fight over whether the reported framework is stronger than the Obama-era <a href="https://www.armscontrol.org/factsheets/joint-comprehensive-plan-action-jcpoa-glance">Joint Comprehensive Plan of Action</a> has a direct market consequence: the durability of the oil-risk premium.</p>
+<p>The strongest defensible answer is specific. The reported framework could be stronger than the JCPOA on one crucial point if Iran verifiably gives up roughly 440.9 kilograms of uranium enriched up to 60%.</p>
+<p>That would directly address a near-weapons-grade stockpile that did not exist in the same form when the original JCPOA was negotiated.</p>
+<p>The reported framework remains incomplete as an overall comparison. The JCPOA capped Iran's enrichment at 3.67% for 15 years, kept its enriched uranium stockpile below 300 kilograms of 3.67% material, restricted centrifuges, limited activity at Fordow, and included monitoring and dispute mechanisms involving the International Atomic Energy Agency and a Joint Commission.</p>
+<p>The <a href="https://obamawhitehouse.archives.gov/issues/foreign-policy/iran-deal">Obama White House</a> framed the agreement as cutting Iran's uranium stockpile by 98% and extending breakout time. The <a href="https://www.cfr.org/backgrounders/what-iran-nuclear-deal">Council on Foreign Relations</a> notes that Trump later withdrew the U.S. after criticizing the pact as insufficient.</p>
+<p>That benchmark makes the current comparison concrete. A verified handoff or dilution of 60% uranium would be a meaningful concession.</p>
+<p>A pledge never to pursue nuclear weapons is also politically important. Yet if enrichment suspension, long-term caps, verification access, duration, and Fordow restrictions remain open or absent, the market lacks a firm basis for saying the new framework has removed the risk that pushed oil higher.</p>
+<p>That is where the Bitcoin rally and the political debate meet. If the final text looks like a ceasefire plus deferred nuclear talks, immediate oil relief could still fade into another risk premium.</p>
+<p>If it pairs Hormuz normalization with verifiable uranium removal and enforceable limits, it gives the Fed a better chance to treat the shock as temporary.</p>
+<p><a href="https://cryptoslate.com/wp-content/uploads/2026/05/ig_07e56faec1eff0d6016a1430a42db48191937e9c83ce7479c9.png" target="_blank" rel="noopener"><img decoding="async" class="aligncenter wp-image-538073 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/ig_07e56faec1eff0d6016a1430a42db48191937e9c83ce7479c9.png" alt="Infographic comparing inflation and Fed rate pressure with JCPOA nuclear benchmarks that determine whether Bitcoin's Iran-deal rally becomes durable." width="1122" height="1402" /></a></p>
+<h2>The data test comes next</h2>
+<p>The Bitcoin Iran deal rally is credible as a relief trade and premature as a full macro verdict.</p>
+<p>The bullish version is easy to map. Tankers return. Iranian oil sales add supply. Brent and WTI keep falling. Gasoline prices follow. Breakeven inflation cools.</p>
+<p>Treasury yields no longer carry an oil-shock premium. Fed officials regain confidence that energy pressure will not contaminate inflation expectations. In that world, the market can bring forward the timing of rate cuts, and Bitcoin's rebound can become more than a geopolitical headline trade.</p>
+<p>The bearish version requires only enough unresolved risk for energy markets to keep pricing disruption. If Hormuz flows remain impaired, if Gulf production remains constrained, if gasoline stays high, or if the final nuclear language looks weaker than the JCPOA on enrichment and verification, the Fed and midterm voters face much the same inflation problem under a calmer label.</p>
+<p>That is the test. Bitcoin is right to respond to lower oil pressure because the rate channel is real.</p>
+<p>Traders would overreach if they treated a reported political framework as already equivalent to disinflation. The rally becomes a durable macro off-ramp when the deal shows up in barrels, cargoes, gas stations, inflation compensation, and Fed pricing before November 2026.</p>
+<p>Until then, the Bitcoin Iran deal rally is a rational relief trade waiting for proof in the data.</p>
+<p>The post <a href="https://cryptoslate.com/bitcoin-iran-deal-rally-oil-fed/">Bitcoin Iran-deal rally faces its real test in oil flows and Fed pricing</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/us-iran-optimism-bitcoin-oil.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/us-iran-optimism-bitcoin-oil.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>Vitalik’s smaller Ethereum Foundation tests ETH holders’ demand for execution</title>
+		<link>https://cryptoslate.com/ethereum-foundation-vitalik-smaller-ship-bet/</link>
+		
+		<dc:creator><![CDATA[Gino Matos]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 12:01:51 +0000</pubDate>
+				<category><![CDATA[Adoption]]></category>
+		<category><![CDATA[Community]]></category>
+		<category><![CDATA[Culture]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Governance]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537991</guid>
+
+					<description><![CDATA[<p>With at least nine senior Ethereum Foundation (EF) members having left in 2026 and years of community frustration over EF-linked ETH sales, Vitalik Buterin posted his perspective on the Foundation's direction. For Buterin, the EF should become smaller, more opinionated, and less central to Ethereum's future. He said this reflects his view alone and that [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/ethereum-foundation-vitalik-smaller-ship-bet/">Vitalik’s smaller Ethereum Foundation tests ETH holders’ demand for execution</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>With at least nine senior Ethereum Foundation (EF) members having left in 2026 and years of community frustration over EF-linked ETH sales, Vitalik Buterin posted his perspective on the Foundation's direction.</p>
+<p>For Buterin, the EF should become smaller, more opinionated, and less central to Ethereum's future.</p>
+<p>He said this reflects his view alone and that the board is expanding while his own power within the organization continues to decrease, which he described as what he wants.</p>
+<p>The dispute now centers on Ethereum Foundation ETH sales, treasury discipline, and whether outside groups can take over the growth functions holders want EF to own.</p>
+<p>That framing puts Buterin directly at odds with a vocal segment of ETH holders who want the <a href="https://cryptoslate.com/companies/ethereum-foundation/">Foundation</a> to behave more like a growth-oriented institution, competing harder against Solana, building the ETH-as-asset narrative, coordinating business development, and stepping up execution.</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>ETH-holder demand</th>
+<th>Vitalik’s answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What should EF be?</td>
+<td>Growth-oriented institution</td>
+<td>One node among many</td>
+</tr>
+<tr>
+<td>What should EF optimize for?</td>
+<td>ETH value, adoption, execution</td>
+<td>CROPS: censorship resistance, open source, privacy, security</td>
+</tr>
+<tr>
+<td>What should EF do with ETH?</td>
+<td>Stop or reduce selling</td>
+<td>Sell less by becoming narrower</td>
+</tr>
+<tr>
+<td>Who handles BD and asset narrative?</td>
+<td>EF should coordinate it</td>
+<td>Outside organizations should step in</td>
+</tr>
+<tr>
+<td>What is the risk?</td>
+<td>Ethereum under-competes</td>
+<td>Ethereum becomes too centralized if EF does too much</td>
+</tr>
+</tbody>
+</table>
+<p>He describes EF as &#8220;one node, with a defined purpose, alongside other nodes,&#8221; and says it should prioritize longevity over breadth, a choice he explicitly ties to selling less ETH.</p>
+<p>Aya Miyaguchi is executing much of the transition, with Buterin's own input concentrated on technical matters.</p>
+<p>The Ethereum Foundation holds approximately <a href="https://ethereum.foundation/">0.16% of all ETH</a>, well below the 10% to 50% foundation allocations Buterin says are common at other blockchain projects. In April, the Ethereum Foundation staking move reached roughly 69,500 ETH, nearly completing a <a href="https://cryptoslate.com/ethereum-gets-hit-by-vitalik-buterin-sell-signals-as-the-foundation-stakes-70000-eth-and-traders-panic/">70,000 ETH target</a> and shifting part of its treasury toward yield generation.</p>
+<p>The estimated annual staking income of $3.9 million to $5.4 million is well below historical EF operating costs of nearly $100 million per year, and staking <a href="https://cryptoslate.com/ethereum-foundation-eth-sale-undercuts-staking-selloff-thesis/">leaves the need for ETH sales</a> intact.</p>
+<p>The Ethereum Foundation treasury therefore remains dependent on either lower spending, continued ETH sales, outside funding, or some combination of all three.</p>
+<p>Selling less ETH, under these conditions, means a smaller, narrower EF by fiscal necessity as much as by philosophical design.</p>
+<figure id="attachment_537992" aria-describedby="caption-attachment-537992" style="width: 959px" class="wp-caption aligncenter"><img decoding="async" class="wp-image-537992 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/brave_8YwaGA0J7L.jpg" alt="Why selling less ETH means a smaller Ethereum Foundation" width="959" height="676" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/brave_8YwaGA0J7L.jpg 959w, https://cryptoslate.com/wp-content/uploads/2026/05/brave_8YwaGA0J7L-300x211.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/brave_8YwaGA0J7L-768x541.jpg 768w" sizes="(max-width: 959px) 100vw, 959px" /><figcaption id="caption-attachment-537992" class="wp-caption-text">A bar chart shows the Ethereum Foundation's estimated annual staking income of $3.9 million to $5.4 million against historical operating costs near $100 million.</figcaption></figure>
+<h2>Ethereum Foundation smaller by design</h2>
+<p>The deeper argument in Buterin's post runs through the Mar. 13 Ethereum Foundation Mandate, which formalized censorship resistance, open source, privacy, and security as <a href="https://cryptoslate.com/coins/ethereum/">Ethereum's</a> core institutional identity.</p>
+<p>The Mandate described EF as one of many stewards, with EF success measured by reducing EF dependence over time.</p>
+<p>Buterin's post noted that EF will focus specifically on activities that only EF can credibly deliver, some of which Buterin describes as newly achievable through AI-assisted proof systems, while treating ETH asset promotion, coordination, and business development as work for outside organizations to absorb.</p>
+<p>Buterin made a <a href="https://cryptoslate.com/companies/google/">Google</a> analogy to illustrate that a single institution holding a more idealistic position produces more durable value for the broader field than all institutions bending to prevailing pressures.</p>
+<p>In a <a href="https://cryptoslate.com/technology/">technology</a> landscape drifting toward financial capture and surveillance, the Ethereum co-founder said that EF positioning itself as something resistant to those pressures creates more value for Ethereum than EF competing as another growth-oriented institution.</p>
+<p>Community voices argued that Ethereum needs an organization focused on ETH the asset winning, executing hard, and getting loud in institutional <a href="https://cryptoslate.com/market/">markets</a>. Buterin acknowledges that supporting ETH the asset requires work EF assigns to outside organizations.</p>
+<p>Buterin frames the recent Ethereum Foundation <a href="https://cryptoslate.com/ethereum-market-sentiment-turns-negative-amid-foundation-brain-drain-and-price-struggles/">brain drain</a> as decentralization in practice, necessary to attract outside capital to important tasks, and leaves unanswered whether outside capital and institutions materialize quickly enough to absorb that work.</p>
+<h2>The subtraction test for the Ethereum</h2>
+<p>A smaller, more ideological EF reduces ETH treasury selling, holds the technical roadmap through CROPS-focused work, and gives Ethereum's base layer a credibility that growth-oriented foundations trade away.</p>
+<p>External organizations, funded by private capital and ETH-aligned institutions, absorb the asset narrative, business development, and coordination functions the EF vacates.</p>
+<p>Ethereum decentralizes in practice and in protocol, and ETH benefits from a cleaner institutional structure, with treasury selling pressure dropping at the base layer while a competitive field of external groups drives <a href="https://cryptoslate.com/adoption/">adoption</a> independently.</p>
+<p><a href="https://cryptoslate.com/people/vitalik-buterin/">Buterin's</a> formal verification ambitions, intermediary-minimization work, and lean-consensus research produce the kind of technical depth that institutional allocators and developers <a href="https://cryptoslate.com/price-watch/">price</a> into long-term positions.</p>
+<p>If the EF loses institutional knowledge faster than external groups absorb it, Buterin's decentralization thesis becomes brain drain dressed up as philosophy.</p>
+<p>Upgrade timelines slip alongside departures, and the organizations Buterin counts on to fill the growth gap form slowly or arrive with insufficient capital and coordination to replace what the EF built across a decade.</p>
+<p>With staking generating $3.9 million to $5.4 million per year against historical operating costs near $100 million, &#8220;sell less ETH&#8221; translates into spending cuts that accelerate departures before outside institutions can credibly step in.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>What happens</th>
+<th>What ETH holders see</th>
+<th>Signal to watch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bull case</td>
+<td>External groups absorb BD, asset narrative, adoption and coordination</td>
+<td>Less EF selling, more decentralized execution</td>
+<td>New ETH-aligned institutions gain funding and credibility</td>
+</tr>
+<tr>
+<td>Base case</td>
+<td>EF shrinks, but outside groups fill gaps unevenly</td>
+<td>Lower treasury pressure, slower coordination</td>
+<td>Some functions move outside EF, but execution remains fragmented</td>
+</tr>
+<tr>
+<td>Bear case</td>
+<td>EF loses institutional knowledge faster than replacements form</td>
+<td>Smaller EF looks like weaker execution</td>
+<td>More departures, roadmap delays, weak outside funding</td>
+</tr>
+<tr>
+<td>Black-swan case</td>
+<td>Major technical or governance stress tests Ethereum without strong EF coordination</td>
+<td>“One node” thesis faces a real crisis</td>
+<td>Emergency coordination, delayed upgrades, public governance disputes</td>
+</tr>
+</tbody>
+</table>
+<p>ETH holders, watching <a href="https://cryptoslate.com/coins/solana/">Solana</a> attract institutional capital through centrally coordinated asset narratives, read a smaller EF as a sign of execution weakness.</p>
+<p>Buterin ends his post by calling EF a smaller ship than in previous years, more opinionated, but longer-lasting. Meanwhile, ETH holders who have spent years asking for a bigger ship are now being told Ethereum needs a different kind of vessel entirely.</p>
+<p>The bet Buterin's smaller ship is making is if Ethereum can outsource growth without outsourcing urgency.</p>
+<p>The post <a href="https://cryptoslate.com/ethereum-foundation-vitalik-smaller-ship-bet/">Vitalik’s smaller Ethereum Foundation tests ETH holders’ demand for execution</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/ethereum-foundation.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/ethereum-foundation.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>The Fed may open direct settlement rails to crypto firms as banks warn of liquidity risk</title>
+		<link>https://cryptoslate.com/the-fed-may-open-direct-settlement-rails-to-crypto-firms-as-banks-warn-of-liquidity-risk/</link>
+		
+		<dc:creator><![CDATA[Andjela Radmilac]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 08:35:28 +0000</pubDate>
+				<category><![CDATA[Analysis]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Regulation]]></category>
+		<category><![CDATA[crypto banking]]></category>
+		<category><![CDATA[fed]]></category>
+		<category><![CDATA[fed master account]]></category>
+		<category><![CDATA[federal reserve]]></category>
+		<category><![CDATA[fedwire]]></category>
+		<category><![CDATA[Kraken]]></category>
+		<category><![CDATA[payment accounts]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537489</guid>
+
+					<description><![CDATA[<p>You never see the most important part of any of your payments. When an app says your money moved, a number changes on your screen, and the transaction looks and feels finished. But underneath those interfaces lies a separate, invisible chain of bank reserves, settlement accounts, and Fed infrastructure that determines when your funds actually [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/the-fed-may-open-direct-settlement-rails-to-crypto-firms-as-banks-warn-of-liquidity-risk/">The Fed may open direct settlement rails to crypto firms as banks warn of liquidity risk</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>You never see the most important part of any of your payments. When an app says your money moved, a number changes on your screen, and the transaction looks and feels finished.</p>
+<p>But underneath those interfaces lies a separate, invisible chain of bank reserves, settlement accounts, and Fed infrastructure that determines when your funds actually clear, who controls that settlement, and which institutions are allowed to participate in it at all.</p>
+<p>For crypto payments, that underlying system has been off-limits. Exchanges and crypto companies have had to route all of their dollar payments through partner banks, which handled the actual settlement with the Federal Reserve on their behalf. When those relationships collapsed during the failures of <a href="https://cryptoslate.com/companies/silvergate-bank/">Silvergate</a> and <a href="https://cryptoslate.com/companies/signature-bank/">Signature</a> Bank in 2023, they revealed just how fragile that relationship was, and the industry has been building the case for direct Fed access ever since.</p>
+<p>Two converging developments this week have brought that case to a head. In December 2025, the Fed formally <a href="https://www.federalreserve.gov/newsevents/pressreleases/bcreg20251219a.htm">requested public comment</a> on a new &#8220;payment account&#8221; that would let eligible non-bank institutions clear and settle payments through Fed infrastructure, without receiving the full package of privileges available to traditional bank master accounts.</p>
+<p>Then, on May 19, President Trump signed an executive order titled <a href="https://unchainedcrypto.com/trump-orders-fed-to-review-crypto-access-to-master-accounts-and-payment-rails/">&#8220;Integrating Financial Technology Innovation Into Regulatory Frameworks,&#8221;</a> directing the Fed to submit a comprehensive review of its payment access framework within 120 days and establish transparent application procedures within 90. The executive order can't compel the Fed to act, but political backing at that level tends to clarify which way institutional attention is pointing.</p>
+<p><a href="https://cryptoslate.com/companies/kraken/">Kraken</a> provided the first real-world data point back in March. The Federal Reserve Bank of Kansas City approved a limited-purpose master account for Kraken Financial, the exchange's Wyoming-chartered banking subsidiary, on March 4, making it the <a href="https://cryptoslate.com/kraken-can-now-move-dollars-inside-the-fed-system-and-stablecoin-firms-are-watching-what-happens-next/">first crypto company in the US</a> to gain direct access to the Fed's core payment system after more than five years of regulatory engagement.</p>
+
+<div class="cs-article-embed">
+    <a href="https://cryptoslate.com/kraken-can-now-move-dollars-inside-the-fed-system-and-stablecoin-firms-are-watching-what-happens-next/" class="cs-article-embed__link">
+                    <div class="cs-article-embed__media">
+                <img src="https://cryptoslate.com/wp-content/uploads/2026/03/kraken-federal-reserve-1024x538.jpg" alt="Kraken got fed up of waiting on TradFi so it built its own bank to access the Fed — and it just worked" loading="lazy" decoding="async">
+            </div>
+                <div class="cs-article-embed__body">
+            <span class="cs-article-embed__related-reading">Related Reading</span>
+            <h3 class="cs-article-embed__title">Kraken got fed up of waiting on TradFi so it built its own bank to access the Fed — and it just worked</h3>
+                            <div class="cs-article-embed__summary">Kraken&#039;s master account could redefine pathways for crypto firms seeking direct access to the Federal Reserve&#039;s payment rails.</div>
+                                        <div class="cs-article-embed__meta">
+                                            <span class="cs-article-embed__meta-item">Mar 4, 2026</span>
+                                                                <span class="cs-article-embed__meta-divider">&middot;</span>
+                                                                <span class="cs-article-embed__meta-item">Oluwapelumi Adejumo</span>
+                                    </div>
+                    </div>
+    </a>
+</div>
+
+<p>The account connects Kraken Financial directly to Fedwire, the real-time gross settlement network that processes trillions of dollars in transfers daily, cutting out the intermediary banks that previously handled dollar settlement on Kraken's behalf.</p>
+<p>It's a limited arrangement, though: the exchange earns no interest on reserves and has no access to the discount window or intraday Fed credit. What it gained is settlement independence from the correspondent banking system, and for a company handling large institutional volumes, that's a huge structural shift.</p>
+<p><a href="https://cryptoslate.com/companies/ripple/">Ripple</a>, which has applied for its own Fed master account and supports a restricted account structure for its <a href="https://cryptoslate.com/coins/rlusd/">RLUSD</a> stablecoin, is among the most obvious next-in-line beneficiaries. <a href="https://cryptoslate.com/companies/circle/">Circle</a>, whose USDC reserve management depends heavily on dollar settlement speed, has similarly strong business reasons to want direct access.</p>
+<p>Kraken's approval is now a live test case, and companies across the payments and stablecoin space are watching how the experiment develops before deciding how hard to push for their own applications.</p>
+<h2>What will the Fed's proposed account actually do?</h2>
+<p>The payment account the Fed proposed in December is structurally different from a full master account. A full master account lets a regulated depository institution hold balances at the Fed, earn interest on those reserves, access intraday credit, and borrow from the discount window during periods of liquidity stress.</p>
+<p>The proposed payment account removes all of that. Eligible institutions could settle through Fedwire, FedNow, and the National Settlement Service, hold limited reserve balances, and process payments across Fed infrastructure, but the <a href="https://www.federalreserve.gov/newsevents/pressreleases/bcreg20251219a.htm">Fed has been precise</a> that the new account type wouldn't expand or otherwise change legal eligibility for its services. Most applicants would still need to qualify under existing criteria, and balance caps would apply.</p>
+<p>Crypto and fintech companies would still see practical benefits. Exchanges and stablecoin issuers currently depend on banking intermediaries for dollar settlement, which concentrates operational risk. When a bank partner faces regulatory trouble or withdraws from crypto clients, the effects can reach multiple platforms simultaneously.</p>
+<p>Direct access to Fed settlement infrastructure reduces that exposure and gives companies tighter control over their dollar liquidity during high-volume periods. For stablecoin issuers specifically, the ability to move reserves quickly and predictably during heavy redemption periods could be the difference between an orderly market and a disorderly one.</p>
+<p>Fed Governor Christopher Waller said that a streamlined payment account should be operational by late 2026, suggesting the central bank sees this as a near-term deliverable rather than a long-run aspiration.</p>
+<h2>Why are banks fighting the Fed, and what are they actually worried about?</h2>
+<p>The banking industry's opposition to the payment account framework has been pretty loud and organized. It's also worth examining carefully, because it mixes legitimate risk concerns with what can only be described as competitive anxiety.</p>
+<p>The Bank Policy Institute, backed by JPMorgan, Bank of America, and other major institutions, has argued that even limited direct access to Fedwire for crypto and fintech firms could threaten financial stability and create money-laundering vulnerabilities.</p>
+<p>Fed Governor Michael Barr dissented from the December proposal on illicit finance grounds, saying it lacked adequate safeguards. <a href="https://cryptoslate.com/kraken-can-now-move-dollars-inside-the-fed-system-and-stablecoin-firms-are-watching-what-happens-next/">Kraken's master account drew immediate criticism</a> from banking trade groups, who said the Kansas City Fed's approval lacked transparency around the risk controls imposed.</p>
+<p>Some of those arguments hold up. Non-bank institutions operating on Fedwire would do so under a different supervisory framework than insured banks, and AML compliance at crypto and fintech companies has historically been less scrutinized. Potential issues with liquidity are worth taking seriously, too: if funds migrate faster out of insured bank deposits and into non-bank platforms with direct settlement access, deposit flows become more volatile. An operational failure at a connected non-bank institution during a period of market stress could generate settlement disruptions that propagate far beyond that company.</p>
+<p>The competitive dimension is somewhat less openly discussed. Exchanges and other crypto platforms currently pay banks for the correspondent banking access they need to operate in dollars, and direct Fed settlement would restructure that arrangement, bringing settlement independence to the companies that were previously paying for it. For the large institutions backing the opposition campaign, the risk of losing that intermediation business is probably at least as motivating as the risk of systemic disruption.</p>
+<p>The Fed's design tries to thread the difference: narrow accounts, no backstops, no functional equivalence with insured banks, and eligibility requirements that most applicants won't satisfy automatically.</p>
+<p>Whether that structure holds under simultaneous pressure from crypto firms pushing for more and banking groups pushing for none is genuinely open. Kraken's limited-purpose account is still a live experiment, the December comment period is ongoing, and <a href="https://cryptoslate.com/trump-crypto-fed-payment-rails/">Trump's executive order</a> is less than a week old.</p>
+<p>For the first time, the argument about who gets to settle dollars inside the Federal Reserve system is being tested in practice rather than debated in theory.</p>
+<p>The post <a href="https://cryptoslate.com/the-fed-may-open-direct-settlement-rails-to-crypto-firms-as-banks-warn-of-liquidity-risk/">The Fed may open direct settlement rails to crypto firms as banks warn of liquidity risk</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/fed-payment-rail-fintech.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/fed-payment-rail-fintech.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>Brazil just moved a crypto ETF into market plumbing Wall Street still wants opened</title>
+		<link>https://cryptoslate.com/brazil-just-moved-a-crypto-etf-into-market-plumbing-wall-street-still-wants-opened/</link>
+		
+		<dc:creator><![CDATA[Gino Matos]]></dc:creator>
+		<pubDate>Mon, 25 May 2026 06:05:25 +0000</pubDate>
+				<category><![CDATA[Derivatives]]></category>
+		<category><![CDATA[ETF]]></category>
+		<category><![CDATA[Featured]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537872</guid>
+
+					<description><![CDATA[<p>B3 registered the first guaranteed OTC flexible option tied to Hashdex's crypto-index ETF, HASH11, in a trade between Inter and XP. B3's clearinghouse served as the central counterparty in the trade, placing a crypto ETF-linked exposure inside the same back-office machinery that handles counterparty risk, margining, clearing, and settlement. That is the infrastructure layer that [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/brazil-just-moved-a-crypto-etf-into-market-plumbing-wall-street-still-wants-opened/">Brazil just moved a crypto ETF into market plumbing Wall Street still wants opened</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>B3 registered the first guaranteed OTC flexible option tied to Hashdex's crypto-index ETF, HASH11, in a trade between Inter and XP.</p>
+<p>B3's clearinghouse served as the central counterparty in the trade, placing a crypto ETF-linked exposure inside the same back-office machinery that handles counterparty risk, margining, clearing, and settlement.</p>
+<p>That is the infrastructure layer that Wall Street is still asking US regulators to open to tokenized assets.</p>
+<p>BlackRock submitted a response to the <a href="https://cryptoslate.com/blackrock-eyes-crypto-derivatives-market-with-buidl-as-collateral/">CFTC's tokenized-collateral initiative in 2025</a>, arguing that tokenized money market funds and <a href="https://cryptoslate.com/stablecoins/">stablecoins</a> should be eligible for use in both cleared and uncleared derivatives markets.</p>
+<p>The most concrete version of this trade appeared offshore in April 2026, when <a href="https://cryptoslate.com/companies/standard-chartered/">Standard Chartered</a> built a framework that allowed institutional <a href="https://cryptoslate.com/companies/okx/">OKX</a> clients to post BlackRock's tokenized Treasury fund, <a href="https://cryptoslate.com/uniswap-is-bringing-blackrocks-2-2-billion-buidl-to-defi-but-the-trade-access-comes-with-a-catch/">BUIDL</a>, as collateral while Standard Chartered retained custody of the assets.</p>
+<p>HASH11 served as the <a href="https://borainvestir.b3.com.br/tipos-de-investimentos/renda-variavel/derivativos/inter-e-xp-registram-primeiro-negocio-com-opcao-flexivel-de-hash11-no-ambiente-de-balcao-com-garantia-da-b3/">underlying asset</a> of the flexible option, a different structural role from the margin collateral position BlackRock is asking US regulators to open to tokenized assets.</p>
+<p>Both moves center on how crypto-linked assets enter the machinery of clearing, settlement, and risk management.</p>
+<table>
+<thead>
+<tr>
+<th>Market</th>
+<th>Development</th>
+<th>Asset role</th>
+<th>Infrastructure layer</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Brazil / B3</td>
+<td>Guaranteed OTC flexible option tied to HASH11</td>
+<td>Underlying asset</td>
+<td>CCP, margining, clearing, settlement</td>
+<td>Crypto ETF-linked exposure enters regulated derivatives plumbing</td>
+</tr>
+<tr>
+<td>U.S. / BlackRock</td>
+<td>Tokenized money market funds and stablecoins in derivatives markets</td>
+<td>Collateral / margin</td>
+<td>Cleared and uncleared derivatives collateral systems</td>
+<td>Wall Street wants tokenized assets accepted in risk-management workflows</td>
+</tr>
+<tr>
+<td>Offshore example</td>
+<td>Standard Chartered / OKX / BUIDL collateral framework</td>
+<td>Posted collateral</td>
+<td>Custody + institutional collateral management</td>
+<td>Shows the tokenized collateral model emerging outside U.S. rulemaking</td>
+</tr>
+</tbody>
+</table>
+<p>The HASH11 flexible option is customizable by maturity, strike, quantity, premium, and optional features such as barriers or limiters.</p>
+<p>On May 6, B3 began accepting real estate <a href="https://cryptoslate.com/investments/">investment</a> funds as eligible collateral for CCP-guaranteed operations, bringing the eligible pool to roughly $146 billion. B3's collateral list already includes Brazilian exchange-traded <a href="https://cryptoslate.com/etf/">ETF</a> quotas under standard eligibility criteria.</p>
+<p>Both decisions to expand eligible collateral and introduce HASH11 as a derivative underlier demonstrate how B3 is broadening the asset types that enter its regulated clearing and settlement framework.</p>
+<h2>Why Brazil earned this moment</h2>
+<p>Brazil's ability to execute this trade rests on a financial system that has repeatedly adopted infrastructure-level innovations before larger markets finished debating them, with the clearest example being Pix.</p>
+<p>Brazil's central bank launched the 24/7 instant-payment rail in 2020, and by 2024, Pix had processed more than $5 trillion and surpassed cash, debit cards, and credit cards as Brazil's leading payment method.</p>
+<p>By 2026, the network had reached more than 170 million users across around 900 participating institutions, and Banco do Brasil had begun enabling Pix payments in Argentina.</p>
+<p>The crypto ETF record followed the same arc, as <a href="https://cryptoslate.com/companies/hashdex/">Hashdex</a> launched what <a href="https://cryptoslate.com/companies/nasdaq/">Nasdaq</a> described as the world's first crypto ETF on the Bermuda Stock Exchange in February 2021, and B3 listed HASH11 in April 2021 as Brazil's first crypto-index ETF.</p>
+<p>QBTC11 began <a href="https://cryptoslate.com/trading/">trading</a> on B3 in June 2021 as the <a href="https://cryptoslate.com/exchanges/">exchange's</a> first ETF with 100% <a href="https://cryptoslate.com/coins/bitcoin/">Bitcoin</a> exposure. QR Asset marketed <a href="https://cryptoslate.com/xrp-outperforms-bitcoin-and-ethereum-following-news-of-brazilian-etf-approval/">QSOL11</a> as the world's first spot <a href="https://cryptoslate.com/coins/solana/">Solana</a> ETF, and Brazil approved <a href="https://cryptoslate.com/coins/ethereum/">Ethereum</a> ETF products in 2021, years before US spot Ethereum ETFs became standard market infrastructure.</p>
+<p>Bitcoin futures debuted on B3 in April 2024 with financial settlement, and the stock exchange acted as the CCP. By the first anniversary, $400 billion in trading volume and 41 million contracts had established the product as a functioning hedging market, with non-resident investors accounting for 53% of participation, individuals for 39%, and funds for 7%.</p>
+<figure id="attachment_537875" aria-describedby="caption-attachment-537875" style="width: 962px" class="wp-caption aligncenter"><img decoding="async" class="wp-image-537875 size-full" src="https://cryptoslate.com/wp-content/uploads/2026/05/brave_5nU9LFSsSu.jpg" alt="Brazil moving crypto ETFs into the infrastructure" width="962" height="682" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/brave_5nU9LFSsSu.jpg 962w, https://cryptoslate.com/wp-content/uploads/2026/05/brave_5nU9LFSsSu-300x213.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/brave_5nU9LFSsSu-768x544.jpg 768w" sizes="(max-width: 962px) 100vw, 962px" /><figcaption id="caption-attachment-537875" class="wp-caption-text">A timeline infographic traces Brazil's crypto-market infrastructure build from the 2020 Pix launch through B3's first guaranteed OTC flexible option tied to HASH11 in 2026.</figcaption></figure>
+<h2>What Wall Street sees in this</h2>
+<p>Collateral, clearing, margin, and settlement are the systems that let institutions hedge, lever and manage risk at scale, representing crypto <a href="https://cryptoslate.com/adoption/">adoption's</a> next phase.</p>
+<p>That is exactly the infrastructure layer <a href="https://cryptoslate.com/companies/blackrock/">BlackRock</a> is working to modernize in Washington, and it is exactly where Brazil has been building for four years.</p>
+<p>When BlackRock argues that tokenized assets should enter derivatives collateral systems, the claim is that crypto-linked financial products are mature enough to operate within risk-management infrastructure, and Brazil's record supports that empirically.</p>
+<p>B3 has a CCP, margining and settlement frameworks, crypto futures with $400 billion in volume, and now a guaranteed OTC flexible option tied to a crypto ETF inside the same clearinghouse stack.</p>
+<p>Brazil's innovation stack, consisting of Pix for payments, B3 for listed and OTC <a href="https://cryptoslate.com/market/">market</a> infrastructure, crypto ETFs for <a href="https://cryptoslate.com/regulation/">regulated</a> exposure, and Bitcoin futures for hedging, operates as a coherent whole rather than isolated bets.</p>
+<h2>How far the plumbing extends</h2>
+<p>In the bull case, B3's infrastructure stack becomes a reference model for how crypto-linked assets can graduate into regulated clearing machinery, more crypto underliers enter OTC flexible options, and the collateral menu broadens.</p>
+<p>A measurable threshold, such as crypto-linked OTC notional reaching 1% to 5% of B3's guaranteed flexible-options stock within the next 12 to 24 months, would confirm the HASH11 option has moved from a one-off institutional trade into a functioning market segment.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>What happens next</th>
+<th>Signal to watch</th>
+<th>Article implication</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bull case</td>
+<td>More crypto underliers enter OTC flexible options; collateral menu broadens</td>
+<td>Crypto-linked OTC notional reaches 1%–5% of B3’s guaranteed flexible-options stock</td>
+<td>Brazil becomes a reference model for regulated crypto derivatives plumbing</td>
+</tr>
+<tr>
+<td>Base case</td>
+<td>HASH11 options repeat, but remain institution-focused</td>
+<td>A handful of new trades, mostly bespoke</td>
+<td>Brazil is ahead, but adoption is gradual</td>
+</tr>
+<tr>
+<td>Bear case</td>
+<td>Liquidity, volatility and margin constraints limit expansion</td>
+<td>Collateral pool remains dominated by Selic federal debt</td>
+<td>Crypto stays mostly in wrappers, not core market plumbing</td>
+</tr>
+<tr>
+<td>Black-swan case</td>
+<td>Market shock or regulatory caution triggers tighter eligibility</td>
+<td>Higher haircuts, fewer eligible products, slower approvals</td>
+<td>Crypto infrastructure narrative stalls</td>
+</tr>
+</tbody>
+</table>
+<p>In the bear case, B3's $146 billion collateral pool was more than 82% Selic federal debt as of May 2026, and crypto-linked exposure carries liquidity and volatility characteristics that work against it in the core collateral stack, where margin requirements and haircuts are the binding constraint.</p>
+<p>If regulatory caution tightens eligibility or liquidity proves thin, the HASH11 OTC option stays a bespoke institutional product, and crypto stays in investment wrappers.</p>
+<p>Brazil laid the groundwork for this infrastructure race, enabling financial innovations to move quickly from experiment to functioning market infrastructure, while BlackRock is still making its regulatory case in Washington.</p>
+<p>The distance between where Wall Street wants to go and where Brazil already is keeps widening.</p>
+<p>The post <a href="https://cryptoslate.com/brazil-just-moved-a-crypto-etf-into-market-plumbing-wall-street-still-wants-opened/">Brazil just moved a crypto ETF into market plumbing Wall Street still wants opened</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/brazil-hash11.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/brazil-hash11.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>SEC’s tokenized stock plan could force crypto exchanges to answer what investors really own</title>
+		<link>https://cryptoslate.com/sec-may-let-crypto-exchanges-trade-tokenized-stocks-without-asking-wall-street-first/</link>
+		
+		<dc:creator><![CDATA[Andjela Radmilac]]></dc:creator>
+		<pubDate>Sun, 24 May 2026 19:05:23 +0000</pubDate>
+				<category><![CDATA[Analysis]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Regulation]]></category>
+		<category><![CDATA[Tokenization]]></category>
+		<category><![CDATA[blockchain-based stocks]]></category>
+		<category><![CDATA[brett redfearn]]></category>
+		<category><![CDATA[Hester Pierce]]></category>
+		<category><![CDATA[RWA]]></category>
+		<category><![CDATA[SEC]]></category>
+		<category><![CDATA[tokenization]]></category>
+		<category><![CDATA[Tokenized Stocks]]></category>
+		<category><![CDATA[xStocks]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537415</guid>
+
+					<description><![CDATA[<p>Given how far the crypto market has come in terms of regulation, the next big fight won't be about Bitcoin, stablecoins, or even memecoins. It's going to be about whether a crypto exchange can list tokenized stocks that track Tesla, Apple, or Nvidia without those companies ever agreeing to it, and whether the retail investors [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/sec-may-let-crypto-exchanges-trade-tokenized-stocks-without-asking-wall-street-first/">SEC’s tokenized stock plan could force crypto exchanges to answer what investors really own</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p>Given how far the crypto market has come in terms of regulation, the next big fight won't be about Bitcoin, stablecoins, or even memecoins.</p>
+<p>It's going to be about whether a crypto exchange can list tokenized stocks that track Tesla, Apple, or Nvidia without those companies ever agreeing to it, and whether the retail investors buying those tokens understand that they're not shareholders in any meaningful legal sense.</p>
+<p>Bloomberg Law reported on May 18 that the SEC is preparing an &#8220;innovation exemption&#8221; for tokenized stocks that could let crypto-native platforms offer digital versions of publicly traded securities under lighter regulatory requirements.</p>
+<p>The plan, expected in the next week, sits inside a larger initiative the agency calls <a href="https://cryptoslate.com/people/paul-atkins/">Project Crypto</a>. The SEC approved Nasdaq's rules for tokenized equities in March 2026, followed by a similar approval for the New York Stock Exchange in April, with both exchanges now allowing tokenized versions of select equities and ETFs to trade alongside traditional shares using the Depository Trust Company's tokenization pilot.</p>
+<p>The exemption then takes that several steps further: where those approvals kept tokenized trading inside existing market structure, the new exemption is designed to permit broader on-chain trading by crypto-native venues and some decentralized finance protocols during a limited experimental period.</p>
+<p>DefiLlama data puts the on-chain RWA market at close to $30 billion, which represents just 0.02% of global equity value against SIFMA's 2024 global equity market capitalization of $126.7 trillion. The tokenized stock segment is minuscule, and the exemption could determine whether it grows into a regulated extension of US equities or stays a crypto side market.</p>
+<h2>What are tokenized stocks, and why are they so important now?</h2>
+<p>The concept of tokenized stocks sounds simple until you get into how these instruments are actually built.</p>
+<p>A normal stock is a legal ownership claim in a company, recorded in a custody system and governed by federal securities laws that have been around for decades. A tokenized stock is a blockchain-based instrument connected to that underlying share, though &#8220;connected&#8221; can mean very different things depending on who's doing the issuing.</p>
+<p>Tokenized equities fall into two structural buckets: full security tokens, where the token represents a legal claim on the underlying security held by a regulated custodian, and synthetic or derivative tokens, which track the price of a stock or ETF via derivatives but don't confer legal ownership or governance rights.</p>
+<p><a href="https://cryptoslate.com/cryptos/tokenized-stock/">Kraken's xStocks platform</a> falls into the first category. xStocks now lists 100 fully backed, 1:1 tokenized US stocks and ETFs, and has surpassed $25 billion in total transaction volume since launching in June 2025, all of it currently available only outside the United States. A synthetic tracker, on the other hand, gives the buyer price exposure without any equity claim sitting behind it. The SEC's <a href="https://www.sec.gov/newsroom/speeches-statements/corp-fin-statement-tokenized-securities-012826-statement-tokenized-securities">January 2026 joint staff statement</a> made sure to draw this line explicitly, separating issuer-sponsored tokenized securities, which carry real equity, from third-party synthetic products that provide price exposure to a stock without granting any equity or voting power.</p>
+<p>What makes the SEC's move so surprising is that it's now leaning toward allowing the trading of tokens that don't have the backing or consent of the public companies whose shares they track, and those tokens would be tradeable on decentralized crypto platforms without carrying the same benefits as conventional stocks, such as voting rights or dividends.</p>
+<p>Under the proposal, platforms that fail to provide those benefits would lose the right to list the tokens. But that condition still leaves room for a product that looks and trades like a stock while offering a much different legal standing to the person holding it.</p>
+<p>In 2025, Coinbase sought the <a href="https://cryptoslate.com/coinbase-seeking-sec-approval-to-offer-blockchain-based-equities/">SEC's approval to offer tokenized equities</a>. If approved, it would put it in direct competition with retail brokerages and push it to the forefront of the US stock market.</p>
+<p>Robinhood has already launched EU stock tokens and is building a layer-2 blockchain for RWA tokenization. Dinari got its <a href="https://cryptoslate.com/dinari-wins-broker-dealer-license-to-roll-out-tokenized-stocks-across-us-platforms/">broker-dealer license</a> in June last year to offer blockchain-based shares to US investors. All three companies have been waiting for the regulatory permission that an innovation exemption could finally provide.</p>
+<p>At the same time, incumbent institutions are working on their own versions of tokenization. The DTCC, which processes and safeguards most of the US securities market, plans to begin limited production trades of tokenized assets in July, ahead of a bigger launch in October. The system will allow tokenized versions of stocks and ETFs backed by assets the DTCC already holds.<span class="Apple-converted-space"> </span></p>
+<p><span class="Apple-converted-space">As <i>CryptoSlate </i><a href="https://cryptoslate.com/sec-fight-tokenized-stocks-wall-street-control/">reported</a> in April, if the SEC adopts systems like those used by incumbents such as Citadel Securities, tokenized stocks will certainly be a better infrastructure built around familiar gatekeepers. If the exemption leans more towards open-chain distribution, a huge part of that value will flow toward crypto-native exchanges and DeFi protocols instead. </span></p>
+<p><span class="Apple-converted-space">But not everyone is happy about these developments. We've heard a lot of very concrete and specific complaints coming from regulators and private companies in the space. In December, SIFMA warned that a lack of standard requirements like interconnectivity and price transparency for tokenized assets could make markets &#8220;fragment and become disorderly.&#8221; </span></p>
+<p><span class="Apple-converted-space">Brett Redfearn, the president of <a href="https://cryptoslate.com/sec-fight-tokenized-stocks-wall-street-control/">Securitize</a> and a former director of the SEC's own trading and markets division, saw this as a problem of consent.</span></p>
+<blockquote><p><span class="Apple-converted-space">&#8220;If third parties can tokenize Apple or amazon without the issuer at the table, there's no theoretical limit on how many wrappers of the same company can exist at once. This could create a whole new level of market fragmentation and could leave investors less certain what their shares are actually worth at any moment.&#8221; </span></p></blockquote>
+<p><span class="Apple-converted-space">Citadel Securities made similar arguments in its own December letter, calling for structured rulemaking rather than the broad exemptions it said could weaken KYC and AML protections. </span></p>
+<h2><span class="Apple-converted-space">What do you actually own?</span></h2>
+<p><span class="Apple-converted-space">Given all of that pushback, the SEC's willingness to move forward still has a coherent policy rationale behind it. </span></p>
+<p><span class="Apple-converted-space"><a href="https://cryptoslate.com/people/paul-atkins/">SEC Chair Paul Atkins</a>, who launched Project Crypto after taking over the agency in April 2025, has argued consistently that the US risks pushing innovation offshore if it doesn't create domestic regulatory pathways for tokenized securities. His stated view at ETHDenver in February was that &#8220;market participants should be able to engage with decentralized applications on public, permissionless blockchains if they desire.&#8221; </span><span class="Apple-converted-space">The exemption would not eliminate existing legal obligations under federal securities law, but could ease certain registration requirements for participating platforms while the pilot runs. </span><span class="Apple-converted-space">The SEC also plans to include various guardrails, such as exposure limits, disclosure requirements, and other conditions tied to the program's temporary nature. </span></p>
+<p><span class="Apple-converted-space">Commissioner <a href="https://www.theblock.co/post/390544/secs-peirce-atkins-incremental-path-tokenized-securities-agency-readies-innovation-exemption">Hester Peirce</a>, who led the push for the exemption from within the agency, was measured about its scope when speaking at ETHDenver in February. </span></p>
+<blockquote><p><span class="Apple-converted-space">&#8220;It would be an important step toward facilitating the integration of tokenized securities into our existing financial system, but it would not change the entire financial system overnight,&#8221; Peirce said. </span></p></blockquote>
+<p><span class="Apple-converted-space">Some SEC officials don't support the decision to allow the trading of third-party tokenized securities at all, according to people familiar with the agency. </span></p>
+<p><span class="Apple-converted-space">There are genuine benefits of a well-designed framework. Tokenized stocks can settle near-instantly, trade around the clock, enable fractional access, and become composable with DeFi lending and collateral systems in ways that conventional shares can't.</span></p>
+<p><span class="Apple-converted-space"> As CryptoSlate <a href="https://cryptoslate.com/rwa-tokenization-defi-composability-gap/">covered this week</a>, the RWA market is bifurcating into two lanes: one for ownership-first, permissioned rails, and another for composability-first designs that combine compliant issuance with secondary-market utility. Those two paths lead to very different products for the person at the end of the chain. </span></p>
+<p><span class="Apple-converted-space">The central question the exemption needs to answer, and the one any retail investor should be asking before buying, is what does holding this token actually give you? </span></p>
+<p><span class="Apple-converted-space">If it's a real equity claim, then tokenized stocks are an infrastructure upgrade for the stock market. If it's a price-tracking instrument without shareholder rights, then the SEC may be opening the door to a parallel market where the label is familiar, but the legal protections behind it are different. </span></p>
+<p><span class="Apple-converted-space">A token that tracks Nvidia's stock price at 2 AM on a Saturday isn't always the same thing as owning Nvidia, and how clearly that distinction gets communicated (by the framework itself, by the platforms building on it, and by the disclosures investors actually read) will determine whether this experiment works or becomes the next financial product people regret buying without reading the fine print.</span></p>
+<p>The post <a href="https://cryptoslate.com/sec-may-let-crypto-exchanges-trade-tokenized-stocks-without-asking-wall-street-first/">SEC’s tokenized stock plan could force crypto exchanges to answer what investors really own</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/sec-tokenized-stocks-trading.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/sec-tokenized-stocks-trading.jpg" length="1280" type="image/jpg"/>
+	</item>
+		<item>
+		<title>Ethereum’s selloff tests whether its neutrality-first model can defend ETH’s value amid Foundation ‘brain drain’</title>
+		<link>https://cryptoslate.com/ethereum-market-sentiment-turns-negative-amid-foundation-brain-drain-and-price-struggles/</link>
+		
+		<dc:creator><![CDATA[Oluwapelumi Adejumo]]></dc:creator>
+		<pubDate>Sun, 24 May 2026 17:05:20 +0000</pubDate>
+				<category><![CDATA[Analysis]]></category>
+		<category><![CDATA[Derivatives]]></category>
+		<category><![CDATA[ETF]]></category>
+		<category><![CDATA[Featured]]></category>
+		<category><![CDATA[Market]]></category>
+		<category><![CDATA[Price Watch]]></category>
+		<category><![CDATA[Trading]]></category>
+		<category><![CDATA[BitMine]]></category>
+		<category><![CDATA[ETH]]></category>
+		<category><![CDATA[ethereum]]></category>
+		<category><![CDATA[Ethereum foundation]]></category>
+		<guid isPermaLink="false">https://cryptoslate.com/?p=537838</guid>
+
+					<description><![CDATA[<p>Ethereum’s market sentiment has deteriorated significantly as the blockchain network's native ETH token moves through a medium-term bear phase. Data from blockchain analytics platform Santiment shows that while ETH-related discussions increased in frequency throughout May, the tone of that commentary has shifted toward frustration, disappointment, and concern about deeper downside potential. Analysts at the firm [&#8230;]</p>
+<p>The post <a href="https://cryptoslate.com/ethereum-market-sentiment-turns-negative-amid-foundation-brain-drain-and-price-struggles/">Ethereum’s selloff tests whether its neutrality-first model can defend ETH’s value amid Foundation ‘brain drain’</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<p><a href="https://cryptoslate.com/ethereum-loses-10-of-its-defi-market-share-as-rival-chains-close-in/">Ethereum’s market sentiment</a> has deteriorated significantly as the blockchain network's native ETH token moves through a medium-term bear phase.</p>
+<p><a href="https://app.santiment.net/insights/read/deep-dive-what-s-with-all-the-ethereum-fud-10877?utm_source=x&utm_medium=post&utm_campaign=deep_dive_what%E2%80%99s_with_all_the_eth_fud_b_052126&aff=3">Data</a> from blockchain analytics platform Santiment shows that while ETH-related discussions increased in frequency throughout May, the tone of that commentary has shifted toward frustration, disappointment, and concern about deeper downside potential.</p>
+<figure id="attachment_537914" aria-describedby="caption-attachment-537914" style="width: 2560px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-537914" src="https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-scaled.jpg" alt="Ethereum Market Sentiment" width="2560" height="1156" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-scaled.jpg 2560w, https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-300x135.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-1024x462.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-768x347.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-1536x693.jpg 1536w, https://cryptoslate.com/wp-content/uploads/2026/05/HI5euVSXcAAuYRU-2048x925.jpg 2048w" sizes="(max-width: 2560px) 100vw, 2560px" /><figcaption id="caption-attachment-537914" class="wp-caption-text">Ethereum Market Sentiment (Source: Santiment)</figcaption></figure>
+<p>Analysts at the firm noted that this shift in sentiment reflects a combination of market pressures building simultaneously, including weak spot price action, persistent exchange-traded fund (ETF) outflows, high-profile departures from the Ethereum Foundation, public criticism from longtime ecosystem supporters, and stronger price momentum across competing layer-1 networks like <a href="https://cryptoslate.com/coins/hyperliquid/">Hyperliquid</a>, <a href="https://cryptoslate.com/coins/zcash/">Zcash</a>, and <a href="https://cryptoslate.com/coins/solana/">Solana</a>.</p>
+<p>Broader market <a href="https://cryptoquant.com/insights/quicktake/6a0e70772f49764f5f1f45a0-Fundamentals-vs-Speculation-Where-ETH-Stands-Today">data</a> from CryptoQuant reinforces this picture of institutional deceleration. The firm’s spot market and fundamental indicators point to severe structural weakness as ETH prices drop toward the critical $2,000 support level.</p>
+<p>This spot weakness is most apparent in <a href="https://cryptoslate.com/ethereum-price-pullback-2100-oil-etf-pressure/">Ethereum's performance relative to the broader market</a>. The <a href="https://cryptoslate.com/insights/eth-btc-ratio-soars-40-amid-record-ethereum-etf-investments/">ETH/BTC ratio</a> recently fell to roughly 0.02758, a 10-month low, signaling that Ethereum has lagged behind Bitcoin amid current weak market conditions.</p>
+<p>This has created a split-market identity in which spot investors are steadily reducing exposure, market liquidity has thinned, and institutional buying pressure has largely vanished from major trading desks.</p>
+<h2>Spot selling leaves Ethereum without a durable bid</h2>
+<p>Indeed, CryptoQuant’s fund-tracking data highlights the extent of the contraction in the institutional bid over the last two quarters.</p>
+<p>According to the firm, total fund holdings, which peaked above 7 million ETH in October 2025, have steadily declined to a range around 5.5 million ETH.</p>
+<p>This persistent unwinding indicates that large-scale allocators have systematically reduced their core exposure throughout the current multi-month drawdown.</p>
+<p>Notably, the regulated ETF market has reinforced this structural pressure. Total assets under management across <a href="https://cryptoslate.com/ethereum-etf-holders-suffer-5-billion-losses-as-market-slide-continues/">Ethereum ETFs</a> now stand near $12.14 billion, marking a 23% decline from their January peak.</p>
+<p><a href="https://sosovalue.com/assets/etf/Total_Crypto_ETH_ETF_Fund_Flow?page=usETH">Data</a> from SoSoValue shows that May proved particularly challenging, with two consecutive weeks of net outflows totaling approximately $470 million, representing one of the largest episodes of concentrated capital flight of the year.</p>
+<figure id="attachment_537911" aria-describedby="caption-attachment-537911" style="width: 1800px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-537911" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122356.jpg" alt="Ethereum ETFs Weekly Outflows" width="1800" height="421" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122356.jpg 1800w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122356-300x70.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122356-1024x240.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122356-768x180.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122356-1536x359.jpg 1536w" sizes="(max-width: 1800px) 100vw, 1800px" /><figcaption id="caption-attachment-537911" class="wp-caption-text">Ethereum ETFs Weekly Outflows (Source: SoSoValue)</figcaption></figure>
+<p>This institutional withdrawal is further illustrated by the <a href="https://cryptoslate.com/companies/coinbase/">Coinbase</a> Premium Index, which tracks the price disparity between Coinbase Pro and major offshore platforms.</p>
+<p>The index remained negative throughout May, signaling an absence of spot demand from US institutional buyers.</p>
+<p>At the same time, ETH liquidity has thinned alongside this reduction in fund reserves.</p>
+<p>According to <a href="https://cryptoslate.com/companies/cryptoquant/">CryptoQuant</a>, daily fund trading volume has trended downward since February 2026, dropping well below its trailing 1-year moving average to a recent range of $17 million to $42 million.</p>
+<p>This volume compression points to a thinner spot market where dip-buying appetite has faded, leaving the asset highly exposed to volatility spikes during periods of negative news.</p>
+<h2>ETH options traders hedge as leveraged longs hold on</h2>
+<p>Beneath the spot market liquidation, derivatives data reveal an ongoing debate over whether ETH is breaking into a structural decline or forming a base for a <a href="https://cryptoslate.com/ethereums-4-consecutive-week-rallies-fuel-bullish-bets-of-3200/">leveraged rebound</a>.</p>
+<p>This disconnect has left the derivatives market divided, with professional traders aggressively hedging downside risk even as speculative perpetual futures traders maintain long positioning.</p>
+<p><a href="https://insights.deribit.com/industry/crypto-derivatives-analytics-report-week-21-2026/">Data</a> from Block Scholes reveals that ETH's 25-delta risk reversal skew over a seven-day horizon has traded near-7%, indicating that options market participants are paying a premium for downside put protection.</p>
+<p>This defensive posture is supported by clearing <a href="https://www.deribit.com/statistics/ETH/metrics/options">data</a> from the Deribit exchange, where open interest for put options targeting the $2,100 and $2,000 strike prices has concentrated past $380 million, placing those technical areas at the center of short-term institutional positioning.</p>
+<figure id="attachment_537912" aria-describedby="caption-attachment-537912" style="width: 1596px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-537912" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122844.jpg" alt="ETH Options Traders Positioning" width="1596" height="661" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122844.jpg 1596w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122844-300x124.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122844-1024x424.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122844-768x318.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-122844-1536x636.jpg 1536w" sizes="(max-width: 1596px) 100vw, 1596px" /><figcaption id="caption-attachment-537912" class="wp-caption-text">ETH Options Traders Positioning (Source: Deribit)</figcaption></figure>
+<blockquote><p>Market Note: This concentrated options activity reflects a market preparing for extended weakness. Having already slipped below the $2,100 support shelf, Block Scholes’ risk appetite indexes show slowing momentum, leaving the asset dependent on defensive hedging in the absence of spot accumulation.</p></blockquote>
+<p>Concurrently, the perpetual futures market sends a more complicated signal. CryptoQuant data shows that <a href="https://cryptoslate.com/market-reports/crypto-derivatives-markets-bitcoin-vs-ethereum/">Ethereum’s derivatives funding</a> rate has settled firmly in positive territory, reaching 0.0082 on May 21, 2026.</p>
+<figure id="attachment_537913" aria-describedby="caption-attachment-537913" style="width: 1003px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-537913" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-124831.jpg" alt="Ethereum Funding Rates" width="1003" height="565" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-124831.jpg 1003w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-124831-300x169.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-124831-768x432.jpg 768w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-124831-480x270.jpg 480w" sizes="(max-width: 1003px) 100vw, 1003px" /><figcaption id="caption-attachment-537913" class="wp-caption-text">Ethereum Funding Rates (Source: CryptoQuant)</figcaption></figure>
+<p>This positive rate indicates that speculative long bias has not fully collapsed despite declines in market capitalization, fund holdings, and spot trading volume.</p>
+<p>The resulting split identity creates a delicate technical backdrop: while options traders position for a breakdown, perpetual futures traders continue to hold leveraged long exposure.</p>
+<p>This structural disconnect can fuel rapid short-squeezes if spot demand unexpectedly returns, but it significantly elevates the risk of cascading liquidations if the spot price breaches the heavy open interest concentrated at the $2,000 floor.</p>
+<h2>Ethereum Foundation exits collide with a weaker ETH value thesis</h2>
+<p>Ethereum's financial underperformance has coincided with an acceleration of senior personnel departures from the <a href="https://cryptoslate.com/companies/ethereum-foundation/">Ethereum Foundation (EF)</a>, the Swiss non-profit entity that stewards the blockchain's core development.</p>
+<p>The internal churn intensified following the formal resignations of research veterans Carl Beek and Julian Ma. Beek had spent seven years focused on Beacon Chain design, while Ma authored the network's Forwarding Oversight Committee for Incentivized Labs (FOCIL) framework.</p>
+<p>Their departures bring the total number of senior exits or step-backs to at least nine since February, with five landing in May alone.</p>
+<p>The list includes former co-Executive Director <a href="https://cryptoslate.com/people/tomasz-stanczak/">Tomasz Stańczak</a>, board co-steward Josh Stark, Protocol Guild contributor Trent Van Epps, and protocol cluster leads Barnabé Monnot and <a href="https://cryptoslate.com/people/tim-beiko/">Tim Beiko</a>.</p>
+<p>Additionally, senior researcher Alex Stokes recently commenced a three-month sabbatical, further thinning the organization’s visible technical leadership during a period of acute market stress.</p>
+<p>Ecosystem analysts trace this administrative migration back to the publication of the foundation’s &#8220;Mandate&#8221; document in mid-March.</p>
+<p>The 38-page <a href="https://ethereum.foundation/ef-mandate.pdf">framework</a> codified the foundation's dedication to &#8220;CROPS&#8221; principles: censorship resistance, open-source deployment, privacy, and base-layer security.</p>
+<p>Crucially, the document framed the foundation as an ecosystem steward rather than a corporate enterprise, explicitly stating that its purpose is to protect network neutrality, not to maximize token price, optimize investor returns, or aggressively coordinate commercial expansion.</p>
+<p>This neutrality-first posture has become increasingly difficult for parts of the market to accept as alternative networks capture speculative market share.</p>
+<p>Tommy Shaughnessy, co-founder of Delphi Ventures, <a href="https://x.com/Shaughnessy119/status/2057323784915345442">noted</a> that the departures are more serious than they appear, adding that the exit of reform-minded personnel leaves fewer internal voices to challenge the foundation’s structural direction.</p>
+<h2>Reform calls test Ethereum’s neutrality-first model</h2>
+<p>The perceived lack of commercial execution by the foundation has prompted several prominent former insiders to call for <a href="https://cryptoslate.com/ethereum-dev-zack-cole-launches-initiative-to-fund-tokenless-projects-promote-eth-burning-mechanisms/">structural governance reforms</a>.</p>
+<p>Dankrad Feist, a notable researcher who left the foundation last year to join the Stripe-backed layer-1 network Tempo, publicly <a href="https://x.com/dankrad/status/2057441946616930799">advocated</a> creating an entirely separate entity to safeguard the network's economic relevance.</p>
+<p>Feist proposed establishing an independent, alternative organization backed by at least $1 billion in capital, funded in part by network staking revenues. This proposed body would be directly accountable to token holders and expressly tasked with driving ETH's financial adoption and market value.</p>
+<p>Feist highlighted that <a href="https://cryptoslate.com/sharplinkovertakes-ethereum-foundation-to-become-largest-eth-holder/">the current foundation controls less than 0.1% of the total circulating ETH supply</a> and receives no direct inflows from base-layer staking yields or network transaction fees.</p>
+<p>According to him, this leaves the ecosystem without an agile institution incentivized to promote the asset in capital markets.</p>
+<p>Bankless co-founder Ryan Sean Adams supported this view, stating that Ethereum’s future cannot depend solely on the foundation.</p>
+<p>Adams argued that the ecosystem requires competitive, well-capitalized institutions dedicated to capital efficiency, aggressive communication, and commercial execution. These are roles the foundation was never structurally designed to fulfill.</p>
+<p>The consensus among these reform proposals is not to replace the foundation, but to establish a dual-institution model: one to protect base-layer neutrality and public goods, and another to promote the asset and compete for institutional capital.</p>
+<p>This push for reform has drawn a direct response from Ethereum bulls, who argue that the market is overreacting to short-term price action and natural organizational transitions.</p>
+<p>ETH investor member Ryan Berckmans <a href="https://x.com/ryanberckmans/status/2056914030481346746">characterized</a> the talent turnover as a healthy handoff to a younger generation of developers.</p>
+<p>Berckmans argued that Ethereum has successfully navigated previous periods of regulatory pressure and leadership transitions while still delivering major upgrades like the Merge, blob transactions, and a dominant position in on-chain application capital.</p>
+<p>He noted that the expanding deployment of stablecoins and tokenized assets by global corporations continues to support the network's long-term trajectory.</p>
+<p>This perspective is shared by substantial institutional holders.</p>
+<p>Thomas Lee, chairman of <a href="https://cryptoslate.com/companies/bitmine/">BitMine</a>, <a href="https://x.com/fundstrat/status/2057549439510950378">dismissed</a> the current market anxiety as typical cyclical capitulation. BitMIne is the largest publicly traded corporate holder of ETH, with a portfolio of 5.2 million ETH and <a href="https://cryptoslate.com/ethereums-biggest-staker-has-just-become-a-public-company-with-over-10-billion-locked-up/">over $10 billion actively staked tokens</a>.</p>
+<figure id="attachment_537915" aria-describedby="caption-attachment-537915" style="width: 1522px" class="wp-caption aligncenter"><img decoding="async" class="size-full wp-image-537915" src="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-130210.jpg" alt="BitMine Key Metrics" width="1522" height="604" srcset="https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-130210.jpg 1522w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-130210-300x119.jpg 300w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-130210-1024x406.jpg 1024w, https://cryptoslate.com/wp-content/uploads/2026/05/Screenshot-2026-05-23-130210-768x305.jpg 768w" sizes="(max-width: 1522px) 100vw, 1522px" /><figcaption id="caption-attachment-537915" class="wp-caption-text">BitMine Key Metrics (Source: BitMine Tracker)</figcaption></figure>
+<p>Lee asserted that blockchain infrastructure represents the foundational settlement highway for agentic artificial intelligence commerce and institutional finance, positions where Ethereum maintains a distinct structural advantage due to its established security record, deep liquidity, and institutional familiarity.</p>
+<h2>How Ethereum can recover from the current FUD</h2>
+<p>Market observers have noted that Ethereum’s near-term trajectory now hinges on whether its <a href="https://cryptoslate.com/ethereum-foundation-aims-to-secure-the-future-with-trillion-dollar-security-initiative/">technical roadmap and commercial moats</a> translate into a coherent investment thesis for ETH.</p>
+<p>Strategic <a href="https://x.com/Uptodatenow/status/2057826048897667293">analysis</a> from <a href="https://cryptoslate.com/companies/galaxy-digital/">Galaxy Digital</a> indicates that the network must execute a disciplined operational agenda to reverse ongoing capital flight.</p>
+<p>According to Galaxy’s recovery framework, the immediate focus must center on shipping the <a href="https://cryptoslate.com/ethereums-2026-roadmap-includes-a-validator-risk-that-is-bigger-than-you-think-to-deliver-the-massive-throughput-gains/">Glamsterdam upgrade</a>, keeping the subsequent Hegotá deployment on track, clarifying administrative responsibilities within the foundation, and concentrating resources on core commercial verticals.</p>
+<p>These key areas include high-value decentralized finance, institutional asset issuance, tokenized RWAs, stablecoin settlement, and privacy-preserving financial infrastructure. These are sectors where Ethereum’s credible neutrality and security record serve as a commercial necessity rather than an abstract principle.</p>
+<p>Galaxy also pointed to the need for Ethereum to move faster on narratives likely to define the next cycle, including layer-1 scaling, on-chain privacy, <a href="https://cryptoslate.com/vitalik-proposes-lean-ethereum-to-achieve-quantum-security-simpler-validator-operations/">post-quantum security</a>, and AI-native economic infrastructure.</p>
+<p>While much of this technical architecture is <span style="box-sizing: border-box; margin: 0px; padding: 0px;">documented in the open-source &#8220;<a href="https://cryptoslate.com/ethereums-2026-roadmap-just-hit-but-eth-wont-recover-until-one-metric-flips/" target="_blank" rel="noopener">Strawmap&#8221; development</a> framework, the more complex challenge remains the coordination among</span> commercial and institutional actors.</p>
+<p>This coordination gap sits at the center of Ethereum’s current market friction.</p>
+<p>The foundation’s Mandate provides a clear statement of base-layer engineering principles, but it does not provide capital markets with a simple answer on value accrual, nor does it create an entity designed to defend the asset against aggressive layer-1 competitors.</p>
+<p>Consequently, the current drawdown has evolved into more than a simple price correction; it is an active test of whether a decentralized structure can distribute commercial responsibility across new institutions without losing operational coherence.</p>
+<p>If the ecosystem can turn its current administrative churn into clearly defined roles and convert its technical roadmap into a concise asset case, this period of underperformance could serve as a necessary governance reset.</p>
+<p>However, if it cannot, the market may continue to treat weak spot demand, senior departures, and the application-layer economic shift as evidence that <a href="https://cryptoslate.com/blackrock-stablecoin-ethereum-settlement-standard-2026/">Ethereum’s network strength</a> no longer guarantees protection of the underlying token's value.</p>
+<p>The post <a href="https://cryptoslate.com/ethereum-market-sentiment-turns-negative-amid-foundation-brain-drain-and-price-struggles/">Ethereum’s selloff tests whether its neutrality-first model can defend ETH’s value amid Foundation ‘brain drain’</a> appeared first on <a href="https://cryptoslate.com">CryptoSlate</a>.</p>
+]]></content:encoded>
+					
+		
+		
+		<media:content url="https://cryptoslate.com/wp-content/uploads/2026/05/ethereum.jpg" medium="image"/>
+<enclosure url="https://cryptoslate.com/wp-content/uploads/2026/05/ethereum.jpg" length="1280" type="image/jpg"/>
+	</item>
+	</channel>
+</rss>

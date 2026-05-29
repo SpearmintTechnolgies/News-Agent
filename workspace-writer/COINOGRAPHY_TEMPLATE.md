@@ -15,7 +15,7 @@ Follow these rules for every article. Interior structure (how many sections, hea
 
 **SEO and links**
 - **ANCHOR LINKS:** Exactly **2** markdown links to URLs from `RESEARCH_JSON.source_urls` (distinct URLs, no repeats). Both in the **opening hook or first H2 only**. No x.com or twitter.com links in the body.
-- **KEYWORDS:** Primary keyword in H1 (first 5 words); in first 100 words; in at least one H2 and in Conclusion. Use secondary keywords in H2/H3 where natural.
+- **KEYWORDS:** Primary keyword in H1 (first 5 words); in the **first sentence of the hook** (the very first line of body text under H1); in at least one H2 and in Conclusion. Use secondary keywords in H2/H3 where natural.
 
 **Length**
 - **Word count:** Body **1000–1200** words (aim **1100**). Count body only; META, Sources, and `[Word Count:]` line are not counted. Body includes hook, H2 sections, Conclusion, and FAQs.
@@ -61,13 +61,13 @@ Count characters in `<thinking>` before writing:
 |-------|----------|---------------|
 | SEO Title | **55** | 60 |
 | Meta Description | **155** | 160 |
-| URL Slug | **70** | 75 |
+| URL Slug | **50** | 75 |
 
 ```
 META
-- SEO Title: [primary keyword early; add | Coinography only if ≤55 chars total]
-- Meta Description: [hook + detail; ≤155 chars]
-- URL Slug: [lowercase hyphens; 3–5 words; ≤70 chars]
+- SEO Title: [Primary Keyword first (within first 3 words); include one number/figure when factual; ≤55 chars]
+- Meta Description: [Must contain the Primary Keyword verbatim; hook + detail; ≤155 chars]
+- URL Slug: [lowercase hyphens; 3–5 words; ≤50 chars]
 - Categories: [e.g. Regulation, Latest News]
 - Primary Keyword: [...]
 - Secondary Keywords: [...]
@@ -129,6 +129,10 @@ Final line: `[Word Count: NNNN]` with digits only.
 ## Pre-flight (in `<thinking>`)
 
 - [ ] META char counts within limits
+- [ ] Meta Description contains Primary Keyword verbatim
+- [ ] SEO Title starts with Primary Keyword (within first 3 words) and has a number/figure
+- [ ] URL Slug ≤50 chars
+- [ ] First body sentence (under H1) contains Primary Keyword
 - [ ] 2 source URLs planned for hook/first H2
 - [ ] Structure choices within H2/H3/FAQ borders
 - [ ] Body word budget 1000–1200
@@ -141,3 +145,5 @@ Final line: `[Word Count: NNNN]` with digits only.
 - [ ] 1000–1200 body words
 - [ ] Exactly 2 source links in hook/first H2
 - [ ] No em-dashes or banned phrases
+- [ ] Meta Description contains Primary Keyword
+- [ ] First sentence under H1 contains Primary Keyword

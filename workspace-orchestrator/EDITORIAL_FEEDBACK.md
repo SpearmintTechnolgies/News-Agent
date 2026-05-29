@@ -1,6 +1,6 @@
 # EDITORIAL_FEEDBACK.md — News Card Editorial Feedback
 
-Handles Telegram feedback on published news cards. **Not part of the crypto pipeline.**
+Handles Telegram feedback on news cards sent after pipeline Step 6. **Part of the Step 6 success path** (card send) but **not** a pipeline step itself — do not spawn subagents for editorial actions.
 
 ---
 
@@ -10,7 +10,7 @@ Handles Telegram feedback on published news cards. **Not part of the crypto pipe
 |---------|---------|
 | Callback `oc_r:` / `oc_ri:` / `oc_ri_menu:` | Rate article or image |
 | Callback `oc_draft:` / `oc_draft_yes:` / `oc_draft_no:` | Unpublish flow |
-| Callback `oc_publish:` / `oc_publish_yes:` / `oc_publish_no:` | Publish flow |
+| Callback `oc_publish:` / `oc_pub_a:` / `oc_pub_y:` / `oc_pub_n:` | Publish flow (author picker) |
 | Callback `oc_edit:` / `oc_edit_apply:` / `oc_edit_cancel:` | Edit flow |
 | Text | `RATE 8`, `IMAGE 7`, `DRAFT`, `PUBLISH`, `EDIT` |
 | Document reply | `.md` file replying to bot's edit prompt |
@@ -49,14 +49,27 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.
 
 Pipeline takes precedence only when the message explicitly requests the pipeline.
 
+**Channels:** Pipeline gate (Step 5 yes/no) is in the **Telegram DM** with Nexus. News cards and editorial feedback run in the **`news-agent` group** (`config/telegram_card_config.json`). RATE/PUBLISH/EDIT in DM will not resolve articles unless you reply to the card in the group.
+
 ---
 
 ## PUBLISH flow notes
 
 - Tap **Publish** or reply `PUBLISH` to the card.
-- Confirm with **Yes, publish** / **Cancel**.
-- Sets WordPress post status to `publish` (live on site).
+- Bot shows **Toby** / **Ahmed** / **Golan** author buttons (`config/wp_authors.json`).
+- Pick author → confirm **Yes, publish as …** / **Cancel**.
+- WordPress receives `status: publish` + `author: 3|17` on **coinography.com** via `wp_post_actions.sh`.
 - If already published → bot replies "already published".
+- Draft posts are created by the pipeline as author renu (API user); byline changes only at Telegram publish.
+
+### Callback prefixes
+
+| callback_data | Action |
+|---------------|--------|
+| `oc_publish:{run_id}` | Show author picker |
+| `oc_pub_a:{run_id}:{author_id}` | Confirm chosen author |
+| `oc_pub_y:{run_id}:{author_id}` | Publish live with author |
+| `oc_pub_n:{run_id}` | Cancel publish flow |
 
 ---
 
@@ -67,8 +80,9 @@ Pipeline takes precedence only when the message explicitly requests the pipeline
 - Download → edit → **save** → reply to that document with a corrected **`.md` file** (not pasted text).
 - Identical upload (no changes) → bot replies "No changes detected" and keeps the edit session open (`EDIT_UNCHANGED`).
 - Changed upload → bot shows **+N / −M lines** summary plus **Apply to WordPress** / **Cancel** buttons.
-- After apply on a draft → bot offers a **Publish** button on the confirmation message.
+- After apply on a draft → bot offers a **Publish** button (author picker follows).
 - Pasted text during edit → handler returns `EDIT_USE_DOCUMENT`.
+- Second edit compares against the latest **applied** content (not stale snapshot).
 
 ### Document reply — CRITICAL routing rule
 
@@ -87,7 +101,7 @@ Wrong file selection causes false `EDIT_UNCHANGED` even when the user's saved fi
 
 - Tap **Unpublish** or reply `DRAFT` to the card.
 - Confirm with **Yes, unpublish** / **Cancel**.
-- Sets WordPress post status to `draft`.
+- Sets WordPress post status to `draft` on coinography.com (author unchanged).
 
 ---
 

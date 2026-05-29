@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# generate.sh — Leonardo AI Image Generation Skill for Pixel (Creator Agent)
+# generate.sh — Vertex Imagen 4 via Bifrost (Creator Agent / Pixel)
 # =============================================================================
 # Usage:
 #   bash generate.sh "<IMAGE PROMPT>"
 #
 # Environment (optional):
-#   LEONARDO_API_KEY   — Leonardo API bearer token
-#   STAMP_LOGO=1|0     — composite brand logo after download (default: 1)
-#   USE_PHOTOREAL=1|0  — PhotoReal v2 stack (default: 1; falls back on 422)
+#   BIFROST_BASE_URL   — Bifrost OpenAI-compatible base (default: http://172.30.176.1:8080/v1)
+#   IMAGE_MODEL            — Primary model (default: vertex/imagen-4.0-fast-generate-001)
+#   IMAGE_MODEL_FALLBACK   — Quality fallback (default: vertex/imagen-4.0-generate-001)
+#   STAMP_LOGO=1|0     — composite brand logo after save (default: 1)
 #
 # Output:
 #   Exit 0 → /tmp/image-result.txt contains the file path
@@ -17,164 +18,166 @@
 
 set -euo pipefail
 
-# --- Config ------------------------------------------------------------------
 PROMPT="${1:-}"
-API_KEY="${LEONARDO_API_KEY:-dddd08ff-d8c3-4fec-98d9-9e8c060f4619}"
-# Leonardo Vision XL — PhotoReal v2 compatible (editorial / stock photo)
-MODEL_ID="${LEONARDO_MODEL_ID:-5c232a9e-9061-4777-980a-ddc8e65647c6}"
-PRESET_STYLE="${LEONARDO_PRESET_STYLE:-STOCK_PHOTO}"
-USE_PHOTOREAL="${USE_PHOTOREAL:-1}"
+BIFROST_BASE_URL="${BIFROST_BASE_URL:-http://172.30.176.1:8080/v1}"
+IMAGE_MODEL="${IMAGE_MODEL:-vertex/imagen-4.0-fast-generate-001}"
+IMAGE_MODEL_FALLBACK="${IMAGE_MODEL_FALLBACK:-${IMAGE_MODEL_FAST:-vertex/imagen-4.0-generate-001}}"
 STAMP_LOGO="${STAMP_LOGO:-1}"
-API_BASE="https://cloud.leonardo.ai/api/rest/v1"
 OUTPUT_PATH="/tmp/crypto-feature.jpg"
 RESULT_FILE="/tmp/image-result.txt"
 ERROR_FILE="/tmp/image-error.log"
 LOGO_PATH="$HOME/.openclaw/assets/logo.png"
 MAX_GENERATE_RETRIES=3
-POLL_ATTEMPTS=6
-POLL_INTERVAL=10
 WIDTH=1024
 HEIGHT=576
-
-NEGATIVE_PROMPT="deformed, distorted, disfigured, bad anatomy, bad hands, missing fingers, extra fingers, fused fingers, malformed limbs, crossed eyes, asymmetric eyes, blurry face, cartoon, illustration, 3d render, cgi, painting, anime, text, watermark, logo, words, letters, signage, readable text, keyboard keys"
+MIN_BYTES=51200
+NEGATIVE_SUFFIX=", no text, no watermark, no logo, no words, no letters, no signage, photorealistic editorial photography, not illustration, not cartoon, not 3d render"
 
 log_error() { echo "[ERROR] $*" | tee -a "$ERROR_FILE"; }
-log_warn() { echo "[WARNING] $*"; }
+log_warn() { echo "[WARNING] $*" | tee -a "$ERROR_FILE"; }
 log_info() { echo "[INFO]  $*"; }
 fatal() { log_error "$*"; exit 1; }
-
-build_request_json() {
-  local use_photoreal="$1"
-  GENERATION_PROMPT="$PROMPT" \
-  GENERATION_MODEL_ID="$MODEL_ID" \
-  GENERATION_PRESET="$PRESET_STYLE" \
-  GENERATION_NEGATIVE="$NEGATIVE_PROMPT" \
-  GENERATION_WIDTH="$WIDTH" \
-  GENERATION_HEIGHT="$HEIGHT" \
-  GENERATION_USE_PHOTOREAL="$use_photoreal" \
-  python3 - <<'PY'
-import json, os
-body = {
-    "prompt": os.environ["GENERATION_PROMPT"],
-    "modelId": os.environ["GENERATION_MODEL_ID"],
-    "num_images": 1,
-    "width": int(os.environ["GENERATION_WIDTH"]),
-    "height": int(os.environ["GENERATION_HEIGHT"]),
-    "alchemy": True,
-    "enhancePrompt": False,
-    "negative_prompt": os.environ["GENERATION_NEGATIVE"],
-}
-if os.environ.get("GENERATION_USE_PHOTOREAL") == "1":
-    body["photoReal"] = True
-    body["photoRealVersion"] = "v2"
-    body["presetStyle"] = os.environ["GENERATION_PRESET"]
-print(json.dumps(body))
-PY
-}
-
-submit_generation() {
-  local use_photoreal="$1"
-  local request_json
-  request_json="$(build_request_json "$use_photoreal")"
-  HTTP_RESPONSE=$(curl --silent --write-out "\n__HTTP_STATUS__%{http_code}" \
-    --request POST --url "$API_BASE/generations" \
-    --header "accept: application/json" \
-    --header "authorization: Bearer $API_KEY" \
-    --header "content-type: application/json" \
-    --data "$request_json" --max-time 60)
-  HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
-  HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -1 | sed 's/__HTTP_STATUS__//')
-}
 
 rm -f "$ERROR_FILE" "$RESULT_FILE"
 [ -z "$PROMPT" ] && fatal "No prompt provided. Usage: bash generate.sh \"<prompt>\""
 [ ${#PROMPT} -gt 1000 ] && fatal "Prompt too long (${#PROMPT} chars). Max 1000 characters."
 
-log_info "Starting image generation for prompt: ${PROMPT:0:80}..."
-log_info "Model: $MODEL_ID | PhotoReal: $USE_PHOTOREAL | Preset: $PRESET_STYLE | Size: ${WIDTH}x${HEIGHT} | Stamp logo: $STAMP_LOGO"
-
-GENERATION_ID=""
-RETRY_DELAY=5
-PHOTOREAL_ACTIVE="$USE_PHOTOREAL"
-
-for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
-  log_info "Generation attempt $attempt of $MAX_GENERATE_RETRIES (photoReal=$PHOTOREAL_ACTIVE)..."
-  submit_generation "$PHOTOREAL_ACTIVE"
-  log_info "API response status: $HTTP_STATUS"
-
-  [ "$HTTP_STATUS" = "401" ] && fatal "Authentication failed (401). API key is invalid or expired. Not retrying."
-  [ "$HTTP_STATUS" = "403" ] && fatal "Access forbidden (403). Account may be suspended or quota exceeded. Not retrying."
-
-  if [ "$HTTP_STATUS" = "422" ] && [ "$PHOTOREAL_ACTIVE" = "1" ]; then
-    log_warn "PhotoReal request rejected (422). Retrying without PhotoReal (alchemy + CINEMATIC)..."
-    PHOTOREAL_ACTIVE=0
-    PRESET_STYLE="CINEMATIC"
-    MODEL_ID="1e60896f-3c26-4296-8ecc-53e2afecc132"
-    continue
-  fi
-  [ "$HTTP_STATUS" = "422" ] && fatal "Invalid request (422). Body: $HTTP_BODY. Not retrying."
-
-  if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
-    GENERATION_ID=$(echo "$HTTP_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('sdGenerationJob',{}).get('generationId',''))" 2>/dev/null || echo "")
-    if [ -n "$GENERATION_ID" ]; then
-      log_info "Generation submitted. ID: $GENERATION_ID (photoReal=$PHOTOREAL_ACTIVE)"
-      break
-    fi
-    log_error "Got HTTP 200 but no generationId. Body: ${HTTP_BODY:0:200}"
-  fi
-  log_error "Transient error (status=$HTTP_STATUS). Waiting ${RETRY_DELAY}s..."
-  sleep $RETRY_DELAY
-  RETRY_DELAY=$((RETRY_DELAY * 2))
-done
-
-[ -z "$GENERATION_ID" ] && fatal "Failed to submit generation after $MAX_GENERATE_RETRIES attempts."
-
-log_info "Polling (max $((POLL_ATTEMPTS * POLL_INTERVAL))s)..."
-IMAGE_URL=""
-for poll in $(seq 1 $POLL_ATTEMPTS); do
-  sleep $POLL_INTERVAL
-  log_info "Poll $poll of $POLL_ATTEMPTS..."
-  POLL_RESULT=$(curl --silent --request GET --url "$API_BASE/generations/$GENERATION_ID" \
-    --header "authorization: Bearer $API_KEY" --max-time 15)
-  IMAGE_URL=$(echo "$POLL_RESULT" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-gen = data.get('generations_by_pk', {})
-if gen.get('status') == 'COMPLETE' and gen.get('generated_images'):
-    print(gen['generated_images'][0].get('url', '').strip())
-" 2>/dev/null || echo "")
-  if [ -n "$IMAGE_URL" ]; then
-    log_info "Image ready! URL: $IMAGE_URL"
-    break
-  fi
-  GEN_STATUS=$(echo "$POLL_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('generations_by_pk',{}).get('status','unknown'))" 2>/dev/null || echo 'unknown')
-  log_info "Status: $GEN_STATUS"
-done
-
-[ -z "$IMAGE_URL" ] && fatal "Timed out waiting for image. GenerationId: $GENERATION_ID"
+FULL_PROMPT="${PROMPT}${NEGATIVE_SUFFIX}"
 
 EFFECTIVE_OUTPUT="$OUTPUT_PATH"
 [ -L "$OUTPUT_PATH" ] && EFFECTIVE_OUTPUT=$(readlink -f "$OUTPUT_PATH")
 mkdir -p "$(dirname "$EFFECTIVE_OUTPUT")" 2>/dev/null || true
 
-TEMP_DOWNLOAD="/tmp/leonardo-dl-${GENERATION_ID}.jpg"
-log_info "Downloading to $EFFECTIVE_OUTPUT (via $TEMP_DOWNLOAD)..."
+log_info "Starting image generation for prompt: ${PROMPT:0:80}..."
+log_info "Primary: $IMAGE_MODEL | Fallback: $IMAGE_MODEL_FALLBACK | Size: ${WIDTH}x${HEIGHT} | Stamp logo: $STAMP_LOGO"
 
-HTTP_DL_STATUS=$(curl --silent --location --write-out "%{http_code}" --output "$TEMP_DOWNLOAD" --max-time 60 \
-  -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-  -H "Accept: image/webp,image/apng,image/*,*/*;q=0.8" \
-  -H "Referer: https://app.leonardo.ai/" "$IMAGE_URL")
+call_imagen() {
+  local model="$1"
+  local timeout_sec="$2"
+  local out_file="$3"
 
-[ "$HTTP_DL_STATUS" != "200" ] && rm -f "$TEMP_DOWNLOAD" && fatal "Download failed HTTP $HTTP_DL_STATUS"
+  GENERATION_MODEL="$model" \
+  GENERATION_PROMPT="$FULL_PROMPT" \
+  GENERATION_SIZE="${WIDTH}x${HEIGHT}" \
+  BIFROST_URL="${BIFROST_BASE_URL%/}/images/generations" \
+  OUT_FILE="$out_file" \
+  TIMEOUT_SEC="$timeout_sec" \
+  python3 - <<'PY'
+import base64
+import json
+import os
+import sys
+import urllib.request
 
-FILE_SIZE=$(stat -c%s "$TEMP_DOWNLOAD" 2>/dev/null || echo "0")
-[ "$FILE_SIZE" -lt 51200 ] && rm -f "$TEMP_DOWNLOAD" && fatal "Downloaded file too small (${FILE_SIZE} bytes)"
+model = os.environ["GENERATION_MODEL"]
+prompt = os.environ["GENERATION_PROMPT"]
+size = os.environ["GENERATION_SIZE"]
+url = os.environ["BIFROST_URL"]
+out_file = os.environ["OUT_FILE"]
+timeout = int(os.environ["TIMEOUT_SEC"])
 
-cp -f "$TEMP_DOWNLOAD" "$EFFECTIVE_OUTPUT"
-rm -f "$TEMP_DOWNLOAD"
-log_info "Downloaded ${FILE_SIZE} bytes."
+body = json.dumps({
+    "model": model,
+    "prompt": prompt,
+    "size": size,
+    "n": 1,
+}).encode("utf-8")
 
-if [ "$STAMP_LOGO" = "1" ] && command -v convert &>/dev/null && [ -f "$LOGO_PATH" ]; then
+req = urllib.request.Request(
+    url,
+    data=body,
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+
+try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        http_code = resp.getcode()
+        raw = resp.read().decode("utf-8", errors="replace")
+except urllib.error.HTTPError as e:
+    http_code = e.code
+    raw = e.read().decode("utf-8", errors="replace")
+except Exception as e:
+    print(f"TRANSIENT: request failed: {e}", file=sys.stderr)
+    sys.exit(2)
+
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    print(f"TRANSIENT: invalid JSON (HTTP {http_code}): {raw[:300]}", file=sys.stderr)
+    sys.exit(2)
+
+err = data.get("error")
+if err:
+    if isinstance(err, dict):
+        msg = err.get("message") or err.get("error") or str(err)
+    else:
+        msg = str(err)
+    if http_code == 400 and any(k in msg.lower() for k in ("policy", "quota", "permission", "blocked", "safety")):
+        print(f"FATAL: HTTP {http_code}: {msg}", file=sys.stderr)
+        sys.exit(3)
+    print(f"TRANSIENT: HTTP {http_code}: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+items = data.get("data") or []
+if not items:
+    print(f"TRANSIENT: HTTP {http_code} but empty data: {raw[:300]}", file=sys.stderr)
+    sys.exit(2)
+
+item = items[0]
+b64 = item.get("b64_json") or item.get("b64") or ""
+image_url = item.get("url") or ""
+
+if b64:
+    img_bytes = base64.b64decode(b64)
+elif image_url:
+    try:
+        with urllib.request.urlopen(image_url, timeout=60) as dl:
+            img_bytes = dl.read()
+    except Exception as e:
+        print(f"TRANSIENT: download failed: {e}", file=sys.stderr)
+        sys.exit(2)
+else:
+    print(f"TRANSIENT: no b64_json or url in response", file=sys.stderr)
+    sys.exit(2)
+
+if len(img_bytes) < 1024:
+    print(f"TRANSIENT: image too small ({len(img_bytes)} bytes)", file=sys.stderr)
+    sys.exit(2)
+
+with open(out_file, "wb") as f:
+    f.write(img_bytes)
+
+print(f"OK:{len(img_bytes)}")
+PY
+}
+
+ensure_jpeg() {
+  local src="$1"
+  local dst="$2"
+  if file -b "$src" 2>/dev/null | grep -qiE 'JPEG|jpg'; then
+    cp -f "$src" "$dst"
+    return 0
+  fi
+  if command -v convert &>/dev/null; then
+    if convert "$src" -quality 92 "$dst" 2>/dev/null; then
+      log_info "Converted non-JPEG response to JPEG."
+      return 0
+    fi
+  fi
+  cp -f "$src" "$dst"
+  log_warn "Saved image without JPEG conversion (format: $(file -b "$src" 2>/dev/null || echo unknown))."
+}
+
+stamp_logo() {
+  if [ "$STAMP_LOGO" != "1" ]; then
+    log_info "Logo stamping disabled (STAMP_LOGO=$STAMP_LOGO)."
+    return 0
+  fi
+  if ! command -v convert &>/dev/null || [ ! -f "$LOGO_PATH" ]; then
+    log_warn "Logo stamping skipped (convert or logo missing)."
+    return 0
+  fi
   log_info "Stamping logo..."
   TEMP_LOGO="/tmp/temp_logo_$$.png"
   if convert "$LOGO_PATH" -resize 100x "$TEMP_LOGO" 2>/dev/null && \
@@ -184,12 +187,59 @@ if [ "$STAMP_LOGO" = "1" ] && command -v convert &>/dev/null && [ -f "$LOGO_PATH
     log_warn "Logo stamping failed — continuing without watermark."
   fi
   rm -f "$TEMP_LOGO"
-elif [ "$STAMP_LOGO" != "1" ]; then
-  log_info "Logo stamping disabled (STAMP_LOGO=$STAMP_LOGO)."
-fi
+}
 
-FINAL_SIZE=$(stat -c%s "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "0")
-log_info "Final image at $EFFECTIVE_OUTPUT — ${FINAL_SIZE} bytes"
-echo "$EFFECTIVE_OUTPUT" > "$RESULT_FILE"
-echo "SUCCESS: $EFFECTIVE_OUTPUT"
+TEMP_RAW="/tmp/imagen-raw-$$.bin"
+SUCCESS=0
+RETRY_DELAY=5
+
+for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
+  log_info "Generation round $attempt of $MAX_GENERATE_RETRIES..."
+
+  for model_spec in "90:$IMAGE_MODEL" "120:$IMAGE_MODEL_FALLBACK"; do
+    timeout_sec="${model_spec%%:*}"
+    model="${model_spec#*:}"
+    rm -f "$TEMP_RAW"
+    log_info "Trying model=$model (timeout=${timeout_sec}s)..."
+
+    set +e
+    result=$(call_imagen "$model" "$timeout_sec" "$TEMP_RAW" 2>&1)
+    rc=$?
+    set -e
+
+    if [ "$rc" -eq 0 ]; then
+      log_info "Model $model succeeded ($result)."
+      ensure_jpeg "$TEMP_RAW" "$EFFECTIVE_OUTPUT"
+      rm -f "$TEMP_RAW"
+
+      FILE_SIZE=$(stat -c%s "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "0")
+      if [ "$FILE_SIZE" -lt "$MIN_BYTES" ]; then
+        log_error "Image too small (${FILE_SIZE} bytes, min $MIN_BYTES)."
+        rm -f "$EFFECTIVE_OUTPUT"
+        continue
+      fi
+
+      stamp_logo
+      FINAL_SIZE=$(stat -c%s "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "0")
+      log_info "Final image at $EFFECTIVE_OUTPUT — ${FINAL_SIZE} bytes (model=$model)"
+      echo "$EFFECTIVE_OUTPUT" > "$RESULT_FILE"
+      echo "SUCCESS: $EFFECTIVE_OUTPUT"
+      SUCCESS=1
+      break 2
+    elif [ "$rc" -eq 3 ]; then
+      fatal "$result"
+    else
+      log_warn "Model $model failed: $result"
+    fi
+  done
+
+  if [ "$attempt" -lt "$MAX_GENERATE_RETRIES" ]; then
+    log_info "Waiting ${RETRY_DELAY}s before retry..."
+    sleep "$RETRY_DELAY"
+    RETRY_DELAY=$((RETRY_DELAY * 2))
+  fi
+done
+
+rm -f "$TEMP_RAW"
+[ "$SUCCESS" -eq 1 ] || fatal "Failed to generate image after $MAX_GENERATE_RETRIES rounds (primary + fast fallback each)."
 exit 0

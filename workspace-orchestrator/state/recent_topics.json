@@ -8,5 +8,65 @@
     "primary_asset": "Tether",
     "status": "published",
     "published_url": "https://slateblue-reindeer-775070.hostingersite.com/tether-georgia-gelt-lari-stablecoin-launch/"
+  },
+  {
+    "run_id": "20260526-051833",
+    "timestamp": "2026-05-26T05:27:51Z",
+    "story_id": "vitalik-buterin-ethereum-foundation-crops-2026-05-26",
+    "primary_headline": "Vitalik Buterin Announces Ethereum Foundation Will Shrink, Sell Less ETH, and Focus on 'CROPS' Framework",
+    "topic_theme": "Ethereum Foundation Restructuring and CROPS Strategy",
+    "primary_asset": "Ethereum",
+    "status": "published",
+    "published_url": "https://slateblue-reindeer-775070.hostingersite.com/ethereum-foundation-crops-strategy-explained/"
+  },
+  {
+    "run_id": "20260526-053909",
+    "timestamp": "2026-05-26T05:59:35Z",
+    "story_id": "ondo-finance-founder-nathan-allman-dies-aged-32",
+    "primary_headline": "Ondo Finance Founder and CEO Nathan Allman Dies Suddenly at 32",
+    "topic_theme": "Ondo Finance Founder Nathan Allman Passes Away Unexpectedly at 32",
+    "primary_asset": "Ondo Finance",
+    "status": "published",
+    "published_url": "https://slateblue-reindeer-775070.hostingersite.com/ondo-finance-founder-nathan-allman-dies-at-32/"
+  },
+  {
+    "run_id": "20260526-090928",
+    "timestamp": "2026-05-26T09:32:07Z",
+    "story_id": "kelp-dao-rseth-recovery-complete-2026-05-26",
+    "primary_headline": "Kelp DAO Completes rsETH Recovery Plan With 116,000 Tokens Fully Restored",
+    "topic_theme": "Kelp DAO Completes rsETH Recovery Following April Hack",
+    "primary_asset": "Ethereum",
+    "status": "published",
+    "published_url": "https://slateblue-reindeer-775070.hostingersite.com/kelp-dao-rseth-recovery-plan-complete/"
+  },
+  {
+    "run_id": "20260526-120208",
+    "timestamp": "2026-05-26T12:15:52Z",
+    "story_id": "hyperliquid-prediction-markets-launch-2026-05-26",
+    "primary_headline": "Hyperliquid Takes on Polymarket with Integrated Real-World Prediction Markets",
+    "topic_theme": "Hyperliquid Launches Prediction Markets to Compete with Polymarket",
+    "primary_asset": "Hyperliquid",
+    "status": "drafted",
+    "published_url": "https://coinography.com/?p=37842"
+  },
+  {
+    "run_id": "20260526-130422",
+    "timestamp": "2026-05-26T13:44:14Z",
+    "story_id": "stablr-stablecoin-exploit-depeg",
+    "primary_headline": "StablR freezes USDR and EURR after attacker mints $13.5 million in unbacked tokens",
+    "topic_theme": "StablR Freezes USDR and EURR Stablecoins Following $13.5M Exploit",
+    "primary_asset": "StablR",
+    "status": "published",
+    "published_url": "https://coinography.com/stablr-stablecoin-exploit-freezes-tokens/"
+  },
+  {
+    "run_id": "20260527-061625",
+    "timestamp": "2026-05-27T06:34:06Z",
+    "story_id": "uk-sanctions-htx-russia-2026-05-27",
+    "primary_headline": "UK Imposes Sweeping Sanctions on HTX and Russia Crypto Networks",
+    "topic_theme": "UK Sanctions HTX Over Russia Ties",
+    "primary_asset": "TRON",
+    "status": "published",
+    "published_url": "https://coinography.com/uk-sanctions-htx-russia-crypto-crackdown/"
   }
 ]

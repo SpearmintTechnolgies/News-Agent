@@ -347,7 +347,22 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/verify_artifacts.py \
 4. Use `sessions_spawn` and `sessions_yield` to spawn the `publisher` agent with this message:
    `Run this EXACT shell command and return its JSON output: GOG_KEYRING_PASSWORD="sawan" gog drive upload /tmp/crypto-article.docx --name "Crypto News - $(date +%Y-%m-%d)" --json --no-input --account bhardwaj0sawan@gmail.com — Return the webViewLink from the JSON output.`
 
-5. After Drive success, update manifest:
+5. After Drive success, persist Drive metadata to the run bundle (use publisher JSON output or webViewLink):
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/save_google_drive_json.py \
+  --manifest "$PIPELINE_MANIFEST" \
+  --json '<paste gog drive upload JSON here>'
+```
+   Or if you only have the URL:
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/save_google_drive_json.py \
+  --manifest "$PIPELINE_MANIFEST" \
+  --web-view-link "<ACTUAL Google Doc webViewLink>"
+```
+   - Prints `DRIVE_JSON_SAVED:` → proceed.
+   - Prints `DRIVE_JSON_ERROR:` → report to user (card Google Doc button may be missing).
+
+6. Update manifest:
 ```bash
 bash ~/.openclaw/workspace-orchestrator/skills/pipeline/update_manifest_step.sh \
   --manifest "$PIPELINE_MANIFEST" --step drive --status succeeded
@@ -369,8 +384,8 @@ Reply to the user:
 🖼️  Image: saved at /tmp/crypto-feature.jpg
 
 ---
-📣 Do you want to publish this article to WordPress (live)?
-Reply "yes" to publish, or "no" to skip.
+📣 Do you want to push this article to WordPress as a draft on Coinography?
+Reply "yes" to save draft, or "no" to skip.
 ```
 
 **STOP HERE. Wait for the user's reply before doing anything else.**
@@ -390,7 +405,7 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/verify_artifacts.py \
    - Prints `ARTIFACTS_FAIL:` → **STOP. Do not publish.** Report the exact failure to the user.
 
 2. Use `sessions_spawn` and `sessions_yield` to spawn the `wp-publisher` agent with this message:
-   `Publish the article to WordPress (live, not draft). The article is at /tmp/crypto-article.md and the image is at /tmp/crypto-feature.jpg.`
+   `Publish the article to WordPress (as draft, not live). The article is at /tmp/crypto-article.md and the image is at /tmp/crypto-feature.jpg.`
 
 3. Read the published URL (do **not** fetch the public post in a browser or HTTP client — Hostinger often returns 403 to bots):
 ```bash
@@ -398,13 +413,13 @@ cat /tmp/wp-result.txt
 ```
    - If empty or missing after wp-publisher yields → treat as `WP_FAILED` and stop.
 
-3b. Update recent topic registry (published):
+3b. Update recent topic registry (drafted):
 ```bash
 python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/update_recent_topics.py \
   --current "$RUN_DIR/research/validated.json" \
   --registry ~/.openclaw/workspace-orchestrator/state/recent_topics.json \
   --run-id "$RUN_ID" \
-  --status published \
+  --status drafted \
   --published-url "$(cat /tmp/wp-result.txt)"
 ```
 
@@ -424,10 +439,10 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_and_send_card.p
 
 Reply to the user:
 ```
-🗞️ Published to WordPress!
+🗞️ Draft saved on WordPress!
 
-🔗 Live Post: [ACTUAL WordPress URL from /tmp/wp-result.txt]
-✅ Status: Published (live on site).
+🔗 Draft: [ACTUAL WordPress URL from /tmp/wp-result.txt]
+✅ Status: Draft — use Telegram card to Publish when ready.
 ```
 
 **If user says NO:**

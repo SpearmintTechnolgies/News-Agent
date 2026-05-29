@@ -1,20 +1,22 @@
 # TOOLS.md — Pixel's Environment Config
 
-This file contains the specific setup details for your image generation environment. The `generate.sh` skill script reads its credentials from its own embedded config, but these values are here for your reference and for any direct curl calls.
+This file contains the specific setup details for your image generation environment. Auth and GCP credentials live in **Bifrost** (`gemini-vertex` key); the skill script has no secrets embedded.
 
 ---
 
-## Image Generation — Leonardo AI
+## Image Generation — Vertex Imagen via Bifrost
 
 | Key | Value |
 |---|---|
-| **API Base URL** | `https://cloud.leonardo.ai/api/rest/v1` |
-| **API Key** | `dddd08ff-d8c3-4fec-98d9-9e8c060f4619` |
-| **Model ID** | `b2614463-296c-462a-9586-aafdb8f00e36` |
+| **Bifrost Base URL** | `http://172.30.176.1:8080/v1` |
+| **Primary Model** | `vertex/imagen-4.0-fast-generate-001` (~5–8s) |
+| **Quality Fallback** | `vertex/imagen-4.0-generate-001` |
 | **Image Size** | `1024 × 576` (16:9 landscape, editorial format) |
 | **Output Path** | `/tmp/crypto-feature.jpg` |
 | **Result File** | `/tmp/image-result.txt` (contains path on success) |
 | **Error Log** | `/tmp/image-error.log` (contains reason on failure) |
+
+GCP project/region (for reference): see `openclaw.json` env (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION=us-central1`).
 
 ---
 
@@ -28,7 +30,7 @@ This file contains the specific setup details for your image generation environm
 
 ## Skill Script
 
-The hardened bash skill that handles all API interaction, retries, polling, and validation:
+The hardened bash skill that handles all API interaction, retries, and validation:
 
 ```
 ~/.openclaw/workspace-creator/skills/generate-image/generate.sh
@@ -50,4 +52,3 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "<YOUR CRAF
 |---|---|
 | **This workspace** | `~/.openclaw/workspace-creator/` |
 | **Agent sessions** | `~/.openclaw/agents/creator/sessions/` |
-

@@ -1,7 +1,7 @@
 # Skill: wordpress
 
 ## What This Skill Does
-Publishes a crypto news article to WordPress as a **live** post (`status: publish` by default). Uploads the **feature image** only (no inline price charts), strips the writer META block from the body, converts markdown to **Gutenberg blocks** (same format as pasting into the default block editor), creates the post, then sets **Rank Math** SEO via `POST /wp-json/rankmath/v1/updateMeta`.
+Publishes a crypto news article to WordPress as a **draft** by default (`status: draft`). Use `--status publish` for live. Uploads the **feature image** only (no inline price charts), strips the writer META block from the body, converts markdown to **Gutenberg blocks** (same format as pasting into the default block editor), creates the post, then sets **Rank Math** SEO via `POST /wp-json/rankmath/v1/updateMeta`.
 
 ## How to Invoke
 
@@ -51,6 +51,6 @@ All arguments are **optional** — excerpt, slug, keywords, and titles are read 
 
 | Setting | Value |
 |---|---|
-| Site | `https://slateblue-reindeer-775070.hostingersite.com` |
-| Status | `publish` (use `--status draft` for review-first) |
-| Category | ID `3` (Crypto News) |
+| Site | `https://coinography.com` |
+| Status | `draft` (default; use `--status publish` for live) |
+| Category | ID `17` (Latest News) |

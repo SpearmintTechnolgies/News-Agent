@@ -1,6 +1,6 @@
 # Agent Pipeline Registry
 
-**Last updated:** 2026-05-25    
+**Last updated:** 2026-05-27    
 **Purpose:** Canonical living reference for the OpenClaw crypto news pipeline — all agents, subagents, prompts, tools, skills, and pipeline steps.  
 **Config source of truth:** [`openclaw.json`](openclaw.json)
 
@@ -41,7 +41,11 @@ flowchart TD
     S4 --> S5[Step5_user_confirmation]
     S5 -->|yes| S6[Step6_Scribe_wp_publisher]
     S5 -->|no| DONE[Pipeline_complete]
-    S6 --> DONE
+    S6 --> S6b[Step6b_build_and_send_card]
+    S6b --> TGCard[Telegram_news_agent_group]
+    TGCard --> Editorial[handle_card_feedback]
+    Editorial --> WPA[wp_post_actions_coinography]
+    S6b --> DONE
 ```
 
 **Delegation:** `sessions_spawn` + `sessions_yield` only. Do **not** use `openclaw agent ... --deliver` in bash.
@@ -138,7 +142,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 - **chart-generator:** `CHART_COIN: [coin]` / `CHART_DAYS: 30` / `CHART_OUTPUT: $RUN_DIR/media/chart.png`
 - **creator:** Generate feature image from `validated.json` using Scene Formula in SOUL; run `generate.sh`.
 - **publisher:** Run exact `gog drive upload /tmp/crypto-article.docx ...`; return `webViewLink`.
-- **wp-publisher:** Publish live from `/tmp/crypto-article.md` + `/tmp/crypto-feature.jpg`.
+- **wp-publisher:** Save WordPress draft from `/tmp/crypto-article.md` + `/tmp/crypto-feature.jpg` (live via Telegram card Publish).
 
 **Key rules:** Writer told max 1200 words; sync accepts up to 1300 (+100 buffer, never tell writer). Must see `ARTICLE_SYNCED` + `ARTIFACTS_OK: post_sync` before Step 3. Human gate at Step 5. Never hallucinate URLs.
 
@@ -230,9 +234,9 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Model | gpt-5.4-mini |
 | Pipeline step | 3 |
 
-**Job:** Craft editorial prompt (human + crypto asset + Reuters-style suffix) → run Leonardo skill → verify JPEG.
+**Job:** Craft editorial prompt (human + crypto asset + Reuters-style suffix) → run Imagen skill → verify JPEG.
 
-**Skill:** `skills/generate-image/SKILL.md` + `skills/generate-image/generate.sh` (Leonardo PhotoReal v2, logo stamp)
+**Skill:** `skills/generate-image/SKILL.md` + `skills/generate-image/generate.sh` (Vertex Imagen 4 via Bifrost, logo stamp)
 
 **Success output:** `/tmp/crypto-feature.jpg`  
 **Failure output:** `IMAGE_FAILED: <error log>`
@@ -272,7 +276,8 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Path | Purpose |
 |------|---------|
 | `skills/wordpress/SKILL.md` | Publish workflow docs |
-| `skills/wordpress/publish.sh` | META parse, Gutenberg blocks, Rank Math SEO, feature image |
+| `skills/wordpress/publish.sh` | META parse, Gutenberg blocks, Rank Math SEO, feature image (draft default) |
+| `skills/wordpress/wp_post_actions.sh` | Telegram Publish/Unpublish/Edit; `--author` on publish |
 | `skills/wordpress/html_to_gutenberg.py` | Markdown HTML → Gutenberg blocks |
 | `skills/history/article_history.sh` | History helper |
 
@@ -309,6 +314,12 @@ All under `workspace-orchestrator/skills/pipeline/`:
 | `count_article_body_words.py` | Body word count (same logic as sync; writer pre-flight) |
 | `update_manifest_step.sh` | Record step status in manifest |
 | `cleanup_run_artifacts.sh` | Remove `/tmp` symlinks on terminal state |
+| `save_google_drive_json.py` | Persist `publish/google-drive.json` after Step 4 |
+| `build_and_send_card.py` | Step 6b — Telegram news card + `editorial.db` |
+| `handle_card_feedback.py` | RATE, Publish (author picker), Unpublish, Edit |
+| `editorial_db.py` | SQLite store for cards and feedback |
+
+**Editorial config:** `workspace-orchestrator/config/wp_authors.json` (Toby 3, Ahmed 17, Golan 8), `telegram_card_config.json`
 
 ---
 
@@ -318,13 +329,13 @@ All under `workspace-orchestrator/skills/pipeline/`:
 
 | Agent | Skill / scripts |
 |-------|-----------------|
-| Orchestrator | Pipeline scripts (9 files above) |
+| Orchestrator | Pipeline scripts (14 files above) + `EDITORIAL_FEEDBACK.md` |
 | Researcher | `verify_feeds.sh`, `article_history.sh`, `web-reader-pro` |
 | Writer | `validate_article_structure.py`, `validate_anchor_links.py` |
 | Chart-generator | `skills/chart-generator/` (global) |
 | Creator | `generate-image/` |
 | Publisher | `gog/` |
-| WP-publisher | `wordpress/`, `article_history.sh` |
+| WP-publisher | `wordpress/publish.sh`, `wordpress/wp_post_actions.sh`, `article_history.sh` |
 
 ### Global OpenClaw skills (visible to agents)
 
@@ -360,10 +371,11 @@ Legacy `/tmp/...` paths are symlinks into this bundle.
 
 | Item | Notes |
 |------|-------|
-| Two "Pixel" personas | `creator` (Leonardo images) vs `chart-generator` (CoinGecko charts) |
+| Two "Pixel" personas | `creator` (Imagen feature images) vs `chart-generator` (CoinGecko charts) |
 | Charts off by default | `ENABLE_ARTICLE_CHARTS=0` in Step 0 |
 | Word count asymmetry | Writer told 1200 max; orchestrator sync silently accepts up to 1300 |
-| Publisher SOUL vs Nexus | Press SOUL describes full pandoc flow; Nexus often pre-builds DOCX |
+| Publisher SOUL vs Nexus | Press SOUL describes full pandoc flow; Nexus pre-builds DOCX and must run `save_google_drive_json.py` |
+| Telegram vs DM | Pipeline gate in DM; news cards + editorial in `news-agent` group |
 | Missing script | Docs reference `extract_tweet_quotes.py` under researcher — not present |
 | `PIPELINE_DOCS/03_AGENT_PROFILES.md` | **Deprecated** — describes old `rm sessions.json` + `openclaw agent` flow |
 | `PIPELINE_ARCHITECTURE.md` | High-level overview; see this registry for current agent/tool details |
@@ -387,3 +399,7 @@ Legacy `/tmp/...` paths are symlinks into this bundle.
 | 2026-05-23 | Initial registry created; replaces `MULTI_AGENT_SYSTEM_DOCUMENTATION.md` |
 | 2026-05-23 | Added `PLANS/tweet-embed-duckduckgo.md` — deferred tweet embed spec (not implemented) |
 | 2026-05-25 | Writer length reliability: `count_article_body_words.py`; removed `pick_article_structure.py`; SOUL repair policy (measured length, REVISION MODE for structure/anchor after sync) |
+| 2026-05-26 | Creator image provider: Leonardo → Vertex Imagen 4 via Bifrost (`generate.sh`) |
+| 2026-05-26 | WordPress target: `https://coinography.com` (category 17) |
+| 2026-05-26 | Step 6 default: WordPress draft (not live); Telegram card Publish promotes to live |
+| 2026-05-27 | `wp_post_actions.sh` synced to coinography.com; Telegram publish author picker (Toby/Ahmed); `save_google_drive_json.py`; editorial `wp_status` defaults draft |

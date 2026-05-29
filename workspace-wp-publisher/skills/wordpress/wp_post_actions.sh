@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
-# wp_post_actions.sh — Update existing WordPress posts (draft / content)
+# wp_post_actions.sh — Update existing WordPress posts (draft / publish / content)
 #
 # Usage:
 #   bash wp_post_actions.sh --post-id 123 --set-status draft
 #   bash wp_post_actions.sh --post-id 123 --set-status publish
+#   bash wp_post_actions.sh --post-id 123 --set-status publish --author 17
 #   bash wp_post_actions.sh --post-id 123 --markdown /path/to/article.md --update-content
 #
 # Output (stdout):
 #   WP_DRAFT_OK: post_id=... url=...
-#   WP_PUBLISH_OK: post_id=... url=...
+#   WP_PUBLISH_OK: post_id=... url=... [author_id=...]
 #   WP_UPDATE_OK: post_id=...
 #   WP_ACTION_FAILED: reason
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WP_URL="https://slateblue-reindeer-775070.hostingersite.com"
+WP_URL="https://coinography.com"
 WP_API="${WP_URL}/wp-json/wp/v2"
-WP_USER="spearmintmarketingpro@gmail.com"
-WP_PASS="B1u0 7AQI Aw5a IQK7 0KWX PtGU"
+WP_USER="renu@coinography.com"
+WP_PASS="PXjy ZopD 4q7z VDqq E1EC 5Dox"
 
 POST_ID=""
 SET_STATUS=""
+AUTHOR_ID=""
 MARKDOWN_PATH=""
 UPDATE_CONTENT=0
 
@@ -28,6 +30,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --post-id) POST_ID="$2"; shift 2 ;;
     --set-status) SET_STATUS="$2"; shift 2 ;;
+    --author) AUTHOR_ID="$2"; shift 2 ;;
     --markdown) MARKDOWN_PATH="$2"; shift 2 ;;
     --update-content) UPDATE_CONTENT=1; shift ;;
     *) echo "WP_ACTION_FAILED: unknown arg $1"; exit 1 ;;
@@ -100,7 +103,11 @@ if [[ -n "$SET_STATUS" ]]; then
     publish|draft|pending|future) ;;
     *) fail "invalid status '$SET_STATUS'" ;;
   esac
-  PAYLOAD=$(python3 -c "import json; print(json.dumps({'status': '${SET_STATUS}'}))")
+  if [[ -n "$AUTHOR_ID" ]]; then
+    PAYLOAD=$(python3 -c "import json; print(json.dumps({'status': '${SET_STATUS}', 'author': int('${AUTHOR_ID}')}))")
+  else
+    PAYLOAD=$(python3 -c "import json; print(json.dumps({'status': '${SET_STATUS}'}))")
+  fi
   RESP=$(wp_post_json "$PAYLOAD")
   HTTP=$(echo "$RESP" | tail -1 | sed 's/__STATUS__//')
   BODY=$(echo "$RESP" | sed '$d')
@@ -111,7 +118,11 @@ if [[ -n "$SET_STATUS" ]]; then
   if [[ "$SET_STATUS" == "draft" ]]; then
     echo "WP_DRAFT_OK: post_id=${POST_ID} url=${URL}"
   else
-    echo "WP_PUBLISH_OK: post_id=${POST_ID} url=${URL}"
+    if [[ -n "$AUTHOR_ID" ]]; then
+      echo "WP_PUBLISH_OK: post_id=${POST_ID} url=${URL} author_id=${AUTHOR_ID}"
+    else
+      echo "WP_PUBLISH_OK: post_id=${POST_ID} url=${URL}"
+    fi
   fi
   exit 0
 fi

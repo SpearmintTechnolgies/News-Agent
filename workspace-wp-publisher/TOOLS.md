@@ -8,12 +8,12 @@ This file contains the exact credentials and paths for publishing to WordPress. 
 
 | Key | Value |
 |---|---|
-| **Site URL** | `https://slateblue-reindeer-775070.hostingersite.com` |
-| **API Base** | `https://slateblue-reindeer-775070.hostingersite.com/wp-json/wp/v2` |
-| **Username** | `spearmintmarketingpro@gmail.com` |
-| **App Password** | `B1u0 7AQI Aw5a IQK7 0KWX PtGU` |
-| **Category ID** | `3` (Crypto News) |
-| **Post Status** | `publish` (live). Use `--status draft` on the script for review-first. |
+| **Site URL** | `https://coinography.com` |
+| **API Base** | `https://coinography.com/wp-json/wp/v2` |
+| **Username** | `renu@coinography.com` |
+| **App Password** | `PXjy ZopD 4q7z VDqq E1EC 5Dox` |
+| **Category ID** | `17` (Latest News) |
+| **Post Status** | `draft` (default). Use `--status publish` on the script for live publish. |
 
 ---
 
@@ -35,7 +35,9 @@ This file contains the exact credentials and paths for publishing to WordPress. 
 
 ---
 
-## Skill Script
+## Skill Scripts
+
+### `publish.sh` — create new posts (pipeline Step 6)
 
 ```
 ~/.openclaw/workspace-wp-publisher/skills/wordpress/publish.sh
@@ -48,9 +50,32 @@ bash ~/.openclaw/workspace-wp-publisher/skills/wordpress/publish.sh \
   --excerpt "First 1-2 sentences of the article."
 ```
 
+- Default `--status draft` (pipeline). Use `--status publish` only when explicitly going live from the agent.
 - `--title` and `--excerpt` are optional — the script auto-extracts them from `/tmp/crypto-article.md` if not provided.
 - Exit `0` → success → read `/tmp/wp-result.txt` for the post URL
 - Exit `1` → failure → read `/tmp/wp-error.log` for the reason
+
+### `wp_post_actions.sh` — update existing posts (Telegram editorial)
+
+```
+~/.openclaw/workspace-wp-publisher/skills/wordpress/wp_post_actions.sh
+```
+
+Same site credentials as `publish.sh` (coinography.com).
+
+**Usage:**
+```bash
+# Unpublish (draft)
+bash wp_post_actions.sh --post-id 37842 --set-status draft
+
+# Publish live with author (Telegram flow)
+bash wp_post_actions.sh --post-id 37842 --set-status publish --author 17
+
+# Apply edited markdown to post body
+bash wp_post_actions.sh --post-id 37842 --markdown /path/to/article.md --update-content
+```
+
+Authors for Telegram publish: Toby `3`, Ahmed `17`, Golan `8` (see `workspace-orchestrator/config/wp_authors.json`).
 
 ---
 
