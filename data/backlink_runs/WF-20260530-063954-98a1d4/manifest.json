@@ -1,0 +1,36 @@
+{
+  "workflow_id": "WF-20260530-063954-98a1d4",
+  "project_slug": "cryptography-com",
+  "phase": 1,
+  "source_url": "https://example.com/write-for-us-test-1780123194",
+  "run_dir": "/home/bhard/.openclaw/data/backlink_runs/WF-20260530-063954-98a1d4",
+  "created_at": "2026-05-30T06:39:54.439612+00:00",
+  "current_step": "init",
+  "steps": {
+    "discover": {
+      "status": "pending",
+      "agent": "bl-discovery",
+      "artifacts": {}
+    },
+    "score": {
+      "status": "pending",
+      "agent": "bl-scorer",
+      "artifacts": {}
+    },
+    "audit": {
+      "status": "pending",
+      "agent": "bl-auditor",
+      "artifacts": {}
+    },
+    "content": {
+      "status": "pending",
+      "agent": "bl-content",
+      "artifacts": {}
+    },
+    "approval": {
+      "status": "pending",
+      "agent": "orchestrator-backlink",
+      "artifacts": {}
+    }
+  }
+}

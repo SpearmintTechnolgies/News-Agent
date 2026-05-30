@@ -116,14 +116,15 @@
       ]
     },
     "local-bifrost": {
-      "baseUrl": "http://172.30.176.1:8080/v1",
-      "apiKey": "dummy",
+      "baseUrl": "http://172.30.176.1:8888/v1",
       "api": "openai-completions",
+      "apiKey": "dummy",
       "models": [
         {
           "id": "gemini-3.1-pro-preview",
           "name": "Gemini 3.1 Pro (Bifrost Vertex)",
-          "reasoning": true,
+          "contextWindow": 200000,
+          "maxTokens": 32768,
           "input": [
             "text"
           ],
@@ -133,14 +134,13 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 200000,
-          "maxTokens": 32768,
-          "api": "openai-completions"
+          "reasoning": true
         },
         {
           "id": "gemini-3.5-flash",
           "name": "Gemini 3.5 Flash (Bifrost Vertex)",
-          "reasoning": true,
+          "contextWindow": 128000,
+          "maxTokens": 16384,
           "input": [
             "text"
           ],
@@ -150,14 +150,13 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 128000,
-          "maxTokens": 16384,
-          "api": "openai-completions"
+          "reasoning": true
         },
         {
           "id": "gemini-2.5-pro",
           "name": "Gemini 2.5 Pro (Bifrost Vertex)",
-          "reasoning": true,
+          "contextWindow": 200000,
+          "maxTokens": 32768,
           "input": [
             "text"
           ],
@@ -167,14 +166,13 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 200000,
-          "maxTokens": 32768,
-          "api": "openai-completions"
+          "reasoning": true
         },
         {
           "id": "gemini-2.5-flash",
           "name": "Gemini 2.5 Flash (Bifrost Vertex)",
-          "reasoning": true,
+          "contextWindow": 128000,
+          "maxTokens": 16384,
           "input": [
             "text"
           ],
@@ -184,9 +182,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 128000,
-          "maxTokens": 16384,
-          "api": "openai-completions"
+          "reasoning": true
         }
       ]
     }

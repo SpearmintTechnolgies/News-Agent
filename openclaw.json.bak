@@ -10,10 +10,11 @@
       "models": {},
       "thinkingDefault": "medium",
       "model": {
-        "primary": "local-bifrost/gpt-5.4-mini",
+        "primary": "local-bifrost/gemini-3.5-flash",
         "fallbacks": [
-          "local-bifrost/gpt-5.4",
-          "local-bifrost/gpt-5.3-codex"
+          "local-bifrost/gemini-3.1-pro-preview",
+          "local-bifrost/gemini-2.5-pro",
+          "local-bifrost/gemini-2.5-flash"
         ]
       },
       "contextInjection": "always",
@@ -25,12 +26,15 @@
         "id": "main",
         "workspace": "/home/bhard/.openclaw/workspace",
         "model": {
-          "primary": "local-bifrost/gpt-5.4-mini"
+          "primary": "local-bifrost/gemini-3.5-flash"
         }
       },
       {
         "id": "orchestrator",
         "workspace": "/home/bhard/.openclaw/workspace-orchestrator",
+        "model": {
+          "primary": "local-bifrost/gemini-3.1-pro-preview"
+        },
         "subagents": {
           "allowAgents": [
             "researcher",
@@ -40,9 +44,6 @@
             "publisher",
             "wp-publisher"
           ]
-        },
-        "model": {
-          "primary": "local-bifrost/gpt-5.4"
         },
         "tools": {
           "profile": "coding",
@@ -64,42 +65,48 @@
         "id": "researcher",
         "workspace": "/home/bhard/.openclaw/workspace-researcher",
         "model": {
-          "primary": "local-bifrost/gpt-5.4"
+          "primary": "local-bifrost/gemini-3.5-flash"
+        },
+        "tools": {
+          "deny": [
+            "web_search",
+            "web_fetch"
+          ]
         }
       },
       {
         "id": "writer",
         "workspace": "/home/bhard/.openclaw/workspace-writer",
         "model": {
-          "primary": "local-bifrost/gpt-5.4"
+          "primary": "local-bifrost/gemini-2.5-pro"
         }
       },
       {
         "id": "creator",
         "workspace": "/home/bhard/.openclaw/workspace-creator",
         "model": {
-          "primary": "local-bifrost/gpt-5.4-mini"
+          "primary": "local-bifrost/gemini-3.5-flash"
         }
       },
       {
         "id": "publisher",
         "workspace": "/home/bhard/.openclaw/workspace-publisher",
         "model": {
-          "primary": "local-bifrost/gpt-5.4-mini"
+          "primary": "local-bifrost/gemini-3.5-flash"
         }
       },
       {
         "id": "wp-publisher",
         "workspace": "/home/bhard/.openclaw/workspace-wp-publisher",
         "model": {
-          "primary": "local-bifrost/gpt-5.4-mini"
+          "primary": "local-bifrost/gemini-3.5-flash"
         }
       },
       {
         "id": "chart-generator",
         "workspace": "/home/bhard/.openclaw/workspace-chart-generator",
         "model": {
-          "primary": "local-bifrost/gpt-5.4-mini"
+          "primary": "local-bifrost/gemini-3.5-flash"
         }
       }
     ]
@@ -113,24 +120,8 @@
         "apiKey": "dummy",
         "models": [
           {
-            "id": "gpt-5.4-mini",
-            "name": "GPT-5.4 Mini (Bifrost Azure)",
-            "contextWindow": 128000,
-            "maxTokens": 16384,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0,
-              "output": 0,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "gpt-5.4",
-            "name": "GPT-5.4 (Bifrost Azure)",
+            "id": "gemini-3.1-pro-preview",
+            "name": "Gemini 3.1 Pro (Bifrost Vertex)",
             "contextWindow": 200000,
             "maxTokens": 32768,
             "input": [
@@ -145,8 +136,40 @@
             "reasoning": true
           },
           {
-            "id": "gpt-5.3-codex",
-            "name": "GPT-5.3 Codex (Bifrost Azure)",
+            "id": "gemini-3.5-flash",
+            "name": "Gemini 3.5 Flash (Bifrost Vertex)",
+            "contextWindow": 128000,
+            "maxTokens": 16384,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true
+          },
+          {
+            "id": "gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro (Bifrost Vertex)",
+            "contextWindow": 200000,
+            "maxTokens": 32768,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true
+          },
+          {
+            "id": "gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash (Bifrost Vertex)",
             "contextWindow": 128000,
             "maxTokens": 16384,
             "input": [
@@ -258,7 +281,7 @@
   },
   "meta": {
     "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-05-18T10:25:57.028Z"
+    "lastTouchedAt": "2026-05-22T07:57:22.726Z"
   },
   "channels": {
     "telegram": {

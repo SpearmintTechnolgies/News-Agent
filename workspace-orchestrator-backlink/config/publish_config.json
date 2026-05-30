@@ -1,0 +1,4 @@
+{
+  "dry_run_default": true,
+  "note": "Set dry_run_default to false after running: playwright install"
+}

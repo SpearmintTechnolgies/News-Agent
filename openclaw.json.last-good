@@ -62,6 +62,125 @@
         }
       },
       {
+        "id": "orchestrator-backlink",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "model": {
+          "primary": "local-bifrost/gemini-3.1-pro-preview"
+        },
+        "subagents": {
+          "allowAgents": [
+            "bl-discovery",
+            "bl-scorer",
+            "bl-auditor",
+            "bl-content"
+          ]
+        },
+        "tools": {
+          "profile": "coding",
+          "alsoAllow": [
+            "agents_list",
+            "message",
+            "gateway",
+            "exec",
+            "process",
+            "sessions_spawn",
+            "sessions_yield",
+            "subagents"
+          ]
+        }
+      },
+      {
+        "id": "bl-discovery",
+        "workspace": "/home/bhard/.openclaw/workspace-bl-discovery",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        },
+        "tools": {
+          "profile": "coding",
+          "alsoAllow": [
+            "exec",
+            "sessions_yield"
+          ]
+        }
+      },
+      {
+        "id": "bl-qualifier",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        }
+      },
+      {
+        "id": "bl-placement",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        }
+      },
+      {
+        "id": "bl-drafter",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        }
+      },
+      {
+        "id": "bl-publisher",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        }
+      },
+      {
+        "id": "bl-verifier",
+        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        }
+      },
+      {
+        "id": "bl-auditor",
+        "workspace": "/home/bhard/.openclaw/workspace-bl-auditor",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        },
+        "tools": {
+          "profile": "coding",
+          "alsoAllow": [
+            "exec",
+            "sessions_yield"
+          ]
+        }
+      },
+      {
+        "id": "bl-content",
+        "workspace": "/home/bhard/.openclaw/workspace-bl-content",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        },
+        "tools": {
+          "profile": "coding",
+          "alsoAllow": [
+            "exec",
+            "sessions_yield"
+          ]
+        }
+      },
+      {
+        "id": "bl-scorer",
+        "workspace": "/home/bhard/.openclaw/workspace-bl-scorer",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash"
+        },
+        "tools": {
+          "profile": "coding",
+          "alsoAllow": [
+            "exec",
+            "sessions_yield"
+          ]
+        }
+      },
+      {
         "id": "researcher",
         "workspace": "/home/bhard/.openclaw/workspace-researcher",
         "model": {
@@ -115,7 +234,7 @@
     "mode": "replace",
     "providers": {
       "local-bifrost": {
-        "baseUrl": "http://172.30.176.1:8080/v1",
+        "baseUrl": "http://172.30.176.1:8888/v1",
         "api": "openai-completions",
         "apiKey": "dummy",
         "models": [
@@ -227,6 +346,10 @@
     "web": {
       "search": {
         "provider": "searxng",
+        "enabled": true,
+        "openaiCodex": {}
+      },
+      "fetch": {
         "enabled": true
       }
     }
@@ -274,14 +397,14 @@
     }
   },
   "wizard": {
-    "lastRunAt": "2026-05-05T10:55:05.791Z",
+    "lastRunAt": "2026-05-29T10:47:11.431Z",
     "lastRunVersion": "2026.4.23",
     "lastRunCommand": "configure",
     "lastRunMode": "local"
   },
   "meta": {
     "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-05-22T07:57:22.726Z"
+    "lastTouchedAt": "2026-05-29T10:47:11.651Z"
   },
   "channels": {
     "telegram": {
@@ -289,13 +412,53 @@
       "botToken": "8788660586:AAGnipTMSAWK1uSBI-62UIyGIlXiXKNsZS0",
       "groupPolicy": "open",
       "groups": {
+        "-1003760909509": {
+          "requireMention": true
+        },
         "*": {
           "requireMention": true
+        }
+      },
+      "accounts": {
+        "backlink": {
+          "name": "backlinks-agent",
+          "enabled": true,
+          "botToken": "8967981365:AAFxOtK_bRFYXUGW00uvQXy2bX-de2hxl-A",
+          "groupPolicy": "open",
+          "groups": {
+            "-5291081154": {
+              "requireMention": true
+            },
+            "*": {
+              "requireMention": true
+            }
+          }
         }
       }
     }
   },
   "bindings": [
+    {
+      "agentId": "orchestrator-backlink",
+      "match": {
+        "channel": "telegram",
+        "accountId": "backlink",
+        "peer": {
+          "kind": "group",
+          "id": "-5291081154"
+        }
+      }
+    },
+    {
+      "agentId": "orchestrator",
+      "match": {
+        "channel": "telegram",
+        "peer": {
+          "kind": "group",
+          "id": "-1003760909509"
+        }
+      }
+    },
     {
       "agentId": "orchestrator",
       "match": {

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "domain_boost": {},
+  "domain_penalty": {},
+  "placement_success_rate": {
+    "guest_post": 1.0
+  },
+  "notes": "Auto-generated from learning table after verified workflows.",
+  "aggregate": {
+    "total": 1,
+    "approved": 1,
+    "published": 1,
+    "verified": 1
+  }
+}

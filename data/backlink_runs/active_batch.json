@@ -1,0 +1,18 @@
+{
+  "batch_id": "20260530-100244",
+  "db_path": "/tmp/test-backlink-smoke.db",
+  "workflow_ids": [
+    "WF-TEST-001"
+  ],
+  "current_index": 0,
+  "current_step": "discover",
+  "phase": "await_spawn",
+  "retries": {},
+  "stats": {
+    "cards_sent": 0,
+    "archived": 0,
+    "failed": 0,
+    "skipped": 0
+  },
+  "updated_at": "2026-05-30T10:02:44.629754+00:00"
+}

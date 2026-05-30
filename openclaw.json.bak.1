@@ -31,6 +31,16 @@
       {
         "id": "orchestrator",
         "workspace": "/home/bhard/.openclaw/workspace-orchestrator",
+        "subagents": {
+          "allowAgents": [
+            "researcher",
+            "writer",
+            "chart-generator",
+            "creator",
+            "publisher",
+            "wp-publisher"
+          ]
+        },
         "model": {
           "primary": "local-bifrost/gpt-5.4"
         },
@@ -43,7 +53,10 @@
             "gateway",
             "browser",
             "canvas",
-            "tts"
+            "tts",
+            "sessions_spawn",
+            "sessions_yield",
+            "subagents"
           ]
         }
       },
@@ -51,7 +64,7 @@
         "id": "researcher",
         "workspace": "/home/bhard/.openclaw/workspace-researcher",
         "model": {
-          "primary": "local-bifrost/gpt-5.4-mini"
+          "primary": "local-bifrost/gpt-5.4"
         }
       },
       {
@@ -103,7 +116,7 @@
             "id": "gpt-5.4-mini",
             "name": "GPT-5.4 Mini (Bifrost Azure)",
             "contextWindow": 128000,
-            "maxTokens": 8192,
+            "maxTokens": 16384,
             "input": [
               "text"
             ],
@@ -119,7 +132,7 @@
             "id": "gpt-5.4",
             "name": "GPT-5.4 (Bifrost Azure)",
             "contextWindow": 200000,
-            "maxTokens": 16384,
+            "maxTokens": 32768,
             "input": [
               "text"
             ],
@@ -135,7 +148,7 @@
             "id": "gpt-5.3-codex",
             "name": "GPT-5.3 Codex (Bifrost Azure)",
             "contextWindow": 128000,
-            "maxTokens": 8192,
+            "maxTokens": 16384,
             "input": [
               "text"
             ],
@@ -245,7 +258,7 @@
   },
   "meta": {
     "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-05-18T10:25:52.999Z"
+    "lastTouchedAt": "2026-05-18T10:25:57.028Z"
   },
   "channels": {
     "telegram": {

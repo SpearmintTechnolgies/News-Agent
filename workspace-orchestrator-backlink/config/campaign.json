@@ -1,0 +1,19 @@
+{
+  "name": "cryptography.com",
+  "target_domain": "cryptography.com",
+  "target_url": "https://cryptography.com",
+  "brand_name": "Cryptography.com",
+  "status": "active",
+  "search_queries": [
+    "cryptography guest post",
+    "crypto write for us",
+    "blockchain guest post submission",
+    "cryptography blog contribute"
+  ],
+  "default_topics": [
+    "post-quantum cryptography and migration planning",
+    "zero-knowledge proofs in practical applications",
+    "modern TLS and certificate transparency",
+    "secure key management for engineering teams"
+  ]
+}

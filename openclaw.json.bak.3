@@ -94,7 +94,7 @@
     "mode": "replace",
     "providers": {
       "local-bifrost": {
-        "baseUrl": "http://192.168.1.7:8080/v1",
+        "baseUrl": "http://172.30.176.1:8080/v1",
         "api": "openai-completions",
         "apiKey": "dummy",
         "models": [
@@ -183,6 +183,10 @@
   },
   "tools": {
     "profile": "coding",
+    "exec": {
+      "security": "full",
+      "ask": "off"
+    },
     "web": {
       "search": {
         "provider": "searxng",
@@ -213,6 +217,9 @@
       },
       "openrouter": {
         "enabled": true
+      },
+      "browser": {
+        "enabled": true
       }
     }
   },
@@ -237,7 +244,7 @@
   },
   "meta": {
     "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-05-16T08:52:26.654Z"
+    "lastTouchedAt": "2026-05-18T05:01:18.422Z"
   },
   "channels": {
     "telegram": {
