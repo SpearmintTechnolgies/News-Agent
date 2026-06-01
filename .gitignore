@@ -1,0 +1,27 @@
+# Live secrets — never commit
+openclaw.json
+exec-approvals.json
+workspace-wp-publisher/TOOLS.md
+**/.openclaw/
+
+# Runtime state
+agents/
+identity/
+devices/
+logs/
+telegram/
+subagents/
+media/
+node_modules/
+data/
+*.db
+*.sqlite
+
+# Python / backups
+__pycache__/
+.pytest_cache/
+*.bak
+*.bak.*
+
+# OS
+.DS_Store
