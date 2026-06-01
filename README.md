@@ -46,7 +46,7 @@ cd News-Agent
 
 # Copy workspaces, skills, and setup script into OpenClaw home
 cp -r workspace-* skills ~/.openclaw/
-cp example.openclaw.json setup.sh ~/.openclaw/
+cp example.openclaw.json example.exec-approvals.json setup.sh ~/.openclaw/
 
 # Create openclaw.json from the example template
 cp ~/.openclaw/example.openclaw.json ~/.openclaw/openclaw.json
@@ -73,6 +73,21 @@ Also replace **`/home/USER`** in all workspace paths with your actual home direc
 # Example: replace USER with your username
 sed -i 's|/home/USER|/home/yourname|g' ~/.openclaw/openclaw.json
 ```
+
+---
+
+### Step 2b — Exec approvals (agent allowlist)
+
+Copy and configure the exec-approvals template so pipeline agents can run shell commands:
+
+```bash
+cp ~/.openclaw/example.exec-approvals.json ~/.openclaw/exec-approvals.json
+sed -i 's|/home/USER|/home/yourname|g' ~/.openclaw/exec-approvals.json
+```
+
+Replace `YOUR_EXEC_APPROVALS_SOCKET_TOKEN` with a secret token (or let OpenClaw generate one on first run).
+
+News agents included: `orchestrator`, `researcher`, `writer`, `chart-generator`, `creator`, `publisher`, `wp-publisher`. On a fresh host, OpenClaw may prompt once to approve specific pipeline commands — the broad `/usr/bin/*` allow rules cover most cases.
 
 ---
 
@@ -183,8 +198,9 @@ See [EDITORIAL_FEEDBACK.md](workspace-orchestrator/EDITORIAL_FEEDBACK.md) for fu
 
 Use this to confirm everything is ready:
 
-- [ ] Cloned repo and copied `workspace-*`, `skills`, `setup.sh` to `~/.openclaw/`
+- [ ] Cloned repo and copied `workspace-*`, `skills`, `setup.sh`, `example.exec-approvals.json` to `~/.openclaw/`
 - [ ] `openclaw.json` created from `example.openclaw.json` with all `YOUR_*` filled in
+- [ ] `exec-approvals.json` created from `example.exec-approvals.json` with paths and token set
 - [ ] `/home/USER` paths updated to your home directory
 - [ ] `TOOLS.md` created from example; WP creds set in `publish.sh` and `wp_post_actions.sh`
 - [ ] gog credentials set in publisher and orchestrator `SOUL.md`
@@ -199,8 +215,9 @@ Use this to confirm everything is ready:
 
 ```
 News-Agent/
-├── setup.sh                  # Step 6 — init SQLite DBs
-├── example.openclaw.json     # Step 2 — config template
+├── setup.sh                      # Step 6 — init SQLite DBs
+├── example.openclaw.json         # Step 2 — config template
+├── example.exec-approvals.json   # Step 2b — agent allowlist template
 ├── README.md
 ├── AGENT_PIPELINE_REGISTRY.md
 ├── PIPELINE_ARCHITECTURE.md

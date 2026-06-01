@@ -1,0 +1,278 @@
+{
+  "version": 1,
+  "socket": {
+    "path": "/home/USER/.openclaw/exec-approvals.sock",
+    "token": "YOUR_EXEC_APPROVALS_SOCKET_TOKEN"
+  },
+  "defaults": {
+    "security": "full",
+    "ask": "off"
+  },
+  "agents": {
+    "orchestrator": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*",
+        "/usr/sbin/*"
+      ],
+      "allowlist": [
+        {
+          "id": "8d5be543-4566-4edb-abea-fd852483706a",
+          "pattern": "=command:050d94c62f444ad6",
+          "source": "allow-always",
+          "lastUsedAt": 1778829338214
+        },
+        {
+          "id": "76bba6ad-4eed-47b5-8736-111353bd617b",
+          "pattern": "=command:7aa18951040666cd",
+          "source": "allow-always",
+          "lastUsedAt": 1778829604657
+        },
+        {
+          "id": "d1270fda-a39f-436f-8e45-60ea6154ad86",
+          "pattern": "=command:547cef50a2863959",
+          "source": "allow-always",
+          "lastUsedAt": 1778829647546
+        },
+        {
+          "id": "20317021-07ac-4cd3-9687-b24dfea613e1",
+          "pattern": "=command:a3e9325f6aa1d9c3",
+          "source": "allow-always",
+          "lastUsedAt": 1778829734457
+        },
+        {
+          "id": "1e7be950-ab6e-4861-b344-f855ede69d98",
+          "pattern": "=command:79f10522ee233cf2",
+          "source": "allow-always",
+          "lastUsedAt": 1778913983760
+        },
+        {
+          "id": "c74ee01c-e2ee-45dd-93ba-e7c27cfdb1b1",
+          "pattern": "/usr/bin/wc",
+          "source": "allow-always",
+          "lastUsedAt": 1779701660511,
+          "lastUsedCommand": "wc -w /tmp/crypto-run-20260525-072854/article/raw.md",
+          "lastResolvedPath": "/usr/bin/wc"
+        },
+        {
+          "id": "a293f47e-98c8-4f64-a979-4f3c238534cd",
+          "pattern": "=command:65c3e08b3ff276cc",
+          "source": "allow-always",
+          "lastUsedAt": 1778914161807
+        },
+        {
+          "id": "b6e11c9a-60ed-4cb3-ba07-cdc713770fb8",
+          "pattern": "/usr/bin/sort",
+          "source": "allow-always",
+          "lastUsedAt": 1778915606458
+        },
+        {
+          "id": "d4a835bc-63fb-44fe-8949-57b43fab8f1e",
+          "pattern": "=command:227c2c02331feb49",
+          "source": "allow-always",
+          "lastUsedAt": 1778915652207
+        },
+        {
+          "id": "72d1719f-aba2-40de-bd6f-8f201946d191",
+          "pattern": "=command:629e50495f07eec8",
+          "source": "allow-always",
+          "lastUsedAt": 1778915907458
+        },
+        {
+          "id": "6dc86c33-ea96-43f7-85dd-dfa2fd34fcc9",
+          "pattern": "=command:447e18bbd758c702",
+          "source": "allow-always",
+          "lastUsedAt": 1778915957576
+        },
+        {
+          "id": "c07d458a-d2f1-4db2-be9c-fab94eb5cff9",
+          "pattern": "=command:6df98cd48ffc7438",
+          "source": "allow-always",
+          "lastUsedAt": 1778916015530
+        },
+        {
+          "id": "bca8d6ac-117f-4058-98a3-49eb271d97f6",
+          "pattern": "=command:36e3a0289945b37c",
+          "source": "allow-always",
+          "lastUsedAt": 1778916716532
+        },
+        {
+          "id": "1ecf957f-35de-4dcd-bee6-c14e76dc70ec",
+          "pattern": "=command:cca9eeb2497d631a",
+          "source": "allow-always",
+          "lastUsedAt": 1778921420976
+        },
+        {
+          "id": "df1df94a-d203-4e2c-9fcc-b109dfea39b8",
+          "pattern": "=command:52bba10d92358f75",
+          "source": "allow-always",
+          "lastUsedAt": 1778921621361
+        },
+        {
+          "id": "4da51c2a-c58f-42fa-b71a-0bf53b797cff",
+          "pattern": "=command:8f6a8db1d7a08e68",
+          "source": "allow-always",
+          "lastUsedAt": 1778921691435
+        },
+        {
+          "id": "80ca7f8e-b8e6-4eee-9b4b-f4d2dbde6ea7",
+          "pattern": "=command:be3852256b3a8ac9",
+          "source": "allow-always",
+          "lastUsedAt": 1779085071129
+        },
+        {
+          "id": "08d43801-8e84-4c23-99f1-25c184949e85",
+          "pattern": "=command:6a659350d51464a0",
+          "source": "allow-always",
+          "lastUsedAt": 1779085281935
+        },
+        {
+          "id": "0c8acb69-1ee6-4d86-a5f4-1fd9cd78885b",
+          "pattern": "=command:e43c76a699eb0c7c",
+          "source": "allow-always",
+          "lastUsedAt": 1779087048345
+        },
+        {
+          "id": "ba27e16a-f678-476d-996a-7de570ba5766",
+          "pattern": "=command:353b590d568dcc56",
+          "source": "allow-always",
+          "lastUsedAt": 1779087253551
+        },
+        {
+          "id": "13f5f46d-604c-493d-bca9-70f7085445d4",
+          "pattern": "=command:4688ad21e5687c2f",
+          "source": "allow-always",
+          "lastUsedAt": 1779087326912
+        },
+        {
+          "id": "8893fbd7-7995-41d6-859e-998faf82cb43",
+          "pattern": "=command:bfd21d1a33275306",
+          "source": "allow-always",
+          "lastUsedAt": 1779087348648
+        },
+        {
+          "id": "b47cb8ea-97f0-461f-82f8-b02dcf20f0a1",
+          "pattern": "=command:bbeb74b181891c17",
+          "source": "allow-always",
+          "lastUsedAt": 1779091048621
+        },
+        {
+          "id": "117fabf2-8798-4bdd-93bc-21f60a3ec597",
+          "pattern": "=command:7757d880255a30ba",
+          "source": "allow-always",
+          "lastUsedAt": 1779099522954
+        },
+        {
+          "id": "aebbfa3d-8e52-452c-a825-ab3677e2faf5",
+          "pattern": "=command:9ac4682c2d61dbdd",
+          "source": "allow-always",
+          "lastUsedAt": 1779099648024
+        },
+        {
+          "id": "ef3d8daa-eb98-4f1f-b83c-f25625b110fc",
+          "pattern": "=command:4291b591dfd0cdd7",
+          "source": "allow-always",
+          "lastUsedAt": 1779099660443
+        },
+        {
+          "id": "2266a175-8537-4804-ab21-b53889ca07c7",
+          "pattern": "=command:198aa1a56bb76ba1",
+          "source": "allow-always",
+          "lastUsedAt": 1779104116701
+        }
+      ]
+    },
+    "researcher": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*"
+      ],
+      "allowlist": [
+        {
+          "id": "13a678f0-21f7-43ce-92bc-1cf1b1a98f30",
+          "pattern": "=command:4241aff0ed9929d9",
+          "source": "allow-always",
+          "lastUsedAt": 1779345360176
+        },
+        {
+          "id": "9bb6771b-33b8-4542-bc37-deea9c3739f8",
+          "pattern": "=command:628fb75fb1e88b68",
+          "source": "allow-always",
+          "lastUsedAt": 1779439841264
+        }
+      ]
+    },
+    "publisher": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*"
+      ],
+      "allowlist": [
+        {
+          "id": "d0dad3c5-343d-44bd-8b82-540ec18d8f2b",
+          "pattern": "=command:198aa1a56bb76ba1",
+          "source": "allow-always",
+          "lastUsedAt": 1779433755473
+        }
+      ]
+    },
+    "creator": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*"
+      ],
+      "allowlist": [
+        {
+          "id": "9b00534d-0c25-4301-acb9-f3edd898f31b",
+          "pattern": "/home/USER/.openclaw/workspace-creator/skills/generate-image/generate.sh",
+          "source": "allow-always"
+        },
+        {
+          "id": "ec386301-0ce8-4e26-bcd8-1cf670b53e77",
+          "pattern": "/usr/bin/head",
+          "source": "allow-always",
+          "lastUsedAt": 1779435303501
+        }
+      ]
+    },
+    "wp-publisher": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*"
+      ]
+    },
+    "writer": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*"
+      ]
+    },
+    "chart-generator": {
+      "ask": "off",
+      "security": "full",
+      "allow": [
+        "/usr/bin/*",
+        "/usr/local/bin/*",
+        "/bin/*"
+      ]
+    }
+  }
+}
