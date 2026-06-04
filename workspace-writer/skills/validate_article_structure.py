@@ -57,7 +57,9 @@ def count_h2_body(body: str) -> int:
 def count_faqs(faq_section: str) -> int:
     if not faq_section:
         return 0
-    return len(re.findall(r"^\*{0,2}\d+\.\s+", faq_section, re.MULTILINE))
+    # Canonical format: bold-numbered **1. / 1.
+    # Tolerated fallback: ### heading items (writer sometimes produces these despite instructions)
+    return len(re.findall(r"^(?:\*{0,2}\d+\.\s+|###\s+)", faq_section, re.MULTILINE))
 
 
 def check_section_order(main_before_sources: str) -> list[str]:

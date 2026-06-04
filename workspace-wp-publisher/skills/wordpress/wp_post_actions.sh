@@ -15,10 +15,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WP_URL="YOUR_WORDPRESS_SITE_URL"
+WP_URL="https://coinography.com"
 WP_API="${WP_URL}/wp-json/wp/v2"
-WP_USER="YOUR_WP_USERNAME"
-WP_PASS="YOUR_WP_APP_PASSWORD"
+WP_USER="renu@coinography.com"
+WP_PASS="PXjy ZopD 4q7z VDqq E1EC 5Dox"
 
 POST_ID=""
 SET_STATUS=""

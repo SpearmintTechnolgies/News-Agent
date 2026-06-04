@@ -9,6 +9,7 @@ Stages:
     pre_write   — research_validated exists, run_id matches, non-empty
     pre_sync    — article_raw fresh (mtime >= .run_started), non-empty
     post_sync   — article_final fresh, H1 matches headline, ≥1 source URL match
+    post_image  — feature_image exists, >=50KB, JPEG magic bytes, under active RUN_DIR
     pre_drive   — docx exists + newer than article_final; paths under active RUN_DIR
     pre_wp      — all pre_drive checks + repeat post_sync coherence
 
@@ -315,10 +316,59 @@ def check_pre_wp(manifest: dict, run_dir: str) -> int:
 
 # ── entry point ──────────────────────────────────────────────────────────────
 
+
+def check_post_image(manifest: dict, run_dir: str) -> int:
+    artifacts = manifest.get("artifacts", {})
+    img_path  = artifacts.get("feature_image", "")
+
+    if not img_path:
+        return fail("manifest has no feature_image path")
+
+    # Resolve symlinks so we check the real file, not the /tmp pointer
+    real_path = os.path.realpath(img_path) if os.path.exists(img_path) else img_path
+
+    if not os.path.exists(real_path):
+        return fail(f"feature image missing: {img_path}")
+
+    size = os.path.getsize(real_path)
+    if size < 50_000:
+        return fail(
+            f"feature image too small ({size} bytes, min 50000) — "
+            f"likely 0-byte placeholder or aborted generation\n"
+            f"  Path: {real_path}"
+        )
+
+    # JPEG magic bytes (FFD8 FF)
+    try:
+        with open(real_path, "rb") as f:
+            head = f.read(3)
+    except OSError as e:
+        return fail(f"cannot read feature image: {e}")
+    if head[:2] != b"\xff\xd8":
+        return fail(
+            f"feature image is not a JPEG (magic bytes: {head.hex()})\n"
+            f"  Path: {real_path}"
+        )
+
+    # Image must be under the active RUN_DIR (real path check)
+    if run_dir and run_dir not in real_path:
+        return fail(
+            f"feature_image is not under active RUN_DIR\n"
+            f"  Expected under: {run_dir}\n"
+            f"  Got:            {real_path}\n"
+            f"  (possible stale cross-run file)"
+        )
+
+    print(f"ARTIFACTS_OK: post_image — {os.path.basename(real_path)} ({size} bytes)")
+    return 0
+
+
+# ── entry point ──────────────────────────────────────────────────────────────
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", required=True,
-                        choices=["pre_write", "pre_sync", "post_sync", "pre_drive", "pre_wp"])
+                        choices=["pre_write", "pre_sync", "post_sync", "post_image", "pre_drive", "pre_wp"])
     parser.add_argument("--manifest", required=True)
     args = parser.parse_args()
 
@@ -339,6 +389,7 @@ def main() -> int:
         "pre_write": check_pre_write,
         "pre_sync":  check_pre_sync,
         "post_sync": check_post_sync,
+        "post_image": check_post_image,
         "pre_drive": check_pre_drive,
         "pre_wp":    check_pre_wp,
     }

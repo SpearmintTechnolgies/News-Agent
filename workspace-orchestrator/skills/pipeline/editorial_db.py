@@ -73,6 +73,30 @@ CREATE TABLE IF NOT EXISTS editorial_actions (
   raw_payload TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS picked_stories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pick_run_id TEXT NOT NULL,
+  pipeline_run_id TEXT,
+  pick_index INTEGER NOT NULL,
+  category TEXT NOT NULL,
+  category_score REAL,
+  alt_categories TEXT,
+  story_id TEXT,
+  primary_headline TEXT NOT NULL,
+  primary_url TEXT,
+  primary_asset TEXT,
+  pub_date TEXT,
+  source_name TEXT,
+  raw_payload TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  failed_reason TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_picked_status ON picked_stories(status, pick_run_id);
+CREATE INDEX IF NOT EXISTS idx_picked_category ON picked_stories(category, created_at);
+CREATE INDEX IF NOT EXISTS idx_picked_pipeline ON picked_stories(pipeline_run_id);
 """
 
 
@@ -91,6 +115,7 @@ class Article:
     run_dir: str | None = None
     wp_status: str = "draft"
     wp_author_id: int | None = None
+    category: str | None = None
 
 
 @dataclass
@@ -113,6 +138,26 @@ class ArticleVersion:
     user_username: str | None
 
 
+@dataclass
+class PickedStory:
+    id: int
+    pick_run_id: str
+    pipeline_run_id: str | None
+    pick_index: int
+    category: str
+    category_score: float | None
+    alt_categories: str | None
+    story_id: str | None
+    primary_headline: str
+    primary_url: str | None
+    primary_asset: str | None
+    pub_date: str | None
+    source_name: str | None
+    raw_payload: str
+    status: str
+    failed_reason: str | None
+
+
 def _connect(db_path: str) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     conn = sqlite3.connect(db_path)
@@ -131,6 +176,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE articles ADD COLUMN wp_status TEXT DEFAULT 'draft'")
     if not _column_exists(conn, "articles", "wp_author_id"):
         conn.execute("ALTER TABLE articles ADD COLUMN wp_author_id INTEGER")
+    if not _column_exists(conn, "articles", "category"):
+        conn.execute("ALTER TABLE articles ADD COLUMN category TEXT")
     conn.execute("UPDATE articles SET wp_status = 'draft' WHERE wp_status IS NULL")
 
 
@@ -161,6 +208,7 @@ def _row_to_article(row: sqlite3.Row) -> Article:
             if "wp_author_id" in keys and row["wp_author_id"] is not None
             else None
         ),
+        category=row["category"] if "category" in keys else None,
     )
 
 
@@ -189,13 +237,14 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
         conn.execute(
             """
             INSERT INTO articles (
-              run_id, alert_id, story_id, headline, wp_url, wp_post_id,
+              run_id, alert_id, story_id, headline, category, wp_url, wp_post_id,
               telegram_group, telegram_message_id, card_sent_at, run_dir, wp_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id) DO UPDATE SET
               alert_id = excluded.alert_id,
               story_id = excluded.story_id,
               headline = excluded.headline,
+              category = COALESCE(excluded.category, articles.category),
               wp_url = excluded.wp_url,
               wp_post_id = excluded.wp_post_id,
               telegram_group = excluded.telegram_group,
@@ -209,6 +258,7 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
                 str(card.get("alert_id") or f"ta-{run_id}"),
                 str(card.get("story_id") or "") or None,
                 str(card.get("headline") or "") or None,
+                str(card.get("category") or "") or None,
                 str(card.get("wp_url") or "") or None,
                 str(card.get("wp_post_id") or "") or None,
                 group,
@@ -432,25 +482,202 @@ def record_editorial_action(
         return int(cur.lastrowid)
 
 
-def _status(db_path: str = DEFAULT_DB_PATH) -> None:
+# ---------------------------------------------------------------------------
+# picked_stories — multi-story batch pipeline support
+# ---------------------------------------------------------------------------
+
+PICK_TERMINAL_STATUSES = {"published", "drafted", "failed", "cancelled"}
+PICK_VALID_STATUSES = {
+    "pending",
+    "researching",
+    "writing",
+    "drafted",
+    "published",
+    "failed",
+    "cancelled",
+}
+
+
+def _row_to_pick(row: sqlite3.Row) -> PickedStory:
+    return PickedStory(
+        id=row["id"],
+        pick_run_id=row["pick_run_id"],
+        pipeline_run_id=row["pipeline_run_id"],
+        pick_index=int(row["pick_index"]),
+        category=row["category"],
+        category_score=(
+            float(row["category_score"]) if row["category_score"] is not None else None
+        ),
+        alt_categories=row["alt_categories"],
+        story_id=row["story_id"],
+        primary_headline=row["primary_headline"],
+        primary_url=row["primary_url"],
+        primary_asset=row["primary_asset"],
+        pub_date=row["pub_date"],
+        source_name=row["source_name"],
+        raw_payload=row["raw_payload"],
+        status=row["status"],
+        failed_reason=row["failed_reason"],
+    )
+
+
+def insert_picked_stories(
+    picks: list[dict[str, Any]],
+    pick_run_id: str,
+    *,
+    pipeline_run_id: str | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> list[int]:
+    """Bulk insert picks from picks.json. Returns inserted row ids in order."""
+    init_db(db_path)
+    if not picks:
+        return []
+    import json as _json
+
+    inserted: list[int] = []
+    with _connect(db_path) as conn:
+        for pick in picks:
+            alt = pick.get("alt_categories")
+            if isinstance(alt, (list, dict)):
+                alt = _json.dumps(alt)
+            elif alt is not None:
+                alt = str(alt)
+            cur = conn.execute(
+                """
+                INSERT INTO picked_stories (
+                  pick_run_id, pipeline_run_id, pick_index, category, category_score,
+                  alt_categories, story_id, primary_headline, primary_url,
+                  primary_asset, pub_date, source_name, raw_payload, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                """,
+                (
+                    pick_run_id,
+                    pipeline_run_id,
+                    int(pick.get("pick_index") or 0),
+                    str(pick.get("category") or "").strip(),
+                    (
+                        float(pick.get("category_score"))
+                        if pick.get("category_score") is not None
+                        else None
+                    ),
+                    alt,
+                    str(pick.get("story_id") or "") or None,
+                    str(pick.get("headline") or pick.get("primary_headline") or ""),
+                    str(pick.get("url") or pick.get("primary_url") or "") or None,
+                    str(pick.get("primary_asset") or "") or None,
+                    str(pick.get("pub_date") or "") or None,
+                    str(pick.get("source") or pick.get("source_name") or "") or None,
+                    _json.dumps(pick, ensure_ascii=False),
+                ),
+            )
+            inserted.append(int(cur.lastrowid))
+        conn.commit()
+    return inserted
+
+
+def update_pick_status(
+    pick_id: int,
+    status: str,
+    *,
+    failed_reason: str | None = None,
+    pipeline_run_id: str | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> None:
+    if status not in PICK_VALID_STATUSES:
+        raise ValueError(f"invalid pick status: {status}")
     init_db(db_path)
     with _connect(db_path) as conn:
-        tables = ("articles", "feedback_events", "article_versions", "edit_sessions", "editorial_actions")
-        for table in tables:
-            row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
-            print(f"{table}: {row['n']}")
+        if pipeline_run_id is not None:
+            conn.execute(
+                """
+                UPDATE picked_stories
+                SET status = ?, failed_reason = ?, pipeline_run_id = ?, updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (status, failed_reason, pipeline_run_id, pick_id),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE picked_stories
+                SET status = ?, failed_reason = ?, updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (status, failed_reason, pick_id),
+            )
+        conn.commit()
 
 
-if __name__ == "__main__":
-    import sys
+def list_picks_by_run(
+    pick_run_id: str, db_path: str = DEFAULT_DB_PATH
+) -> list[PickedStory]:
+    """All picks for a given pick_run_id, ordered by pick_index."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM picked_stories WHERE pick_run_id = ? ORDER BY pick_index ASC",
+            (pick_run_id,),
+        ).fetchall()
+    return [_row_to_pick(r) for r in rows]
 
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "init"
-    db = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_DB_PATH
-    if cmd == "init":
-        init_db(db)
-        print(f"EDITORIAL_DB_OK: {db}")
-    elif cmd == "status":
-        _status(db)
-    else:
-        print(f"Usage: {sys.argv[0]} [init|status] [db_path]", file=sys.stderr)
-        sys.exit(1)
+
+def pending_picks_for_run(
+    pick_run_id: str, db_path: str = DEFAULT_DB_PATH
+) -> list[PickedStory]:
+    """Non-terminal picks for a pick_run_id, ordered by pick_index."""
+    init_db(db_path)
+    placeholders = ",".join("?" * len(PICK_TERMINAL_STATUSES))
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT * FROM picked_stories
+            WHERE pick_run_id = ? AND status NOT IN ({placeholders})
+            ORDER BY pick_index ASC
+            """,
+            (pick_run_id, *PICK_TERMINAL_STATUSES),
+        ).fetchall()
+    return [_row_to_pick(r) for r in rows]
+
+
+def get_pick(pick_id: int, db_path: str = DEFAULT_DB_PATH) -> PickedStory | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM picked_stories WHERE id = ?", (pick_id,)
+        ).fetchone()
+    return _row_to_pick(row) if row else None
+
+
+def get_pick_by_index(
+    pick_run_id: str, pick_index: int, db_path: str = DEFAULT_DB_PATH
+) -> PickedStory | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM picked_stories WHERE pick_run_id = ? AND pick_index = ?",
+            (pick_run_id, int(pick_index)),
+        ).fetchone()
+    return _row_to_pick(row) if row else None
+
+
+def recent_published_categories(
+    hours: int = 24, db_path: str = DEFAULT_DB_PATH
+) -> list[str]:
+    """Distinct categories of articles drafted/published within the window.
+
+    Sourced from `articles` (canonical record of cards sent), filtered by
+    `created_at >= now - hours`. Used by picker to bias away from recent
+    categories.
+    """
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT category FROM articles
+            WHERE category IS NOT NULL AND category != ''
+              AND created_at >= datetime('now', ?)
+            ORDER BY created_at DESC
+            """,
+            (f"-{int(hours)} hours",),
+        ).fetchall()
+    return [r["category"] for r in rows if r["category"]]

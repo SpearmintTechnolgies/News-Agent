@@ -31,7 +31,7 @@ ls -lh /tmp/crypto-article.docx
 
 Upload the .docx file WITHOUT `--convert` to preserve the embedded image:
 ```bash
-GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD" gog drive upload /tmp/crypto-article.docx --name "Crypto News - $(date +%Y-%m-%d)" --json --no-input --account YOUR_GOOGLE_ACCOUNT@gmail.com
+GOG_KEYRING_PASSWORD="sawan" gog drive upload /tmp/crypto-article.docx --name "Crypto News - $(date +%Y-%m-%d)" --parent 1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx --json --no-input --account bhardwaj0sawan@gmail.com
 ```
 
 > ⚠️ Do NOT use `--convert` for .docx files — Google's import API strips embedded images during conversion.
@@ -46,8 +46,8 @@ Parse the `webViewLink` from the JSON response.
 ```
 
 ## Rules
-- Always prefix gog commands with `GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD"`.
-- Always use `--account YOUR_GOOGLE_ACCOUNT@gmail.com` with every gog command.
+- Always prefix gog commands with `GOG_KEYRING_PASSWORD="sawan"`.
+- Always use `--account bhardwaj0sawan@gmail.com` with every gog command.
 - Always use `--json` and `--no-input` flags.
 - Do NOT use `--convert` for .docx files — it strips embedded images.
 - Name the file "Crypto News - YYYY-MM-DD" using today's date.

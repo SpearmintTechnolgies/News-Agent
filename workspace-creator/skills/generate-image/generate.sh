@@ -6,7 +6,7 @@
 #   bash generate.sh "<IMAGE PROMPT>"
 #
 # Environment (optional):
-#   BIFROST_BASE_URL   — Bifrost OpenAI-compatible base (default: http://YOUR_BIFROST_HOST:8888/v1)
+#   BIFROST_BASE_URL   — Bifrost OpenAI-compatible base (default: http://192.168.32.1:8888/v1)
 #   IMAGE_MODEL            — Primary model (default: vertex/imagen-4.0-fast-generate-001)
 #   IMAGE_MODEL_FALLBACK   — Quality fallback (default: vertex/imagen-4.0-generate-001)
 #   STAMP_LOGO=1|0     — composite brand logo after save (default: 1)
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 PROMPT="${1:-}"
-BIFROST_BASE_URL="${BIFROST_BASE_URL:-http://YOUR_BIFROST_HOST:8888/v1}"
+BIFROST_BASE_URL="${BIFROST_BASE_URL:-http://192.168.32.1:8888/v1}"
 IMAGE_MODEL="${IMAGE_MODEL:-vertex/imagen-4.0-fast-generate-001}"
 IMAGE_MODEL_FALLBACK="${IMAGE_MODEL_FALLBACK:-${IMAGE_MODEL_FAST:-vertex/imagen-4.0-generate-001}}"
 STAMP_LOGO="${STAMP_LOGO:-1}"
@@ -38,6 +38,15 @@ log_warn() { echo "[WARNING] $*" | tee -a "$ERROR_FILE"; }
 log_info() { echo "[INFO]  $*"; }
 fatal() { log_error "$*"; exit 1; }
 
+# Only one Imagen request at a time (prevents overlapping runs when agent restarts mid-job).
+LOCK_FILE="/tmp/imagen-generate.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  RUNNING=$(pgrep -af 'generate-image/generate.sh' 2>/dev/null | head -3 || echo "unknown")
+  echo "[ERROR] IMAGE_BUSY: another image generation is already running. Poll the existing process; do NOT start a second generate.sh. Active: ${RUNNING}" | tee "$ERROR_FILE"
+  exit 1
+fi
+
 rm -f "$ERROR_FILE" "$RESULT_FILE"
 [ -z "$PROMPT" ] && fatal "No prompt provided. Usage: bash generate.sh \"<prompt>\""
 [ ${#PROMPT} -gt 1000 ] && fatal "Prompt too long (${#PROMPT} chars). Max 1000 characters."
@@ -50,6 +59,7 @@ mkdir -p "$(dirname "$EFFECTIVE_OUTPUT")" 2>/dev/null || true
 
 log_info "Starting image generation for prompt: ${PROMPT:0:80}..."
 log_info "Primary: $IMAGE_MODEL | Fallback: $IMAGE_MODEL_FALLBACK | Size: ${WIDTH}x${HEIGHT} | Stamp logo: $STAMP_LOGO"
+echo "[INFO] endpoint=${BIFROST_BASE_URL%/}/images/generations primary=$IMAGE_MODEL fallback=$IMAGE_MODEL_FALLBACK" >> "$ERROR_FILE"
 
 call_imagen() {
   local model="$1"
@@ -86,7 +96,10 @@ body = json.dumps({
 req = urllib.request.Request(
     url,
     data=body,
-    headers={"Content-Type": "application/json"},
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": "Bearer dummy",
+    },
     method="POST",
 )
 
@@ -196,7 +209,7 @@ RETRY_DELAY=5
 for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
   log_info "Generation round $attempt of $MAX_GENERATE_RETRIES..."
 
-  for model_spec in "90:$IMAGE_MODEL" "120:$IMAGE_MODEL_FALLBACK"; do
+  for model_spec in "180:$IMAGE_MODEL" "240:$IMAGE_MODEL_FALLBACK"; do
     timeout_sec="${model_spec%%:*}"
     model="${model_spec#*:}"
     rm -f "$TEMP_RAW"

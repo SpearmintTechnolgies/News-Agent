@@ -18,7 +18,7 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Medium sho
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `BIFROST_BASE_URL` | `http://YOUR_BIFROST_HOST:8888/v1` | Bifrost OpenAI-compatible API base |
+| `BIFROST_BASE_URL` | `http://172.30.176.1:8888/v1` | Bifrost OpenAI-compatible API base |
 | `IMAGE_MODEL` | `vertex/imagen-4.0-fast-generate-001` | Primary (fast, ~5–8s) |
 | `IMAGE_MODEL_FALLBACK` | `vertex/imagen-4.0-generate-001` | Quality fallback if primary fails |
 | `STAMP_LOGO` | `1` | Set `0` to skip Coinography logo composite |

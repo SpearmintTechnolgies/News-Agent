@@ -16,12 +16,18 @@
 # The run-bundle layout:
 #   $RUN_DIR/
 #     manifest.json
-#     .run_started          (epoch stamp)
+#     .run_started          (epoch stamp; refreshed at the start of each iter)
 #     research/
-#       raw.json            (Scout output)
-#       validated.json      (Step 1 validator output)
+#       raw.json            (Scout deep-research output for current iter)
+#       validated.json      (validate_research.py output for current iter)
+#       headlines.json      (Scout HEADLINE_SCAN output, batch-level)
+#     picker/
+#       picker_input.json   (input for Sieve)
+#       picks.json          (Sieve output)
+#     iter_<N>/             (per-iteration archives — created by switch_iteration.sh)
+#       research/, article/, media/, publish/, manifest.snapshot.json
 #     article/
-#       raw.md              (Quill output)
+#       raw.md              (Quill output for current iter)
 #       final.md            (sync + sanitize output)
 #       with-image.md       (Step 4 image embed)
 #       article.docx        (pandoc output)
@@ -31,6 +37,7 @@
 #     publish/
 #       google-drive.json
 #       wordpress.json
+#       news-card.json
 #
 # All legacy /tmp/... handoff paths become symlinks into this bundle.
 # Any old real files at those paths are removed first.
@@ -46,17 +53,22 @@ mkdir -p \
   "${RUN_DIR}/research" \
   "${RUN_DIR}/article" \
   "${RUN_DIR}/media" \
-  "${RUN_DIR}/publish"
+  "${RUN_DIR}/publish" \
+  "${RUN_DIR}/picker"
 
 # Empty placeholders prevent "file not found" errors before agents write
 touch \
   "${RUN_DIR}/research/raw.json" \
   "${RUN_DIR}/research/validated.json" \
+  "${RUN_DIR}/research/headlines.json" \
+  "${RUN_DIR}/picker/picker_input.json" \
+  "${RUN_DIR}/picker/picks.json" \
   "${RUN_DIR}/article/raw.md" \
   "${RUN_DIR}/article/final.md" \
   "${RUN_DIR}/article/with-image.md" \
   "${RUN_DIR}/media/feature.jpg" \
-  "${RUN_DIR}/media/chart.png"
+  "${RUN_DIR}/media/chart.png" \
+  "${RUN_DIR}/publish/news-card.json"
 
 # Epoch stamp for freshness checks
 date +%s > "${RUN_DIR}/.run_started"
@@ -76,9 +88,18 @@ manifest = {
     "created_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "current_step": "init",
     "story":        {},
+    "batch": {
+        "target_count": 1,
+        "pick_run_id":  "",
+        "current_pick": 0,
+        "completed_picks": [],
+    },
     "artifacts": {
         "research_raw":       f"{run_dir}/research/raw.json",
         "research_validated": f"{run_dir}/research/validated.json",
+        "headlines":          f"{run_dir}/research/headlines.json",
+        "picker_input":       f"{run_dir}/picker/picker_input.json",
+        "picks":              f"{run_dir}/picker/picks.json",
         "article_raw":        f"{run_dir}/article/raw.md",
         "article_final":      f"{run_dir}/article/final.md",
         "article_with_image": f"{run_dir}/article/with-image.md",
@@ -87,6 +108,7 @@ manifest = {
         "chart":              f"{run_dir}/media/chart.png",
         "google_drive":       f"{run_dir}/publish/google-drive.json",
         "wordpress":          f"{run_dir}/publish/wordpress.json",
+        "news_card":          f"{run_dir}/publish/news-card.json",
     },
     "steps":   {},
     "checks":  {},
@@ -113,6 +135,9 @@ _symlink() {
 
 _symlink "/tmp/research.json"           "${RUN_DIR}/research/validated.json"
 _symlink "/tmp/researcher-raw.txt"      "${RUN_DIR}/research/raw.json"
+_symlink "/tmp/headlines.json"          "${RUN_DIR}/research/headlines.json"
+_symlink "/tmp/picker-input.json"       "${RUN_DIR}/picker/picker_input.json"
+_symlink "/tmp/picks.json"              "${RUN_DIR}/picker/picks.json"
 _symlink "/tmp/crypto-article-raw.md"   "${RUN_DIR}/article/raw.md"
 _symlink "/tmp/crypto-article.md"       "${RUN_DIR}/article/final.md"
 _symlink "/tmp/crypto-with-image.md"    "${RUN_DIR}/article/with-image.md"

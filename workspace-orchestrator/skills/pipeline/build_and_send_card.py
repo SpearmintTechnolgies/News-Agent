@@ -46,6 +46,22 @@ def load_json(path: str, default: dict | None = None) -> dict:
         return default or {}
 
 
+def load_bot_token() -> str:
+    tg_cfg = load_json(TELEGRAM_CONFIG)
+    token = str(tg_cfg.get("bot_token") or "").strip()
+    if token:
+        return token
+
+    openclaw = load_json(OPENCLAW_JSON)
+    telegram = (openclaw.get("channels") or {}).get("telegram") or {}
+    account_id = str(tg_cfg.get("telegram_account") or "news").strip()
+    account = (telegram.get("accounts") or {}).get(account_id) or {}
+    token = str(account.get("botToken") or "").strip()
+    if token:
+        return token
+    return str(telegram.get("botToken") or "").strip()
+
+
 def atomic_write_json(path: str, data: dict) -> None:
     dir_ = os.path.dirname(os.path.abspath(path))
     os.makedirs(dir_, exist_ok=True)
@@ -292,6 +308,7 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
         "why_now": first_key_fact(research.get("combined_key_facts")),
         "primary_asset": research.get("primary_asset") or "",
         "primary_keyword": research.get("primary_keyword") or "",
+        "category": str(research.get("category") or "").strip() or None,
         "sources_count": sources_count,
         "wp_url": wp_url,
         "wp_post_id": str(wp.get("post_id") or ""),
@@ -317,8 +334,7 @@ def main() -> int:
     try:
         card, news_card_path, image_path = build_card_from_manifest(manifest_path)
 
-        openclaw = load_json(OPENCLAW_JSON)
-        token = (openclaw.get("channels") or {}).get("telegram", {}).get("botToken", "")
+        token = load_bot_token()
         if not token:
             raise ValueError("Telegram botToken not found in openclaw.json")
 

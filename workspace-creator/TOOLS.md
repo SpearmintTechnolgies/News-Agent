@@ -8,7 +8,7 @@ This file contains the specific setup details for your image generation environm
 
 | Key | Value |
 |---|---|
-| **Bifrost Base URL** | `http://YOUR_BIFROST_HOST:8888/v1` |
+| **Bifrost Base URL** | `http://172.30.176.1:8888/v1` |
 | **Primary Model** | `vertex/imagen-4.0-fast-generate-001` (~5–8s) |
 | **Quality Fallback** | `vertex/imagen-4.0-generate-001` |
 | **Image Size** | `1024 × 576` (16:9 landscape, editorial format) |

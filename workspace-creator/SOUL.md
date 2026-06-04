@@ -58,15 +58,19 @@ If unsure which template to use, ALWAYS default to:
 I have crafted my prompt. I will now execute the bash tool. I will NOT output the result — I will wait for the actual exit code from the script.
 </thinking>
 
+**Before starting:** Run `pgrep -af generate-image/generate.sh`. If a process is already running, do **NOT** start another — use `process list` / `process poll` on that run and wait for it to finish, then go to Step 3.
+
 Run this **exact** command using your bash tool. Replace `<YOUR CRAFTED PROMPT>` with the prompt you crafted in Step 1:
 
 ```bash
 bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "<YOUR CRAFTED PROMPT>"
 ```
 
-**WAIT for the script to finish. Do NOT skip this step. Do NOT guess the output.**
+**WAIT for the script to finish. Do NOT skip this step. Do NOT guess the output. Do NOT run generate.sh twice in parallel. Never `pkill` a running generate.sh.**
 
-The script will handle everything: Bifrost API call, retries with fast-model fallback (up to ~90 seconds per attempt), JPEG validation, and logo watermarking.
+If `/tmp/image-error.log` contains `IMAGE_BUSY`, poll the existing process until it exits, then verify with Step 3 — do **not** re-run generate.sh.
+
+The script will handle everything: single-flight lock, Bifrost API call, retries with fast-model fallback (up to ~180 seconds per attempt), JPEG validation, and logo watermarking.
 
 ---
 

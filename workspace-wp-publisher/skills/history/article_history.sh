@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-DB_PATH="${OPENCLAW_HOME:-$HOME/.openclaw}/article_history.db"
+DB_PATH="/home/bhard/.openclaw/article_history.db"
 ACTIVE_URL_FILE="/tmp/openclaw_active_url.txt"
 
 # Initialize DB

@@ -49,6 +49,7 @@ def entry_from_research(data: dict, run_id: str, status: str, published_url: str
         "primary_headline": (data.get("primary_headline") or "").strip(),
         "topic_theme": (data.get("topic_theme") or "").strip(),
         "primary_asset": (data.get("primary_asset") or "").strip(),
+        "category": (data.get("category") or "").strip() or None,
         "status": status,
     }
     if published_url:

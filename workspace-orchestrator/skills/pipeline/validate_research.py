@@ -5,10 +5,18 @@ and atomically write research/validated.json + update manifest story.
 
 Usage:
     python3 validate_research.py --manifest /path/to/manifest.json
+    python3 validate_research.py --manifest /path/to/manifest.json \
+        --raw-path /path/to/raw_2.json \
+        --validated-path /path/to/validated_2.json
 
-Reads:   manifest.artifacts.research_raw  (researcher-raw.txt equivalent)
-Writes:  manifest.artifacts.research_validated (research/validated.json)
+Reads:   manifest.artifacts.research_raw  (default; override with --raw-path)
+Writes:  manifest.artifacts.research_validated (default; override with --validated-path)
          manifest.json  (updates story.story_id + story.headline + current_step)
+
+When `--raw-path` and/or `--validated-path` are supplied (Picker batch loop),
+the manifest's artifact paths are NOT overwritten — only the per-iteration
+validated file is produced. The manifest's `current_step` and `story` block
+are still updated for in-flight visibility.
 
 Exit 0 + prints RESEARCH_VALID: <headline>
 Exit 1 + prints RESEARCH_INVALID: <reason>
@@ -48,6 +56,16 @@ def load_manifest(manifest_path: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True)
+    parser.add_argument(
+        "--raw-path",
+        default=None,
+        help="Override path to researcher raw JSON (default: manifest.artifacts.research_raw).",
+    )
+    parser.add_argument(
+        "--validated-path",
+        default=None,
+        help="Override path to write validated JSON (default: manifest.artifacts.research_validated).",
+    )
     args = parser.parse_args()
 
     manifest_path = os.path.realpath(args.manifest)
@@ -61,8 +79,9 @@ def main() -> int:
         print(f"RESEARCH_INVALID: cannot parse manifest: {e}")
         return 1
 
-    raw_path = manifest.get("artifacts", {}).get("research_raw", "")
-    validated_path = manifest.get("artifacts", {}).get("research_validated", "")
+    artifacts = manifest.get("artifacts", {})
+    raw_path = args.raw_path or artifacts.get("research_raw", "")
+    validated_path = args.validated_path or artifacts.get("research_validated", "")
     run_dir = manifest.get("run_dir", "")
 
     if not raw_path or not os.path.exists(raw_path):
@@ -123,6 +142,7 @@ def main() -> int:
             "story_id": data.get("story_id", ""),
             "headline": data.get("primary_headline", ""),
             "chart_coin": data.get("chart_coin", "bitcoin"),
+            "category": data.get("category") or manifest.get("story", {}).get("category", ""),
         }
         manifest["current_step"] = "research_validated"
         atomic_write_json(manifest_path, manifest)

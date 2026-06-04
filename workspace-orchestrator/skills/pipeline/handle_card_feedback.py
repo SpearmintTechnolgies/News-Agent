@@ -103,12 +103,32 @@ def format_diff_summary(baseline: str, edited: str) -> str:
 
 
 def load_bot_token() -> str:
+    tg_cfg_path = os.path.expanduser(
+        "~/.openclaw/workspace-orchestrator/config/telegram_card_config.json"
+    )
+    try:
+        with open(tg_cfg_path, encoding="utf-8") as f:
+            tg_cfg = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        tg_cfg = {}
+
+    token = str(tg_cfg.get("bot_token") or "").strip()
+    if token:
+        return token
+
     try:
         with open(OPENCLAW_JSON, encoding="utf-8") as f:
             data = json.load(f)
-        return (data.get("channels") or {}).get("telegram", {}).get("botToken", "")
     except (OSError, json.JSONDecodeError):
         return ""
+
+    telegram = (data.get("channels") or {}).get("telegram") or {}
+    account_id = str(tg_cfg.get("telegram_account") or "news").strip()
+    account = (telegram.get("accounts") or {}).get(account_id) or {}
+    token = str(account.get("botToken") or "").strip()
+    if token:
+        return token
+    return str(telegram.get("botToken") or "").strip()
 
 
 def telegram_request(
