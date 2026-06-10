@@ -11,7 +11,7 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "<YOUR PROM
 
 **Example:**
 ```bash
-bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Medium shot of focused male trader at multi-screen desk, Bitcoin chart on background monitor, dark professional office, editorial press photography, Reuters style, photorealistic, DSLR, 35mm lens, sharp focus, candid"
+bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Photorealistic 3D gold Bitcoin coin on black reflective surface, warm studio lighting, red candlestick chart softly glowing in background, cinematic crypto editorial, photorealistic, studio lighting, dark background, sharp focus"
 ```
 
 ## Environment Variables (optional)
@@ -33,7 +33,7 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Medium sho
 ## What the Script Handles Automatically
 - Bifrost `POST /v1/images/generations` → Vertex Imagen 4
 - Primary model then fast fallback per retry round
-- Editorial negative constraints appended to prompt (no text/watermark/illustration)
+- Editorial negative constraints appended to prompt (no text overlay/humans/clipart)
 - Up to 3 retry rounds with exponential backoff
 - Single-response base64 decode (no async polling or CDN download)
 - Symlink-safe write to `/tmp/crypto-feature.jpg`
@@ -42,7 +42,7 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Medium sho
 
 ## What YOU Must Do (Your Only Job)
 1. Read the article title and topic from the message you received.
-2. Craft a **medium-shot** editorial prompt using the rules in your SOUL.md.
+2. Craft an **article-specific** editorial prompt using the rules in your SOUL.md (3D coin, brand logo, or abstract digital subject — no generic stock humans).
 3. Call this script with that prompt.
 4. Read the result:
    - If exit code 0: Return `cat /tmp/image-result.txt`
@@ -50,6 +50,6 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Medium sho
 
 ## Important Notes
 - The prompt must be under 1000 characters.
-- Do NOT include any text, logos, or written words in your prompt description.
+- Do NOT request readable text overlays, headlines, or typography in the image — describe symbols and shapes instead (Bitcoin B emblem, brand circles, coin renders).
 - The image will always be saved to `/tmp/crypto-feature.jpg` (1024×576 resolution).
 - Do NOT call Bifrost or Vertex directly — always use this script.

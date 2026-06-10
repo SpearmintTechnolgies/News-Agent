@@ -1,0 +1,463 @@
+{
+  "slug": "coinography",
+  "callback_code": "cog",
+  "name": "Coinography",
+  "description": "General crypto news site covering regulation, ETFs, hacks, L1/L2 protocols, exchanges, stablecoins, adoption, and market movement.",
+  "wordpress": {
+    "url": "https://coinography.com",
+    "user": "renu@coinography.com",
+    "app_password_ref": "credentials/wp/coinography.pass",
+    "default_status": "draft",
+    "fallback_category_id": 17,
+    "picker_category_slugs": [
+      "bitcoin",
+      "ethereum",
+      "ethlatest-news",
+      "xrp",
+      "ripple",
+      "policy-and-regulations",
+      "etf",
+      "defi",
+      "exploits",
+      "adoption",
+      "cryptomarket-news",
+      "cryptomarket-analysis",
+      "altcoin",
+      "blockchain",
+      "sec",
+      "sec-vs-cryptocurrency",
+      "bnb-chain",
+      "airdrop",
+      "ai",
+      "dapp",
+      "dao",
+      "decentralized",
+      "nfts",
+      "politics"
+    ],
+    "picker_category_note": "Curated allow-list of slugs the Picker may assign as a PRIMARY category. Hand-maintained; survives re-runs of sync_wp_categories.py (which only rewrites `categories`). `latest-news` (id 17) is intentionally excluded here and used only as fallback_category_id.",
+    "categories": [
+      {
+        "id": 1,
+        "name": "Stories",
+        "slug": "stories",
+        "count": 0
+      },
+      {
+        "id": 17,
+        "name": "Latest News",
+        "slug": "latest-news",
+        "count": 1987
+      },
+      {
+        "id": 20,
+        "name": "How To",
+        "slug": "how-to",
+        "count": 102
+      },
+      {
+        "id": 22,
+        "name": "Cryptocurrency",
+        "slug": "cryptocurrency",
+        "count": 241
+      },
+      {
+        "id": 32,
+        "name": "Market News",
+        "slug": "cryptomarket-news",
+        "count": 215
+      },
+      {
+        "id": 35,
+        "name": "Business",
+        "slug": "business",
+        "count": 59
+      },
+      {
+        "id": 37,
+        "name": "Cardano (ADA)",
+        "slug": "analysiscardano-ada",
+        "count": 7
+      },
+      {
+        "id": 39,
+        "name": "Analysis",
+        "slug": "analysis",
+        "count": 60
+      },
+      {
+        "id": 42,
+        "name": "Latest Crypto News",
+        "slug": "cryptolatest-news",
+        "count": 149
+      },
+      {
+        "id": 52,
+        "name": "Bitcoin News",
+        "slug": "bitcoin",
+        "count": 650
+      },
+      {
+        "id": 73,
+        "name": "Press Release",
+        "slug": "press-release",
+        "count": 10
+      },
+      {
+        "id": 102,
+        "name": "Ethereum (ETH)",
+        "slug": "ethlatest-news",
+        "count": 58
+      },
+      {
+        "id": 117,
+        "name": "Price Indexes",
+        "slug": "price-indexes",
+        "count": 6
+      },
+      {
+        "id": 142,
+        "name": "Market Analysis",
+        "slug": "cryptomarket-analysis",
+        "count": 70
+      },
+      {
+        "id": 171,
+        "name": "Chainlink (LINK)",
+        "slug": "chainlink-link",
+        "count": 65
+      },
+      {
+        "id": 172,
+        "name": "Litecoin (LTC)",
+        "slug": "litecoin-ltc",
+        "count": 56
+      },
+      {
+        "id": 173,
+        "name": "Tezos (XTZ)",
+        "slug": "tezos-xtz",
+        "count": 53
+      },
+      {
+        "id": 174,
+        "name": "Policy and Regulations",
+        "slug": "policy-and-regulations",
+        "count": 140
+      },
+      {
+        "id": 175,
+        "name": "Adoption News",
+        "slug": "adoption",
+        "count": 206
+      },
+      {
+        "id": 176,
+        "name": "Altcoin News",
+        "slug": "altcoin",
+        "count": 200
+      },
+      {
+        "id": 177,
+        "name": "Blockchain News",
+        "slug": "blockchain",
+        "count": 171
+      },
+      {
+        "id": 178,
+        "name": "Business",
+        "slug": "business-news",
+        "count": 54
+      },
+      {
+        "id": 179,
+        "name": "Cardano News",
+        "slug": "cardano",
+        "count": 74
+      },
+      {
+        "id": 180,
+        "name": "DeFi News",
+        "slug": "defi",
+        "count": 89
+      },
+      {
+        "id": 181,
+        "name": "Dogecoin News",
+        "slug": "dogecoin",
+        "count": 200
+      },
+      {
+        "id": 182,
+        "name": "Ethereum News",
+        "slug": "ethereum",
+        "count": 181
+      },
+      {
+        "id": 183,
+        "name": "Litecoin News",
+        "slug": "litecoin",
+        "count": 10
+      },
+      {
+        "id": 184,
+        "name": "Meme Coin News",
+        "slug": "meme-coin",
+        "count": 119
+      },
+      {
+        "id": 185,
+        "name": "Metaverse News",
+        "slug": "metaverse",
+        "count": 15
+      },
+      {
+        "id": 186,
+        "name": "NFT News",
+        "slug": "nfts",
+        "count": 93
+      },
+      {
+        "id": 187,
+        "name": "Politics",
+        "slug": "politics",
+        "count": 52
+      },
+      {
+        "id": 189,
+        "name": "Ripple News",
+        "slug": "ripple",
+        "count": 73
+      },
+      {
+        "id": 190,
+        "name": "XRP News",
+        "slug": "xrp",
+        "count": 135
+      },
+      {
+        "id": 191,
+        "name": "market",
+        "slug": "market",
+        "count": 28
+      },
+      {
+        "id": 192,
+        "name": "SEC VS Cryptocurrency",
+        "slug": "sec-vs-cryptocurrency",
+        "count": 54
+      },
+      {
+        "id": 2077,
+        "name": "Latest News On Artifical Intelligence (AI)",
+        "slug": "ai",
+        "count": 36
+      },
+      {
+        "id": 2078,
+        "name": "Gaming News",
+        "slug": "gaming",
+        "count": 16
+      },
+      {
+        "id": 2079,
+        "name": "AIRDROP",
+        "slug": "airdrop",
+        "count": 14
+      },
+      {
+        "id": 2080,
+        "name": "ETF News",
+        "slug": "etf",
+        "count": 41
+      },
+      {
+        "id": 2081,
+        "name": "DApps News",
+        "slug": "dapp",
+        "count": 8
+      },
+      {
+        "id": 2082,
+        "name": "DAO News",
+        "slug": "dao",
+        "count": 12
+      },
+      {
+        "id": 2083,
+        "name": "Traders",
+        "slug": "traders",
+        "count": 23
+      },
+      {
+        "id": 2084,
+        "name": "Decentralization News",
+        "slug": "decentralized",
+        "count": 13
+      },
+      {
+        "id": 2085,
+        "name": "Exploits News",
+        "slug": "exploits",
+        "count": 21
+      },
+      {
+        "id": 2086,
+        "name": "NFT",
+        "slug": "nft",
+        "count": 15
+      },
+      {
+        "id": 2105,
+        "name": "Crypto Presales",
+        "slug": "crypto-presales",
+        "count": 5
+      },
+      {
+        "id": 2462,
+        "name": "SEC",
+        "slug": "sec",
+        "count": 15
+      },
+      {
+        "id": 2463,
+        "name": "FTX",
+        "slug": "ftx",
+        "count": 0
+      },
+      {
+        "id": 2464,
+        "name": "pumpfun",
+        "slug": "pumpfun",
+        "count": 0
+      },
+      {
+        "id": 2470,
+        "name": "politify and celebrity",
+        "slug": "politify-and-celebrity",
+        "count": 1
+      },
+      {
+        "id": 2473,
+        "name": "BNB chain",
+        "slug": "bnb-chain",
+        "count": 5
+      },
+      {
+        "id": 2535,
+        "name": "Ccrypto Adoption",
+        "slug": "ccrypto-adoption",
+        "count": 0
+      }
+    ]
+  },
+  "telegram": {
+    "account": "news",
+    "group_id": "-1003760909509",
+    "group_name": "news-agent",
+    "card_prefix": "[Coinography]"
+  },
+  "research": {
+    "rss_feeds": [
+      {
+        "source": "CoinDesk",
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"
+      },
+      {
+        "source": "CoinTelegraph",
+        "url": "https://cointelegraph.com/rss"
+      },
+      {
+        "source": "Decrypt",
+        "url": "https://decrypt.co/feed"
+      },
+      {
+        "source": "Google News",
+        "url": "https://news.google.com/rss/search?q=cryptocurrency+OR+blockchain+OR+ethereum+OR+solana+OR+altcoin+OR+%22digital+assets%22+OR+XRP+OR+cardano+-dogecoin+-shiba+-pepe+-floki+-bonk+-wif+-memecoin+-%22meme+coin%22&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "BeInCrypto",
+        "url": "https://beincrypto.com/feed/"
+      },
+      {
+        "source": "The Block",
+        "url": "https://www.theblock.co/rss.xml"
+      },
+      {
+        "source": "CryptoSlate",
+        "url": "https://cryptoslate.com/feed/"
+      },
+      {
+        "source": "CryptoFox",
+        "url": "https://cryptofox.news/rss/markets/"
+      },
+      {
+        "source": "CryptoFox",
+        "url": "https://cryptofox.news/rss/regulation/"
+      }
+    ],
+    "source_priority_order": [
+      "CoinDesk",
+      "CoinTelegraph",
+      "Decrypt",
+      "The Block",
+      "BeInCrypto",
+      "CryptoSlate",
+      "CryptoFox",
+      "Google News"
+    ],
+    "exclude_keywords": [
+      "dogecoin",
+      "shiba",
+      "pepe",
+      "floki",
+      "bonk",
+      "wif",
+      "memecoin",
+      "meme coin"
+    ],
+    "exclude_keywords_note": "Deprioritize/skip memecoin price pumps unless seriously covered by 2+ priority sources.",
+    "headline_scan_target_count": 10,
+    "max_age_hours": 24
+  },
+  "picker": {
+    "diversity_window_hours": 72
+  },
+  "writer": {
+    "template_path": "workspace-writer/COINOGRAPHY_TEMPLATE.md",
+    "min_body_words": 1000,
+    "max_body_words": 1200,
+    "sync_max_body_words": 1300,
+    "voice_hint": "Authoritative, neutral, fact-driven crypto news voice."
+  },
+  "creator": {
+    "image_style_hint": "Cinematic crypto editorial, photorealistic 3D coin renders or brand logo compositions, dark studio background, dramatic lighting, no humans.",
+    "image_aspect": "16:9",
+    "image_size": "1024x576"
+  },
+  "publisher": {
+    "drive_doc_prefix": "Crypto News",
+    "drive_parent_id": "1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx",
+    "drive_account": "YOUR_GOOGLE_ACCOUNT@gmail.com"
+  },
+  "authors": [
+    {
+      "id": 3,
+      "label": "Toby",
+      "name": "Toby Rothschild"
+    },
+    {
+      "id": 17,
+      "label": "Ahmed",
+      "name": "Ahmed Falah"
+    },
+    {
+      "id": 8,
+      "label": "Golan",
+      "name": "Golan Malhi"
+    }
+  ],
+  "state": {
+    "recent_topics_file": "workspace-orchestrator/state/recent_topics-coinography.json"
+  }
+}

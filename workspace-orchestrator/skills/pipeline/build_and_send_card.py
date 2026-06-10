@@ -27,6 +27,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from editorial_db import init_db, insert_article, save_article_version  # noqa: E402
+import project_config as pc  # noqa: E402
 
 OPENCLAW_JSON = os.path.expanduser("~/.openclaw/openclaw.json")
 TELEGRAM_CONFIG = os.path.expanduser(
@@ -149,12 +150,24 @@ def build_caption(card: dict) -> str:
     card_sent = card.get("card_sent_at", "")[:10]
     wp_status = str(card.get("wp_status") or "draft")
     status_label = "Live" if wp_status == "publish" else "Draft"
+    project_name = html_escape(card.get("project_name") or card.get("project") or "")
+    project_card_prefix = html_escape(card.get("project_card_prefix") or "")
+    # Use card_prefix if the project supplied one (e.g. "[MemeCoinist]"),
+    # otherwise fall back to a derived tag like "[Coinography]". For the
+    # coinography project today this yields the prefix configured in
+    # projects/coinography.json: "[Coinography]".
+    project_tag = project_card_prefix or (
+        f"[{project_name}]" if project_name and project_name.lower() != "coinography" else ""
+    )
 
-    lines = [
+    lines = []
+    if project_tag:
+        lines.append(f"<b>{project_tag}</b>")
+    lines.extend([
         f"<b>ALERT: ta-{html_escape(run_id)}</b>",
         f"<b>{headline}</b>",
         "",
-    ]
+    ])
     if topic or why:
         detail = topic
         if why:
@@ -272,6 +285,15 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
 
     run_id = manifest.get("run_id", "")
     run_dir = manifest.get("run_dir", "")
+    project_slug = str(manifest.get("project") or "coinography")
+    project_name = project_slug.title()
+    project_card_prefix = ""
+    try:
+        cfg = pc.load_project_config(slug=project_slug)
+        project_name = cfg.get("name") or project_slug.title()
+        project_card_prefix = str(cfg.get_path("telegram.card_prefix", "") or "")
+    except (FileNotFoundError, ValueError):
+        pass
     artifacts = manifest.get("artifacts") or {}
 
     validated_path = artifacts.get("research_validated") or os.path.join(
@@ -300,6 +322,9 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
     card: dict[str, Any] = {
         "run_id": run_id,
         "run_dir": run_dir,
+        "project": project_slug,
+        "project_name": project_name,
+        "project_card_prefix": project_card_prefix,
         "alert_id": f"ta-{run_id}",
         "story_id": str(research.get("story_id") or "") or None,
         "headline": research.get("primary_headline") or wp.get("article_headline") or "",

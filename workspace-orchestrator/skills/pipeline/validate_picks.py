@@ -28,17 +28,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 
 import editorial_db  # noqa: E402
-
-VALID_CATEGORIES = {
-    "regulation",
-    "etf_institutional",
-    "hack_exploit",
-    "l1_l2_protocol",
-    "exchange",
-    "stablecoin",
-    "adoption_partnership",
-    "market_movement",
-}
+import project_config as pc  # noqa: E402
 
 REQUIRED_PICK_FIELDS = [
     "pick_index",
@@ -85,7 +75,40 @@ def main() -> int:
     parser.add_argument("--pick-run-id", required=True)
     parser.add_argument("--pipeline-run-id", default=None)
     parser.add_argument("--db-path", default=editorial_db.DEFAULT_DB_PATH)
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinography",
+    )
     args = parser.parse_args()
+
+    try:
+        cfg = pc.load_project_config(slug=args.project)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"PICKS_INVALID: {e}")
+        return 1
+    project_slug = cfg.slug
+
+    # Resolve WP category vocabulary. slug_to_id covers the FULL live category
+    # list (used to resolve any slug → numeric id). curated_set is the narrowed
+    # primary allow-list the Picker was given; empty means "all allowed".
+    wp_categories = cfg.get_path("wordpress.categories", []) or []
+    slug_to_id = {
+        str(c.get("slug")): int(c.get("id"))
+        for c in wp_categories
+        if isinstance(c, dict) and c.get("slug") and c.get("id") is not None
+    }
+    if not slug_to_id:
+        print(
+            f"PICKS_INVALID: project '{project_slug}' has no wordpress.categories. "
+            f"Run sync_wp_categories.py --slug {project_slug} first."
+        )
+        return 1
+    curated_set = set(cfg.get_path("wordpress.picker_category_slugs", []) or [])
+    try:
+        fallback_id = int(cfg.get_path("wordpress.fallback_category_id", 17))
+    except (TypeError, ValueError):
+        fallback_id = 17
 
     picks_path = os.path.realpath(args.picks)
     input_path = os.path.realpath(args.picker_input)
@@ -130,8 +153,11 @@ def main() -> int:
         print(f"PICKS_INVALID: too many picks ({len(picks)} > target {target_count})")
         return 1
 
+    diversity_relaxed = bool(pdata.get("diversity_relaxed"))
+
     seen_pick_indices: set[int] = set()
     seen_candidate_indices: set[int] = set()
+    seen_primary_slugs: set[str] = set()
     cleaned_picks: list[dict] = []
     for i, p in enumerate(picks, 1):
         if not isinstance(p, dict):
@@ -165,20 +191,68 @@ def main() -> int:
             )
             return 1
 
-        category = str(p.get("category") or "").strip()
-        if category not in VALID_CATEGORIES:
-            print(f"PICKS_INVALID: pick #{i} unknown category: {category!r}")
+        # --- WP category resolution -----------------------------------------
+        # Build the slug list: prefer wp_category_slugs; fall back to [category].
+        raw_slugs = p.get("wp_category_slugs")
+        if not isinstance(raw_slugs, list) or not raw_slugs:
+            raw_slugs = [p.get("category")]
+        slug_list: list[str] = []
+        for s in raw_slugs:
+            s = str(s or "").strip()
+            if s and s not in slug_list:
+                slug_list.append(s)
+        if not slug_list:
+            print(f"PICKS_INVALID: pick #{i} has no category slugs")
             return 1
+
+        primary = slug_list[0]
+        if primary not in slug_to_id:
+            print(
+                f"PICKS_INVALID: pick #{i} primary slug {primary!r} is not a known "
+                f"WordPress category for project '{project_slug}'"
+            )
+            return 1
+        if curated_set and primary not in curated_set:
+            print(
+                f"PICKS_INVALID: pick #{i} primary slug {primary!r} is not in the "
+                f"curated picker_category_slugs for '{project_slug}'"
+            )
+            return 1
+
+        # Hard batch-uniqueness on the PRIMARY slug, unless the picker relaxed.
+        if primary in seen_primary_slugs and not diversity_relaxed:
+            print(
+                f"PICKS_INVALID: pick #{i} repeats primary category {primary!r} in the "
+                f"same batch (set diversity_relaxed=true only when the pool forces it)"
+            )
+            return 1
+
+        # Resolve known slugs → ids (preserve order, dedup). Unknown secondary
+        # slugs are dropped with a warning rather than failing the batch.
+        resolved_slugs: list[str] = []
+        resolved_ids: list[int] = []
+        for s in slug_list:
+            if s in slug_to_id:
+                if s not in resolved_slugs:
+                    resolved_slugs.append(s)
+                    resolved_ids.append(slug_to_id[s])
+            else:
+                print(f"[WARN] pick #{i} dropping unknown secondary slug {s!r}", file=sys.stderr)
+        if not resolved_ids:
+            resolved_ids = [fallback_id]
+            resolved_slugs = [primary]
 
         seen_pick_indices.add(pick_index)
         seen_candidate_indices.add(candidate_index)
+        seen_primary_slugs.add(primary)
 
         cleaned = {
             "pick_index": pick_index,
             "candidate_index": candidate_index,
-            "category": category,
+            "category": primary,
+            "wp_category_slugs": resolved_slugs,
+            "wp_category_ids": resolved_ids,
             "category_score": p.get("category_score"),
-            "alt_categories": p.get("alt_categories") or [],
             "selection_score": p.get("selection_score"),
             "slot_score": p.get("slot_score"),
             "story_id": p.get("story_id"),
@@ -208,6 +282,7 @@ def main() -> int:
             cleaned_picks,
             pick_run_id=args.pick_run_id,
             pipeline_run_id=args.pipeline_run_id,
+            project=project_slug,
             db_path=args.db_path,
         )
     except (sqlite3.Error, ValueError) as e:
@@ -215,8 +290,11 @@ def main() -> int:
         return 1
 
     print(
-        f"PICKS_VALID: {len(cleaned_picks)} picks for {args.pick_run_id} "
-        f"ids={ids} categories={[p['category'] for p in cleaned_picks]}"
+        f"PICKS_VALID: project={project_slug} / {len(cleaned_picks)} picks for "
+        f"{args.pick_run_id} ids={ids} "
+        f"primary={[p['category'] for p in cleaned_picks]} "
+        f"wp_category_ids={[p['wp_category_ids'] for p in cleaned_picks]}"
+        + (" diversity_relaxed=true" if diversity_relaxed else "")
     )
     return 0
 

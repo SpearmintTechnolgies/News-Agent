@@ -1,4 +1,4 @@
-# TOOLS.md — Pixel's Environment Config
+ the system # TOOLS.md — Pixel's Environment Config
 
 This file contains the specific setup details for your image generation environment. Auth and GCP credentials live in **Bifrost** (`gemini-vertex` key); the skill script has no secrets embedded.
 

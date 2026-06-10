@@ -23,7 +23,11 @@ BIFROST_BASE_URL="${BIFROST_BASE_URL:-http://192.168.32.1:8888/v1}"
 IMAGE_MODEL="${IMAGE_MODEL:-vertex/imagen-4.0-fast-generate-001}"
 IMAGE_MODEL_FALLBACK="${IMAGE_MODEL_FALLBACK:-${IMAGE_MODEL_FAST:-vertex/imagen-4.0-generate-001}}"
 STAMP_LOGO="${STAMP_LOGO:-1}"
-OUTPUT_PATH="/tmp/crypto-feature.jpg"
+# Prefer an explicit OUTPUT_PATH already in the environment (set by the
+# orchestrator per-project), then fall back to a project-prefixed name derived
+# from $PROJECT_SLUG, then finally the legacy /tmp/crypto-feature.jpg so old
+# callers and coinography legacy symlinks keep working.
+OUTPUT_PATH="${OUTPUT_PATH:-/tmp/${PROJECT_SLUG:-crypto}-feature.jpg}"
 RESULT_FILE="/tmp/image-result.txt"
 ERROR_FILE="/tmp/image-error.log"
 LOGO_PATH="$HOME/.openclaw/assets/logo.png"
@@ -31,7 +35,7 @@ MAX_GENERATE_RETRIES=3
 WIDTH=1024
 HEIGHT=576
 MIN_BYTES=51200
-NEGATIVE_SUFFIX=", no text, no watermark, no logo, no words, no letters, no signage, photorealistic editorial photography, not illustration, not cartoon, not 3d render"
+NEGATIVE_SUFFIX=", no text overlay, no watermarks, no typography, no words, no letters, no humans, no people, no faces, no cartoons, no anime, no clipart"
 
 log_error() { echo "[ERROR] $*" | tee -a "$ERROR_FILE"; }
 log_warn() { echo "[WARNING] $*" | tee -a "$ERROR_FILE"; }

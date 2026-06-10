@@ -79,6 +79,57 @@ flowchart TD
 
 ---
 
+## Projects (multi-site publishing)
+
+The pipeline is **project-scoped**: a single agent stack publishes to one or more WordPress sites, each defined by a JSON config under `~/.openclaw/projects/<slug>.json`. There is no code change required to add a new site — drop in a config + credentials file and reference the slug at run time.
+
+### Run syntax
+
+| Command | Meaning |
+|---------|---------|
+| `run pipeline N` | Default project (`coinography`) — backward compatible |
+| `run pipeline coinography N` | Explicit Coinography run |
+| `run pipeline <slug> N` | Run pipeline `N` times for project `<slug>` |
+
+The orchestrator parses `<slug>` in **Step 0.4**, validates `~/.openclaw/projects/<slug>.json` exists, locks the slug into `manifest.json` (`project` + `project_config_path`), and exports `PROJECT_SLUG` + `PROJECT_CONFIG` to all child agents.
+
+### Config schema (`projects/<slug>.json`)
+
+| Section | Keys | Used by |
+|---------|------|---------|
+| `slug`, `name` | unique slug, human label | all agents (logs, card prefix) |
+| `wordpress` | `url`, `user`, `app_password_ref`, `default_status`, `fallback_category_id`, `picker_category_slugs[]`, `categories[]` | `publish.sh`, `wp_post_actions.sh`, `build_picker_input.py`, `validate_picks.py`, `sync_wp_categories.py` |
+| `research` | `rss_feeds[]`, `exclude_keywords[]`, `source_priority_order[]` | Researcher (`emit_feed_fetch_commands.py`) |
+| `picker` | `diversity_window_hours` | `build_picker_input.py`, Picker SOUL |
+| `writer` | `template_path` | Writer SOUL |
+| `creator` | `image_style_hint` | Creator SOUL |
+| `publisher` | `drive_doc_prefix`, `drive_parent_id`, `drive_account` | Publisher SOUL |
+| `telegram` | `card_prefix` | `build_and_send_card.py` |
+| `authors[]` | `id`, `label`, `name` | `handle_card_feedback.py` (publish-author picker) |
+
+### Isolation guarantees
+
+- **Run directories**: `/tmp/<slug>-run-<RUN_ID>/`. Legacy `/tmp/crypto-run-*` symlinks are preserved when `slug == coinography`.
+- **URL dedup**: `article_history.db` has a composite key `(url, project)` — same URL can run on different sites; project-prefixed active-URL files (`/tmp/<slug>-active-url.txt`).
+- **Editorial data**: `articles` and `picked_stories` have a `project` column (default `'coinography'` for back-fill); `recent_published_categories` is project-scoped.
+- **Credentials**: WP app passwords live in `~/.openclaw/credentials/wp/<slug>.pass` (mode `600`), referenced by `wordpress.app_password_ref` — never hardcoded in scripts.
+- **Telegram card**: shared bot + group, but every card opens with `card_prefix` (e.g. `[Coinography]`) so editors can tell projects apart at a glance.
+
+### Adding a new site
+
+1. Copy `projects/coinography.json` to `projects/<newslug>.json` and edit fields.
+2. Write the WP app password to `credentials/wp/<newslug>.pass`, then `chmod 600`.
+3. (Optional) Drop a writer template at the path listed under `writer.template_path`.
+4. Run `run pipeline <newslug> 1` to test.
+
+No source edits, no DB migrations, no SOUL changes are required for routine new-site additions. See `projects/README.md` for the full one-page guide.
+
+### Shared loader
+
+All scripts read project config through `workspace-orchestrator/skills/pipeline/project_config.py` (Python) or `project_config.sh` (bash wrappers `project_cfg_field`, `project_cfg_password`). The loader resolves the active slug from (1) `--slug` CLI arg, (2) `$PROJECT_SLUG` env, (3) `manifest.json`, then (4) default `coinography`. `assert_project_matches_manifest()` is the runtime safety gate — a mismatch fails the run instead of silently publishing to the wrong site.
+
+---
+
 ## Agent registry matrix
 
 | Agent ID | Persona | Workspace | Model | Pipeline step |
@@ -487,3 +538,9 @@ Legacy `/tmp/...` paths are symlinks into the canonical (current-iteration) file
 | 2026-05-27 | `wp_post_actions.sh` synced to coinography.com; Telegram publish author picker (Toby/Ahmed); `save_google_drive_json.py`; editorial `wp_status` defaults draft |
 | 2026-06-03 | Multi-story Picker pipeline: new `picker` agent (Sieve), two-mode researcher (HEADLINE_SCAN / DEEP_RESEARCH), `picked_stories` table + `articles.category` column, per-iteration `iter_<N>/` archives via `switch_iteration.sh`, new scripts (`validate_headlines.py`, `build_picker_input.py`, `validate_picks.py`, `update_pick_status.py`), orchestrator SOUL rewritten with Step 0.5 (parse N) + Step 1a/1b/1c + per-pick loop with yes/no/stop user gate. |
 | 2026-06-04 | Step 2.3 (Creator / Pixel) restored with concrete spawn recipe — was a stub referencing deleted legacy SOUL logic, causing creator to be silently skipped on all recent runs. Added `post_image` stage to `verify_artifacts.py` (size ≥ 50 KB, JPEG magic bytes, path under RUN_DIR) so future regressions fail loudly. Orchestrator retries Pixel once with Universal Fallback prompt before continuing without image. |
+| 2026-06-04 | **Multi-project architecture**. Pipeline is now project-scoped: `run pipeline [<slug>] N` selects a publishing target from `projects/<slug>.json`. Default slug = `coinography` (no behavior change for existing `run pipeline N` commands). New: `projects/coinography.json`, `credentials/wp/coinography.pass`, `project_config.py`+`.sh` loaders, `emit_feed_fetch_commands.py`. Schema additions: `articles.project`, `picked_stories.project`, `article_history(url, project)` composite key — all back-filled to `'coinography'`. All agents (Researcher RSS feeds, Picker allowlist, Writer template, Creator style hint, Publisher Drive prefix, WP-Publisher creds, Telegram card prefix + per-project authors) now read from `$PROJECT_CONFIG`. Run dirs renamed `/tmp/<slug>-run-<RUN_ID>/` with legacy `/tmp/crypto-*` symlinks retained for coinography. See `## Projects` section and `projects/README.md`. |
+| 2026-06-05 | **MemeCoinist project added** (`projects/memecoinist.json`, `credentials/wp/memecoinist.pass`). Second live publishing target. Memecoin-focused RSS set (Google News query for DOGE/SHIB/PEPE/BONK/WIF/FLOKI/dogwifhat + 8 shared sources). Inverse `exclude_keywords` to Coinography (blocks macro-crypto/ETF/stablecoin stories). Picker `allowed_categories` limited to 5 memecoin-relevant categories. Drafts post to `https://memecoinist.com` under Latest News (category 10) as author meep AI (id 6). Uses `workspace-mc-writer/MEMECOIN_TEMPLATE.md` trader-voice template. Telegram card prefix `[MemeCoinist]` on shared bot/group. Fixed two non-coinography path hardcodes: `creator/generate.sh` now uses `$OUTPUT_PATH` or `$PROJECT_SLUG` env (legacy `/tmp/crypto-feature.jpg` still works); `handle_card_feedback.py` fallback path now derives from `article.project` with legacy `crypto-run-*` as second-chance for old rows. |
+| 2026-06-08 | **Creator image quality uplift.** Rewrote `workspace-creator/SOUL.md` and `workspace-mc-creator/SOUL.md`: removed mandatory human-subject rule; new article-specific scene templates (3D coin renders, brand/logo compositions, flags, abstract digital art). Universal Fallback is now a Bitcoin 3D coin on dark reflective surface. Updated `generate.sh` `NEGATIVE_SUFFIX` in both creator workspaces — removed `no logo` and `not 3d render` blockers; added `no humans`. Updated `creator.image_style_hint` in `projects/coinography.json` and `projects/memecoinist.json`. |
+| 2026-06-08 | Added `PIPELINE_DOCS/coinography-wordpress-api-integration.md` — full Coinography WP REST API integration reference: Application Password setup (WP admin step-by-step), credential storage, project config wiring, all endpoints, publish/update flows with payloads, lifecycle table, error handling, smoke tests. Google Doc: https://docs.google.com/document/d/1mLAN9WyfZL8GTl7w6niWEG2hvfEGljSItuxLvsAaGp8/edit |
+| 2026-06-10 | **Real WordPress categories + diversity (Phase 1: Coinography).** Picker no longer uses the hardcoded 8-item taxonomy — it now classifies each story into 1 primary + up to 2 secondary **live WP category slugs** from `wordpress.picker_category_slugs` (curated subset of `wordpress.categories`, synced from the site by new `sync_wp_categories.py`). New `wordpress.fallback_category_id` (17) replaces single `category_id`. `validate_picks.py` resolves slugs → numeric IDs, enforces **hard batch-unique primary category** + **72h primary exclusion** (graceful `diversity_relaxed` flag when the pool can't fill the batch), and rejects unknown/duplicate primaries. IDs flow via `picks.json` → `validate_research.py` (`--picks/--pick-index` authoritative injection) → `validated.json` → `publish.sh` which now sends `"categories": wp_category_ids` (fallback to `fallback_category_id`). New DB columns `wp_category_slugs`/`wp_category_ids` on `picked_stories` + `articles`. Creator SOUL got a slug→scene-template map. Files: `sync_wp_categories.py` (new), `build_picker_input.py`, `validate_picks.py`, `validate_research.py`, `editorial_db.py`, `publish.sh`, picker SOUL+USER, researcher SOUL, creator SOUL, orchestrator SOUL, `projects/coinography.json`. Phase 2 (memecoinist) delivered 2026-06-10 — see next row. |
+| 2026-06-10 | **Real WordPress categories + diversity (Phase 2: MemeCoinist).** Config-only change — all pipeline code from Phase 1 is project-generic. `sync_wp_categories.py --slug memecoinist` populated 42 live WP categories into `projects/memecoinist.json`. Removed legacy `wordpress.category_id` and `site_categories[]`. Added `wordpress.fallback_category_id: 10` (Latest News), `wordpress.picker_category_slugs` (28 curated memecoin-relevant slugs), and `wordpress.categories[]` (full live list). Removed dead `picker.allowed_categories`; updated `picker.diversity_window_hours` 24→72. The Picker now assigns real memecoinist.com WP categories with hard 72h primary-category diversity, identical to Coinography behaviour. |

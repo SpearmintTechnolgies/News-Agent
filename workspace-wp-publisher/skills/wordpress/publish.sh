@@ -20,22 +20,36 @@
 
 set -euo pipefail
 
-# --- Config ------------------------------------------------------------------
-WP_URL="https://coinography.com"
-WP_API="${WP_URL}/wp-json/wp/v2"
-RM_API="${WP_URL}/wp-json/rankmath/v1"
-WP_USER="renu@coinography.com"
-WP_PASS="PXjy ZopD 4q7z VDqq E1EC 5Dox"
-CATEGORY_ID=17
-POST_STATUS="draft"
+# --- Config (project-driven) -------------------------------------------------
+# Per-site WordPress credentials + category come from the active project's
+# config file, never from hardcoded values. Project resolution order:
+#   1. --project flag (if passed)
+#   2. $PROJECT_SLUG env
+#   3. $PROJECT_CONFIG env (path to projects/<slug>.json)
+#   4. $PIPELINE_MANIFEST's "project" field
+#   5. fallback: "coinography"
+#
+# To override the project from the CLI, add `--project <slug>` to the
+# argument list (parsed below).
 
-ARTICLE_PATH="/tmp/crypto-article.md"
-IMAGE_PATH="/tmp/crypto-feature.jpg"
-CLEAN_MD="/tmp/crypto-article-clean.md"
-HTML_PATH="/tmp/crypto-article.html"
+SCRIPT_DIR_PUBLISH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_CONFIG_PY="$HOME/.openclaw/workspace-orchestrator/skills/pipeline/project_config.py"
+
+POST_STATUS="draft"
+PROJECT_ARG=""
+CLEAN_MD=""
+HTML_PATH=""
 RESULT_FILE="/tmp/wp-result.txt"
 ERROR_FILE="/tmp/wp-error.log"
 MAX_RETRIES=3
+
+ARTICLE_PATH=""
+IMAGE_PATH=""
+
+# --- Helpers (defined early so arg parsing can fatal) ------------------------
+log_info()  { echo "[INFO]  $*"; }
+log_error() { echo "[ERROR] $*" | tee -a "$ERROR_FILE" >&2; }
+fatal()     { log_error "$*"; exit 1; }
 
 # --- Argument Parsing --------------------------------------------------------
 TITLE=""
@@ -47,6 +61,7 @@ while [[ $# -gt 0 ]]; do
     --excerpt) EXCERPT="$2"; shift 2 ;;
     --article) ARTICLE_PATH="$2"; shift 2 ;;
     --image)   IMAGE_PATH="$2";   shift 2 ;;
+    --project) PROJECT_ARG="$2";  shift 2 ;;
     --status)
       POST_STATUS="$2"
       case "$POST_STATUS" in
@@ -59,13 +74,102 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Helpers -----------------------------------------------------------------
-log_info()  { echo "[INFO]  $*"; }
-log_error() { echo "[ERROR] $*" | tee -a "$ERROR_FILE"; }
-fatal()     { log_error "$*"; exit 1; }
+# --- Resolve project -> credentials + paths ----------------------------------
+cfg_field() {
+  local field="$1"
+  if [[ -n "$PROJECT_ARG" ]]; then
+    python3 "$PROJECT_CONFIG_PY" --slug "$PROJECT_ARG" --field "$field"
+  else
+    python3 "$PROJECT_CONFIG_PY" --field "$field"
+  fi
+}
+
+cfg_password() {
+  if [[ -n "$PROJECT_ARG" ]]; then
+    python3 "$PROJECT_CONFIG_PY" --slug "$PROJECT_ARG" --password
+  else
+    python3 "$PROJECT_CONFIG_PY" --password
+  fi
+}
+
+PROJECT_SLUG_RESOLVED=$(cfg_field slug) || fatal "Cannot resolve project (have you initialized a run?)"
+# Reliability gate: resolved project must match the manifest's project.
+MANIFEST_PATH="${PIPELINE_MANIFEST:-/tmp/openclaw-active-manifest.json}"
+if [[ -f "$MANIFEST_PATH" ]]; then
+  MANIFEST_PROJECT=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('project',''))" "$MANIFEST_PATH" 2>/dev/null || true)
+  if [[ -n "$MANIFEST_PROJECT" && "$MANIFEST_PROJECT" != "$PROJECT_SLUG_RESOLVED" ]]; then
+    fatal "PROJECT MISMATCH: resolved='$PROJECT_SLUG_RESOLVED' but manifest at $MANIFEST_PATH says project='$MANIFEST_PROJECT'. Aborting to prevent publishing to the wrong site."
+  fi
+fi
+WP_URL=$(cfg_field wordpress.url)             || fatal "missing wordpress.url in project '$PROJECT_SLUG_RESOLVED'"
+WP_USER=$(cfg_field wordpress.user)           || fatal "missing wordpress.user in project '$PROJECT_SLUG_RESOLVED'"
+WP_PASS=$(cfg_password)                       || fatal "missing wordpress.app_password_ref or password file for '$PROJECT_SLUG_RESOLVED'"
+FALLBACK_CATEGORY_ID=$(cfg_field wordpress.fallback_category_id 2>/dev/null || echo "")
+# Back-compat: older configs used a single wordpress.category_id.
+if [ -z "$FALLBACK_CATEGORY_ID" ]; then
+  FALLBACK_CATEGORY_ID=$(cfg_field wordpress.category_id 2>/dev/null || echo "17")
+fi
+DEFAULT_STATUS=$(cfg_field wordpress.default_status 2>/dev/null || echo "draft")
+# If the user didn't pass --status, fall back to the project's default.
+if [[ "$POST_STATUS" == "draft" ]] && [[ "$DEFAULT_STATUS" != "draft" ]] && [[ "$DEFAULT_STATUS" != "" ]]; then
+  POST_STATUS="$DEFAULT_STATUS"
+fi
+
+WP_API="${WP_URL}/wp-json/wp/v2"
+RM_API="${WP_URL}/wp-json/rankmath/v1"
+
+# Per-project /tmp paths (legacy /tmp/crypto-* still resolve via init_run.sh
+# symlinks when project=coinography for full backward compat).
+ARTICLE_PATH="${ARTICLE_PATH:-/tmp/${PROJECT_SLUG_RESOLVED}-article.md}"
+IMAGE_PATH="${IMAGE_PATH:-/tmp/${PROJECT_SLUG_RESOLVED}-feature.jpg}"
+CLEAN_MD="/tmp/${PROJECT_SLUG_RESOLVED}-article-clean.md"
+HTML_PATH="/tmp/${PROJECT_SLUG_RESOLVED}-article.html"
+
+# --- Resolve WordPress category IDs ------------------------------------------
+# Picker assigns 1 primary + up to 2 secondary categories, resolved to numeric
+# IDs by validate_picks.py and carried through validated.json as
+# wp_category_ids. Read them here; fall back to the project's
+# fallback_category_id when absent (legacy runs, single-story path, or errors).
+VALIDATED_JSON="${VALIDATED_JSON:-/tmp/${PROJECT_SLUG_RESOLVED}-research.json}"
+[ -f "$VALIDATED_JSON" ] || VALIDATED_JSON="/tmp/research.json"
+CATEGORY_IDS=$(VJSON="$VALIDATED_JSON" FB="$FALLBACK_CATEGORY_ID" python3 - <<'PY'
+import json, os
+vjson = os.environ.get("VJSON", "")
+fb = os.environ.get("FB", "17").strip() or "17"
+ids = []
+try:
+    with open(vjson, encoding="utf-8") as f:
+        data = json.load(f)
+    raw = data.get("wp_category_ids")
+    if isinstance(raw, list):
+        for x in raw:
+            try:
+                n = int(x)
+            except (TypeError, ValueError):
+                continue
+            if n > 0 and n not in ids:
+                ids.append(n)
+except Exception:
+    ids = []
+if not ids:
+    try:
+        ids = [int(fb)]
+    except ValueError:
+        ids = [17]
+print(",".join(str(i) for i in ids))
+PY
+)
+[ -n "$CATEGORY_IDS" ] || CATEGORY_IDS="$FALLBACK_CATEGORY_ID"
 
 # --- Setup -------------------------------------------------------------------
 rm -f "$ERROR_FILE" "$RESULT_FILE" "$CLEAN_MD" "$HTML_PATH" /tmp/wp-meta.txt
+
+log_info "Project:    $PROJECT_SLUG_RESOLVED"
+log_info "WP URL:     $WP_URL"
+log_info "WP user:    $WP_USER"
+log_info "Categories: $CATEGORY_IDS (fallback=$FALLBACK_CATEGORY_ID)"
+log_info "Article:    $ARTICLE_PATH"
+log_info "Image:      $IMAGE_PATH"
 
 if [ ! -f "$ARTICLE_PATH" ]; then
   fatal "Article not found at '$ARTICLE_PATH'. Has the Writer agent run yet?"
@@ -273,7 +377,7 @@ log_info "Final Slug:    ${SLUG:-<WordPress auto-generate>}"
 log_info "Focus Keyword:    ${FOCUS_KEYWORD:-<none>}"
 log_info "Secondary Keywords: ${SECONDARY_KEYWORDS:-<none>}"
 log_info "Rank Math Keywords: ${RANK_MATH_FOCUS_KEYWORD:-<none>}"
-log_info "Post Status:   $POST_STATUS | Category ID: $CATEGORY_ID"
+log_info "Post Status:   $POST_STATUS | Category IDs: $CATEGORY_IDS"
 
 # Alt text for uploaded media (feature + chart)
 MEDIA_ALT_TEXT="$FOCUS_KEYWORD"
@@ -317,7 +421,7 @@ if [ -f "$EFFECTIVE_IMAGE" ]; then
     MEDIA_RESPONSE=$(curl --silent --write-out "\n__STATUS__%{http_code}" \
       --user "${WP_USER}:${WP_PASS}" \
       --request POST "${WP_API}/media" \
-      --header "Content-Disposition: attachment; filename=crypto-feature.jpg" \
+      --header "Content-Disposition: attachment; filename=${PROJECT_SLUG_RESOLVED}-feature.jpg" \
       --header "Content-Type: image/jpeg" \
       --data-binary @"$EFFECTIVE_IMAGE" \
       --max-time 60)
@@ -407,7 +511,7 @@ with open(path, "r", encoding="utf-8") as f:
     html = f.read().strip()
 wrapped = (
     '<!-- wp:group {"layout":{"type":"constrained","contentSize":"720px"}} -->\n'
-    '<div class="wp-block-group coinography-article">\n'
+    f'<div class="wp-block-group ${PROJECT_SLUG_RESOLVED}-article">\n'
     f'<!-- wp:html -->\n{html}\n<!-- /wp:html -->\n'
     '</div>\n<!-- /wp:group -->'
 )
@@ -443,12 +547,14 @@ media_id = int("${MEDIA_ID}") if "${MEDIA_ID}" else 0
 with open("${HTML_PATH}", "r", encoding="utf-8") as f:
     content = f.read()
 
+category_ids = [int(x) for x in "${CATEGORY_IDS}".split(",") if x.strip()]
+
 data = {
     "title":      title,
     "content":    content,
     "excerpt":    excerpt,
     "status":     "${POST_STATUS}",
-    "categories": [${CATEGORY_ID}]
+    "categories": category_ids
 }
 
 if slug:

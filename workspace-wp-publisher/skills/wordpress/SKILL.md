@@ -49,8 +49,14 @@ All arguments are **optional** — excerpt, slug, keywords, and titles are read 
 
 ## Post Configuration
 
-| Setting | Value |
+Per-site settings come from `~/.openclaw/projects/<slug>.json` -- not hardcoded. The active project is resolved from `--project <slug>`, `$PROJECT_SLUG`, or the run manifest. Default project is `coinography` for backward compatibility.
+
+| Setting | Read from |
 |---|---|
-| Site | `https://coinography.com` |
-| Status | `draft` (default; use `--status publish` for live) |
-| Category | ID `17` (Latest News) |
+| Site URL | `wordpress.url` |
+| WP user | `wordpress.user` |
+| App password | file at `wordpress.app_password_ref` (mode 600) |
+| Category ID | `wordpress.category_id` |
+| Default status | `wordpress.default_status` (overridable via `--status`) |
+
+Today's Coinography values (`https://coinography.com`, user `renu@coinography.com`, category 17, draft) live in `projects/coinography.json`. Adding a new site = drop in `projects/<slug>.json` + `credentials/wp/<slug>.pass`. No code edits.

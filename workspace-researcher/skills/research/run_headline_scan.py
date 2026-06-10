@@ -98,8 +98,20 @@ for name in feeds.keys():
         for item in items:
             title_node = item.find('title')
             link_node = item.find('link')
-            pub_date_node = item.find('pubDate') or item.find('{http://www.w3.org/2005/Atom}published') or item.find('{http://www.w3.org/2005/Atom}updated') or item.find('published') or item.find('updated')
-            desc_node = item.find('description') or item.find('summary') or item.find('{http://www.w3.org/2005/Atom}summary')
+            
+            pub_date_node = None
+            for tag in ['pubDate', '{http://www.w3.org/2005/Atom}published', '{http://www.w3.org/2005/Atom}updated', 'published', 'updated']:
+                node = item.find(tag)
+                if node is not None:
+                    pub_date_node = node
+                    break
+            
+            desc_node = None
+            for tag in ['description', 'summary', '{http://www.w3.org/2005/Atom}summary']:
+                node = item.find(tag)
+                if node is not None:
+                    desc_node = node
+                    break
             
             headline = clean_html(title_node.text) if title_node is not None and title_node.text else ""
             

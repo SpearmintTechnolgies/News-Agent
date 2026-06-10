@@ -1,13 +1,14 @@
 # News Agent — OpenClaw Crypto News Pipeline
 
-Portable 7-agent crypto news pipeline for [OpenClaw](https://github.com/openclaw/openclaw). Clone this repo, copy into `~/.openclaw/`, fill in secrets, run `setup.sh`, and start the pipeline via Telegram.
+Portable **8-agent** crypto news pipeline for [OpenClaw](https://github.com/openclaw/openclaw). Supports **multi-project publishing** (Coinography + MemeCoinist) from a single Telegram bot. Clone this repo, copy into `~/.openclaw/`, fill in secrets, run `setup.sh`, and start the pipeline.
 
 ## Agents
 
 | Agent | Persona | Role |
 |-------|---------|------|
 | `orchestrator` | Nexus | Pipeline controller + Telegram news cards |
-| `researcher` | Scout | RSS research |
+| `researcher` | Scout | RSS headline scan + deep research |
+| `picker` | Sieve | WP category classification + N-story diversity selection |
 | `writer` | Quill | Article writing |
 | `chart-generator` | — | Article charts |
 | `creator` | Pixel | Feature image (Imagen) |
@@ -15,6 +16,30 @@ Portable 7-agent crypto news pipeline for [OpenClaw](https://github.com/openclaw
 | `wp-publisher` | Scribe | WordPress publish |
 
 See [AGENT_PIPELINE_REGISTRY.md](AGENT_PIPELINE_REGISTRY.md) for full pipeline reference.
+
+## Projects (multi-site)
+
+Publishing targets live in [`projects/`](projects/):
+
+| Slug | Site | Template |
+|------|------|----------|
+| `coinography` | coinography.com | `workspace-writer/COINOGRAPHY_TEMPLATE.md` |
+| `memecoinist` | memecoinist.com | `workspace-mc-writer/MEMECOIN_TEMPLATE.md` |
+
+Trigger examples on Telegram:
+```
+run pipeline coinography 3
+run pipeline memecoinist 2
+run pipeline 1          # defaults to coinography
+```
+
+WordPress categories are synced per project:
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/sync_wp_categories.py --slug coinography
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/sync_wp_categories.py --slug memecoinist
+```
+
+See [`projects/README.md`](projects/README.md) for project config schema.
 
 ---
 
@@ -24,15 +49,13 @@ Complete these steps on a **new OpenClaw host** to get the News Agent running.
 
 ### Prerequisites
 
-Install and configure before starting:
-
 - **OpenClaw CLI** — gateway running locally
 - **Python 3** and **`sqlite3`** CLI
 - **Bifrost/Vertex** — OpenAI-compatible API proxy for Gemini models
 - **SearXNG** — web search plugin (configured in `openclaw.json`)
 - **`gog` CLI** — Google Drive uploads
 - **`pandoc`** — markdown → DOCX conversion
-- **WordPress site** — REST API enabled + Application Password
+- **WordPress site(s)** — REST API enabled + Application Password per project
 - **Telegram bot** — create via [@BotFather](https://t.me/BotFather)
 - **Telegram group** — add the bot, note the group ID (e.g. `-1001234567890`)
 
@@ -44,11 +67,8 @@ Install and configure before starting:
 git clone https://github.com/SpearmintTechnolgies/News-Agent.git
 cd News-Agent
 
-# Copy workspaces, skills, and setup script into OpenClaw home
-cp -r workspace-* skills ~/.openclaw/
+cp -r workspace-* skills projects ~/.openclaw/
 cp example.openclaw.json example.exec-approvals.json setup.sh ~/.openclaw/
-
-# Create openclaw.json from the example template
 cp ~/.openclaw/example.openclaw.json ~/.openclaw/openclaw.json
 ```
 
@@ -60,64 +80,47 @@ Edit `~/.openclaw/openclaw.json` and replace every `YOUR_*` placeholder:
 
 | Placeholder | What to put |
 |-------------|-------------|
-| `YOUR_GCP_PROJECT_ID` | Your Google Cloud project ID (Vertex/Bifrost) |
-| `YOUR_BIFROST_HOST` | Bifrost proxy host (e.g. `localhost` or `172.30.x.x`) |
+| `YOUR_GCP_PROJECT_ID` | Google Cloud project ID (Vertex/Bifrost) |
+| `YOUR_BIFROST_HOST` | Bifrost proxy host |
 | `YOUR_AWS_BEDROCK_BEARER_TOKEN` | AWS Bedrock bearer token (if using Bedrock plugin) |
 | `YOUR_OPENCLAW_GATEWAY_AUTH_TOKEN` | Token for OpenClaw web UI / gateway auth |
 | `YOUR_TELEGRAM_NEWS_BOT_TOKEN_FROM_BOTFATHER` | Bot token from @BotFather |
-| `YOUR_TELEGRAM_NEWS_GROUP_ID` | Telegram group ID for news cards (e.g. `-1001234567890`) |
+| `YOUR_TELEGRAM_NEWS_GROUP_ID` | Telegram group ID for news cards |
+| `YOUR_TELEGRAM_USER_ID` | Your Telegram user ID for owner allowlist |
 
-Also replace **`/home/USER`** in all workspace paths with your actual home directory:
-
-```bash
-# Example: replace USER with your username
-sed -i 's|/home/USER|/home/yourname|g' ~/.openclaw/openclaw.json
-```
+Replace **`/home/USER`** in all workspace paths with your actual home directory.
 
 ---
 
-### Step 2b — Exec approvals (agent allowlist)
-
-Copy and configure the exec-approvals template so pipeline agents can run shell commands:
+### Step 3 — WordPress credentials (per project)
 
 ```bash
-cp ~/.openclaw/example.exec-approvals.json ~/.openclaw/exec-approvals.json
-sed -i 's|/home/USER|/home/yourname|g' ~/.openclaw/exec-approvals.json
-```
+mkdir -p ~/.openclaw/credentials/wp
 
-Replace `YOUR_EXEC_APPROVALS_SOCKET_TOKEN` with a secret token (or let OpenClaw generate one on first run).
+# Create one app-password file per project (never commit these)
+nano ~/.openclaw/credentials/wp/coinography.pass
+nano ~/.openclaw/credentials/wp/memecoinist.pass
 
-News agents included: `orchestrator`, `researcher`, `writer`, `chart-generator`, `creator`, `publisher`, `wp-publisher`. On a fresh host, OpenClaw may prompt once to approve specific pipeline commands — the broad `/usr/bin/*` allow rules cover most cases.
-
----
-
-### Step 3 — WordPress credentials
-
-```bash
 cp ~/.openclaw/workspace-wp-publisher/TOOLS.md.example \
    ~/.openclaw/workspace-wp-publisher/TOOLS.md
 ```
 
-Edit `TOOLS.md` with your site URL, username, and app password. Then update the same values in:
+Edit `projects/coinography.json` and `projects/memecoinist.json` with your site URLs and WP usernames. Sync live categories:
 
-- `~/.openclaw/workspace-wp-publisher/skills/wordpress/publish.sh`
-- `~/.openclaw/workspace-wp-publisher/skills/wordpress/wp_post_actions.sh`
-
-Look for `YOUR_WORDPRESS_SITE_URL`, `YOUR_WP_USERNAME`, and `YOUR_WP_APP_PASSWORD`.
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/sync_wp_categories.py --slug coinography
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/sync_wp_categories.py --slug memecoinist
+```
 
 ---
 
 ### Step 4 — Google Drive (gog) credentials
 
-Edit these files and replace the placeholders:
+Edit `~/.openclaw/workspace-publisher/SOUL.md` and replace:
+- `YOUR_GOG_KEYRING_PASSWORD`
+- `YOUR_GOOGLE_ACCOUNT@gmail.com`
 
-- `~/.openclaw/workspace-publisher/SOUL.md`
-- `~/.openclaw/workspace-orchestrator/SOUL.md`
-
-| Placeholder | What to put |
-|-------------|-------------|
-| `YOUR_GOG_KEYRING_PASSWORD` | Password for the gog keyring |
-| `YOUR_GOOGLE_ACCOUNT@gmail.com` | Google account used with `gog drive` |
+Set matching values in each project's `publisher.drive_account` in `projects/<slug>.json`.
 
 ---
 
@@ -128,86 +131,30 @@ Edit `~/.openclaw/workspace-orchestrator/config/telegram_card_config.json`:
 ```json
 {
   "group_id": "YOUR_TELEGRAM_NEWS_GROUP_ID",
-  "group_name": "news-agent"
+  "group_name": "news-agent",
+  "telegram_account": "news"
 }
 ```
-
-Use the same group ID as in `openclaw.json`.
 
 ---
 
 ### Step 6 — Initialize databases (`setup.sh`)
 
-Run the setup script to create both SQLite databases and seed topic dedup state:
-
 ```bash
 bash ~/.openclaw/setup.sh
 ```
 
-Expected output:
-
-```
-[setup] OpenClaw home: /home/yourname/.openclaw
-EDITORIAL_DB_OK: /home/yourname/.openclaw/data/editorial.db
-
-Setup complete.
-  Editorial DB:       /home/yourname/.openclaw/data/editorial.db
-  Article history DB: /home/yourname/.openclaw/article_history.db
-```
-
-What `setup.sh` creates:
-
-| File | Purpose |
-|------|---------|
-| `~/.openclaw/data/editorial.db` | Telegram news cards + editorial feedback (RATE / PUBLISH / EDIT) |
-| `~/.openclaw/article_history.db` | Duplicate URL check (7-day rolling window) |
-| `workspace-orchestrator/state/recent_topics.json` | Empty `[]` seed if missing (topic dedup) |
-
-Manual DB commands (optional):
-
-```bash
-# Init or check editorial DB
-python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/editorial_db.py init
-python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/editorial_db.py status
-```
+Creates editorial DB, article history DB, and seeds topic dedup state.
 
 ---
 
 ### Step 7 — Start and run
 
-1. **Start the OpenClaw gateway**
-   ```bash
-   openclaw gateway start   # or your usual start command
-   ```
+1. Start the OpenClaw gateway
+2. Message the News Agent bot on Telegram: `run pipeline coinography 1`
+3. Use editorial feedback in the group: `RATE 8`, `PUBLISH`, `EDIT`
 
-2. **Trigger the pipeline** — message the News Agent bot on Telegram:
-   ```
-   run crypto news pipeline
-   ```
-
-3. **Editorial feedback** — in the configured Telegram group, use:
-   - `RATE 8` — rate the article
-   - `PUBLISH` — publish to WordPress (author picker)
-   - `EDIT` — suggest edits
-
-See [EDITORIAL_FEEDBACK.md](workspace-orchestrator/EDITORIAL_FEEDBACK.md) for full editorial commands.
-
----
-
-### Setup checklist
-
-Use this to confirm everything is ready:
-
-- [ ] Cloned repo and copied `workspace-*`, `skills`, `setup.sh`, `example.exec-approvals.json` to `~/.openclaw/`
-- [ ] `openclaw.json` created from `example.openclaw.json` with all `YOUR_*` filled in
-- [ ] `exec-approvals.json` created from `example.exec-approvals.json` with paths and token set
-- [ ] `/home/USER` paths updated to your home directory
-- [ ] `TOOLS.md` created from example; WP creds set in `publish.sh` and `wp_post_actions.sh`
-- [ ] gog credentials set in publisher and orchestrator `SOUL.md`
-- [ ] `telegram_card_config.json` group ID set
-- [ ] `bash ~/.openclaw/setup.sh` ran successfully
-- [ ] OpenClaw gateway started
-- [ ] Test message sent to News Agent bot on Telegram
+See [workspace-orchestrator/EDITORIAL_FEEDBACK.md](workspace-orchestrator/EDITORIAL_FEEDBACK.md).
 
 ---
 
@@ -215,20 +162,24 @@ Use this to confirm everything is ready:
 
 ```
 News-Agent/
-├── setup.sh                      # Step 6 — init SQLite DBs
-├── example.openclaw.json         # Step 2 — config template
-├── example.exec-approvals.json   # Step 2b — agent allowlist template
+├── setup.sh
+├── example.openclaw.json
+├── example.exec-approvals.json
 ├── README.md
 ├── AGENT_PIPELINE_REGISTRY.md
 ├── PIPELINE_ARCHITECTURE.md
+├── PIPELINE_DOCS/
+├── projects/                    # coinography.json, memecoinist.json
 ├── skills/chart-generator/
-├── workspace-orchestrator/   # Nexus + pipeline scripts + editorial_db.py
+├── workspace-orchestrator/      # Nexus + pipeline scripts
 ├── workspace-researcher/
+├── workspace-picker/            # Sieve — WP category picker
 ├── workspace-writer/
+├── workspace-mc-writer/           # MemeCoinist article template only
 ├── workspace-chart-generator/
 ├── workspace-creator/
 ├── workspace-publisher/
-└── workspace-wp-publisher/   # TOOLS.md.example → copy to TOOLS.md locally
+└── workspace-wp-publisher/
 ```
 
 ---
@@ -237,4 +188,5 @@ News-Agent/
 
 - [AGENT_PIPELINE_REGISTRY.md](AGENT_PIPELINE_REGISTRY.md) — canonical agent/step reference
 - [PIPELINE_ARCHITECTURE.md](PIPELINE_ARCHITECTURE.md) — architecture overview
-- [workspace-orchestrator/EDITORIAL_FEEDBACK.md](workspace-orchestrator/EDITORIAL_FEEDBACK.md) — Telegram RATE/PUBLISH/EDIT behavior
+- [projects/README.md](projects/README.md) — project config schema
+- [PIPELINE_DOCS/coinography-wordpress-api-integration.md](PIPELINE_DOCS/coinography-wordpress-api-integration.md) — WP REST API guide

@@ -40,10 +40,15 @@ from editorial_db import (
     upsert_edit_session,
 )
 
+import project_config as pc  # noqa: E402
+
 OPENCLAW_JSON = os.path.expanduser("~/.openclaw/openclaw.json")
 WP_ACTIONS = os.path.expanduser(
     "~/.openclaw/workspace-wp-publisher/skills/wordpress/wp_post_actions.sh"
 )
+# Legacy global authors file -- kept as a fallback when no project context
+# is available (e.g. dev tools or old data). Production reads authors from
+# the active project's config (projects/<slug>.json).
 WP_AUTHORS_JSON = os.path.expanduser(
     "~/.openclaw/workspace-orchestrator/config/wp_authors.json"
 )
@@ -255,7 +260,30 @@ def build_draft_confirm_keyboard(run_id: str) -> dict:
     }
 
 
-def load_wp_authors() -> list[dict]:
+def load_wp_authors(project: str | None = None) -> list[dict]:
+    """Load authors list for the given project.
+
+    Resolution order:
+      1. If `project` is supplied, read `authors` from projects/<project>.json.
+      2. Otherwise, try to resolve project from env / manifest.
+      3. As a last resort, fall back to the legacy global `wp_authors.json`.
+
+    Returns a list of `{id, label, name}` dicts.
+    """
+    if project is None:
+        try:
+            project = pc.resolve_project_slug()
+        except Exception:
+            project = None
+    if project:
+        try:
+            cfg = pc.load_project_config(slug=project)
+            authors = cfg.get("authors") or []
+            cleaned = [a for a in authors if isinstance(a, dict) and a.get("id")]
+            if cleaned:
+                return cleaned
+        except (FileNotFoundError, ValueError):
+            pass
     try:
         with open(WP_AUTHORS_JSON, encoding="utf-8") as f:
             data = json.load(f)
@@ -265,8 +293,8 @@ def load_wp_authors() -> list[dict]:
         return []
 
 
-def author_by_id(author_id: int) -> dict | None:
-    for author in load_wp_authors():
+def author_by_id(author_id: int, project: str | None = None) -> dict | None:
+    for author in load_wp_authors(project=project):
         if int(author.get("id", -1)) == author_id:
             return author
     return None
@@ -279,8 +307,11 @@ def _author_callback_data(run_id: str, author_id: int) -> str:
     return data
 
 
-def author_picker_labels() -> str:
-    labels = [str(a.get("label") or a.get("name") or a["id"]) for a in load_wp_authors()]
+def author_picker_labels(project: str | None = None) -> str:
+    labels = [
+        str(a.get("label") or a.get("name") or a["id"])
+        for a in load_wp_authors(project=project)
+    ]
     if not labels:
         return "an author"
     if len(labels) == 1:
@@ -458,17 +489,31 @@ def resolve_article_markdown(article: Article, db_path: str) -> str | None:
         if os.path.isfile(path):
             with open(path, encoding="utf-8") as f:
                 return f.read()
-    fallback = f"/tmp/crypto-run-{article.run_id}/article/final.md"
+    project = getattr(article, "project", None) or "coinography"
+    fallback = f"/tmp/{project}-run-{article.run_id}/article/final.md"
     if os.path.isfile(fallback):
         with open(fallback, encoding="utf-8") as f:
+            return f.read()
+    # Second-chance: legacy crypto-run-* path for old DB rows pre-migration
+    legacy_fallback = f"/tmp/crypto-run-{article.run_id}/article/final.md"
+    if legacy_fallback != fallback and os.path.isfile(legacy_fallback):
+        with open(legacy_fallback, encoding="utf-8") as f:
             return f.read()
     return None
 
 
-def run_wp_action(args: list[str]) -> tuple[bool, str]:
+def run_wp_action(args: list[str], project: str | None = None) -> tuple[bool, str]:
+    """Invoke wp_post_actions.sh with the given args. If `project` is set,
+    `--project <slug>` is appended so the script targets the correct site's
+    credentials. When omitted, the script falls back to its own resolution
+    (env / manifest / coinography default).
+    """
+    full_args = list(args)
+    if project and not any(a == "--project" for a in full_args):
+        full_args.extend(["--project", project])
     try:
         result = subprocess.run(
-            ["bash", WP_ACTIONS, *args],
+            ["bash", WP_ACTIONS, *full_args],
             capture_output=True,
             text=True,
             timeout=120,
@@ -542,7 +587,10 @@ def handle_draft_yes(
         if token and chat_id:
             send_message(token, chat_id, "No WordPress post ID on file.", reply_to_message_id=reply_id)
         return "DRAFT_FAILED: no wp_post_id"
-    ok, msg = run_wp_action(["--post-id", article.wp_post_id, "--set-status", "draft"])
+    ok, msg = run_wp_action(
+        ["--post-id", article.wp_post_id, "--set-status", "draft"],
+        project=getattr(article, "project", None),
+    )
     if not ok:
         if token and chat_id:
             send_message(token, chat_id, f"Unpublish failed: {msg}", reply_to_message_id=reply_id)
@@ -571,7 +619,7 @@ def handle_publish_request(
                 reply_to_message_id=reply_id,
             )
         return f"PUBLISH_ALREADY: {article.alert_id}"
-    authors = load_wp_authors()
+    authors = load_wp_authors(project=getattr(article, "project", None))
     if not authors:
         if token and chat_id:
             send_message(token, chat_id, "Author list not configured.", reply_to_message_id=reply_id)
@@ -594,7 +642,7 @@ def handle_publish_author_pick(
     chat_id: str,
     reply_id: int | None,
 ) -> str:
-    author = author_by_id(author_id)
+    author = author_by_id(author_id, project=getattr(article, "project", None))
     if not author:
         if token and chat_id:
             send_message(token, chat_id, "Unknown author.", reply_to_message_id=reply_id)
@@ -666,7 +714,7 @@ def handle_publish_yes(
         if token and chat_id:
             send_message(token, chat_id, "No WordPress post ID on file.", reply_to_message_id=reply_id)
         return "PUBLISH_FAILED: no wp_post_id"
-    author = author_by_id(author_id)
+    author = author_by_id(author_id, project=getattr(article, "project", None))
     if not author:
         if token and chat_id:
             send_message(token, chat_id, "Unknown author.", reply_to_message_id=reply_id)
@@ -680,7 +728,8 @@ def handle_publish_yes(
             "publish",
             "--author",
             str(author_id),
-        ]
+        ],
+        project=getattr(article, "project", None),
     )
     if not ok:
         if token and chat_id:
@@ -833,7 +882,8 @@ def handle_edit_apply(
         tmp_path = f.name
     try:
         ok, msg = run_wp_action(
-            ["--post-id", article.wp_post_id, "--markdown", tmp_path, "--update-content"]
+            ["--post-id", article.wp_post_id, "--markdown", tmp_path, "--update-content"],
+            project=getattr(article, "project", None),
         )
     finally:
         os.unlink(tmp_path)
@@ -1055,7 +1105,7 @@ def main() -> int:
                 send_message(
                     token,
                     chat_id,
-                    f"Choose an author first ({author_picker_labels()}).",
+                    f"Choose an author first ({author_picker_labels(project=getattr(article, 'project', None))}).",
                     reply_to_message_id=reply_id,
                 )
             print("PUBLISH_FAILED: author required")

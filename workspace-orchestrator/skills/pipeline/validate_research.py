@@ -66,6 +66,19 @@ def main() -> int:
         default=None,
         help="Override path to write validated JSON (default: manifest.artifacts.research_validated).",
     )
+    parser.add_argument(
+        "--picks",
+        default=None,
+        help="Path to picks.json. When given with --pick-index, the pick's "
+        "category + wp_category_slugs + wp_category_ids are injected "
+        "authoritatively into validated.json (overrides researcher copy).",
+    )
+    parser.add_argument(
+        "--pick-index",
+        type=int,
+        default=None,
+        help="1-based pick index to look up in --picks.",
+    )
     args = parser.parse_args()
 
     manifest_path = os.path.realpath(args.manifest)
@@ -125,6 +138,38 @@ def main() -> int:
 
     data.pop("tweet_quotes", None)
 
+    # Authoritatively inject WP category info from the pick (if provided).
+    # picks.json is the source of truth (validated + id-resolved by
+    # validate_picks.py), so this overrides whatever the researcher copied.
+    wp_category_slugs = data.get("wp_category_slugs")
+    wp_category_ids = data.get("wp_category_ids")
+    if args.picks and args.pick_index is not None and os.path.exists(args.picks):
+        try:
+            with open(args.picks, encoding="utf-8") as f:
+                picks_doc = json.load(f)
+            match = next(
+                (
+                    p
+                    for p in (picks_doc.get("picks") or [])
+                    if int(p.get("pick_index", -1)) == int(args.pick_index)
+                ),
+                None,
+            )
+            if match:
+                if isinstance(match.get("wp_category_slugs"), list):
+                    wp_category_slugs = match["wp_category_slugs"]
+                if isinstance(match.get("wp_category_ids"), list):
+                    wp_category_ids = match["wp_category_ids"]
+                if match.get("category"):
+                    data["category"] = match["category"]
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            print(f"[WARN] Could not read pick categories from {args.picks}: {e}", file=sys.stderr)
+
+    if isinstance(wp_category_slugs, list):
+        data["wp_category_slugs"] = wp_category_slugs
+    if isinstance(wp_category_ids, list):
+        data["wp_category_ids"] = wp_category_ids
+
     # Atomically write validated.json
     if not validated_path:
         # Fall back to run_dir if artifact key missing (shouldn't happen)
@@ -143,6 +188,10 @@ def main() -> int:
             "headline": data.get("primary_headline", ""),
             "chart_coin": data.get("chart_coin", "bitcoin"),
             "category": data.get("category") or manifest.get("story", {}).get("category", ""),
+            "wp_category_slugs": data.get("wp_category_slugs")
+            or manifest.get("story", {}).get("wp_category_slugs", []),
+            "wp_category_ids": data.get("wp_category_ids")
+            or manifest.get("story", {}).get("wp_category_ids", []),
         }
         manifest["current_step"] = "research_validated"
         atomic_write_json(manifest_path, manifest)

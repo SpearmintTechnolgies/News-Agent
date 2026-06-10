@@ -116,6 +116,7 @@ class Article:
     wp_status: str = "draft"
     wp_author_id: int | None = None
     category: str | None = None
+    project: str = "coinography"
 
 
 @dataclass
@@ -156,6 +157,7 @@ class PickedStory:
     raw_payload: str
     status: str
     failed_reason: str | None
+    project: str = "coinography"
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -178,6 +180,29 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE articles ADD COLUMN wp_author_id INTEGER")
     if not _column_exists(conn, "articles", "category"):
         conn.execute("ALTER TABLE articles ADD COLUMN category TEXT")
+    # Multi-project support: every article + pick is tied to a publishing project.
+    # Existing rows are coinography (the only project until now), so backfill
+    # via the column DEFAULT and an explicit UPDATE for any pre-existing rows.
+    if not _column_exists(conn, "articles", "project"):
+        conn.execute("ALTER TABLE articles ADD COLUMN project TEXT NOT NULL DEFAULT 'coinography'")
+        conn.execute("UPDATE articles SET project = 'coinography' WHERE project IS NULL OR project = ''")
+    if not _column_exists(conn, "picked_stories", "project"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN project TEXT NOT NULL DEFAULT 'coinography'")
+        conn.execute("UPDATE picked_stories SET project = 'coinography' WHERE project IS NULL OR project = ''")
+    # WordPress category support: each pick/article carries 1 primary + up to 2
+    # secondary WP categories. Stored as JSON arrays of slugs and resolved IDs.
+    # The legacy single `category` column keeps the PRIMARY slug for back-compat
+    # with recent_published_categories() diversity logic.
+    if not _column_exists(conn, "picked_stories", "wp_category_slugs"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN wp_category_slugs TEXT")
+    if not _column_exists(conn, "picked_stories", "wp_category_ids"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN wp_category_ids TEXT")
+    if not _column_exists(conn, "articles", "wp_category_slugs"):
+        conn.execute("ALTER TABLE articles ADD COLUMN wp_category_slugs TEXT")
+    if not _column_exists(conn, "articles", "wp_category_ids"):
+        conn.execute("ALTER TABLE articles ADD COLUMN wp_category_ids TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_project ON articles(project, created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_picked_project ON picked_stories(project, pick_run_id)")
     conn.execute("UPDATE articles SET wp_status = 'draft' WHERE wp_status IS NULL")
 
 
@@ -209,6 +234,7 @@ def _row_to_article(row: sqlite3.Row) -> Article:
             else None
         ),
         category=row["category"] if "category" in keys else None,
+        project=(row["project"] if "project" in keys else None) or "coinography",
     )
 
 
@@ -233,13 +259,14 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
     if message_id is None or not group:
         raise ValueError("telegram_message_id and telegram_group required")
 
+    project = str(card.get("project") or "coinography").strip() or "coinography"
     with _connect(db_path) as conn:
         conn.execute(
             """
             INSERT INTO articles (
               run_id, alert_id, story_id, headline, category, wp_url, wp_post_id,
-              telegram_group, telegram_message_id, card_sent_at, run_dir, wp_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              telegram_group, telegram_message_id, card_sent_at, run_dir, wp_status, project
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id) DO UPDATE SET
               alert_id = excluded.alert_id,
               story_id = excluded.story_id,
@@ -251,7 +278,8 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
               telegram_message_id = excluded.telegram_message_id,
               card_sent_at = excluded.card_sent_at,
               run_dir = excluded.run_dir,
-              wp_status = COALESCE(excluded.wp_status, articles.wp_status)
+              wp_status = COALESCE(excluded.wp_status, articles.wp_status),
+              project = excluded.project
             """,
             (
                 run_id,
@@ -266,6 +294,7 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
                 str(card.get("card_sent_at") or "") or None,
                 str(card.get("run_dir") or "") or None,
                 str(card.get("wp_status") or "draft"),
+                project,
             ),
         )
         conn.commit()
@@ -499,6 +528,7 @@ PICK_VALID_STATUSES = {
 
 
 def _row_to_pick(row: sqlite3.Row) -> PickedStory:
+    keys = row.keys()
     return PickedStory(
         id=row["id"],
         pick_run_id=row["pick_run_id"],
@@ -518,6 +548,7 @@ def _row_to_pick(row: sqlite3.Row) -> PickedStory:
         raw_payload=row["raw_payload"],
         status=row["status"],
         failed_reason=row["failed_reason"],
+        project=(row["project"] if "project" in keys else None) or "coinography",
     )
 
 
@@ -526,6 +557,7 @@ def insert_picked_stories(
     pick_run_id: str,
     *,
     pipeline_run_id: str | None = None,
+    project: str = "coinography",
     db_path: str = DEFAULT_DB_PATH,
 ) -> list[int]:
     """Bulk insert picks from picks.json. Returns inserted row ids in order."""
@@ -534,6 +566,7 @@ def insert_picked_stories(
         return []
     import json as _json
 
+    project = (project or "coinography").strip() or "coinography"
     inserted: list[int] = []
     with _connect(db_path) as conn:
         for pick in picks:
@@ -542,13 +575,18 @@ def insert_picked_stories(
                 alt = _json.dumps(alt)
             elif alt is not None:
                 alt = str(alt)
+            wp_slugs = pick.get("wp_category_slugs")
+            wp_slugs = _json.dumps(wp_slugs) if isinstance(wp_slugs, list) else None
+            wp_ids = pick.get("wp_category_ids")
+            wp_ids = _json.dumps(wp_ids) if isinstance(wp_ids, list) else None
             cur = conn.execute(
                 """
                 INSERT INTO picked_stories (
                   pick_run_id, pipeline_run_id, pick_index, category, category_score,
                   alt_categories, story_id, primary_headline, primary_url,
-                  primary_asset, pub_date, source_name, raw_payload, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                  primary_asset, pub_date, source_name, raw_payload, status, project,
+                  wp_category_slugs, wp_category_ids
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
                 """,
                 (
                     pick_run_id,
@@ -568,6 +606,9 @@ def insert_picked_stories(
                     str(pick.get("pub_date") or "") or None,
                     str(pick.get("source") or pick.get("source_name") or "") or None,
                     _json.dumps(pick, ensure_ascii=False),
+                    project,
+                    wp_slugs,
+                    wp_ids,
                 ),
             )
             inserted.append(int(cur.lastrowid))
@@ -661,23 +702,29 @@ def get_pick_by_index(
 
 
 def recent_published_categories(
-    hours: int = 24, db_path: str = DEFAULT_DB_PATH
+    hours: int = 24,
+    project: str = "coinography",
+    db_path: str = DEFAULT_DB_PATH,
 ) -> list[str]:
-    """Distinct categories of articles drafted/published within the window.
+    """Distinct categories of articles drafted/published within the window
+    for a given project.
 
     Sourced from `articles` (canonical record of cards sent), filtered by
-    `created_at >= now - hours`. Used by picker to bias away from recent
-    categories.
+    `created_at >= now - hours` and `project`. Used by picker to bias away
+    from recent categories *within the same site*. Different projects can
+    legitimately repeat categories independently.
     """
     init_db(db_path)
+    project = (project or "coinography").strip() or "coinography"
     with _connect(db_path) as conn:
         rows = conn.execute(
             """
             SELECT DISTINCT category FROM articles
             WHERE category IS NOT NULL AND category != ''
+              AND project = ?
               AND created_at >= datetime('now', ?)
             ORDER BY created_at DESC
             """,
-            (f"-{int(hours)} hours",),
+            (project, f"-{int(hours)} hours"),
         ).fetchall()
     return [r["category"] for r in rows if r["category"]]

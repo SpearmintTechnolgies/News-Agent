@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# wp_post_actions.sh — Update existing WordPress posts (draft / publish / content)
+# wp_post_actions.sh -- Update existing WordPress posts (draft / publish / content)
+#
+# Per-site WP credentials come from the active project's config -- never
+# hardcoded. The project is resolved from --project / $PROJECT_SLUG / manifest.
 #
 # Usage:
 #   bash wp_post_actions.sh --post-id 123 --set-status draft
-#   bash wp_post_actions.sh --post-id 123 --set-status publish
 #   bash wp_post_actions.sh --post-id 123 --set-status publish --author 17
 #   bash wp_post_actions.sh --post-id 123 --markdown /path/to/article.md --update-content
+#   bash wp_post_actions.sh --post-id 123 --set-status draft --project memecoinist
 #
 # Output (stdout):
 #   WP_DRAFT_OK: post_id=... url=...
@@ -15,16 +18,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WP_URL="https://coinography.com"
-WP_API="${WP_URL}/wp-json/wp/v2"
-WP_USER="renu@coinography.com"
-WP_PASS="PXjy ZopD 4q7z VDqq E1EC 5Dox"
+PROJECT_CONFIG_PY="$HOME/.openclaw/workspace-orchestrator/skills/pipeline/project_config.py"
 
 POST_ID=""
 SET_STATUS=""
 AUTHOR_ID=""
 MARKDOWN_PATH=""
 UPDATE_CONTENT=0
+PROJECT_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,6 +34,7 @@ while [[ $# -gt 0 ]]; do
     --author) AUTHOR_ID="$2"; shift 2 ;;
     --markdown) MARKDOWN_PATH="$2"; shift 2 ;;
     --update-content) UPDATE_CONTENT=1; shift ;;
+    --project) PROJECT_ARG="$2"; shift 2 ;;
     *) echo "WP_ACTION_FAILED: unknown arg $1"; exit 1 ;;
   esac
 done
@@ -46,6 +48,29 @@ fail() {
   echo "WP_ACTION_FAILED: $*"
   exit 1
 }
+
+cfg_field() {
+  local field="$1"
+  if [[ -n "$PROJECT_ARG" ]]; then
+    python3 "$PROJECT_CONFIG_PY" --slug "$PROJECT_ARG" --field "$field"
+  else
+    python3 "$PROJECT_CONFIG_PY" --field "$field"
+  fi
+}
+
+cfg_password() {
+  if [[ -n "$PROJECT_ARG" ]]; then
+    python3 "$PROJECT_CONFIG_PY" --slug "$PROJECT_ARG" --password
+  else
+    python3 "$PROJECT_CONFIG_PY" --password
+  fi
+}
+
+PROJECT_SLUG_RESOLVED=$(cfg_field slug 2>/dev/null) || fail "cannot resolve project"
+WP_URL=$(cfg_field wordpress.url 2>/dev/null)       || fail "missing wordpress.url for $PROJECT_SLUG_RESOLVED"
+WP_USER=$(cfg_field wordpress.user 2>/dev/null)     || fail "missing wordpress.user for $PROJECT_SLUG_RESOLVED"
+WP_PASS=$(cfg_password 2>/dev/null)                 || fail "missing WP app password for $PROJECT_SLUG_RESOLVED"
+WP_API="${WP_URL}/wp-json/wp/v2"
 
 clean_markdown() {
   local src="$1"

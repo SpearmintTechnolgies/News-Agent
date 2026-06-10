@@ -2,8 +2,9 @@
 # setup.sh — first-run setup for News Agent on a new OpenClaw host
 #
 # Usage:
-#   cp -r workspace-* skills ~/.openclaw/
+#   cp -r workspace-* skills projects ~/.openclaw/
 #   cp example.openclaw.json ~/.openclaw/openclaw.json   # then edit placeholders
+#   cp example.exec-approvals.json ~/.openclaw/exec-approvals.json
 #   bash setup.sh
 
 set -euo pipefail
@@ -38,14 +39,26 @@ if [[ ! -f "$STATE" ]]; then
   echo "[setup] Seeded empty recent_topics.json"
 fi
 
+# 4. Project configs (if copied from repo)
+if [[ -d "$SCRIPT_DIR/projects" && ! -d "$OPENCLAW_HOME/projects" ]]; then
+  cp -r "$SCRIPT_DIR/projects" "$OPENCLAW_HOME/projects"
+  echo "[setup] Copied projects/ to $OPENCLAW_HOME/projects"
+fi
+
+# 5. WP credentials directory (empty — user fills in .pass files)
+mkdir -p "$OPENCLAW_HOME/credentials/wp"
+echo "[setup] Create app passwords at: $OPENCLAW_HOME/credentials/wp/<slug>.pass"
+
 echo ""
 echo "Setup complete."
 echo "  Editorial DB:       $OPENCLAW_HOME/data/editorial.db"
 echo "  Article history DB: $OPENCLAW_HOME/article_history.db"
+echo "  Project configs:    $OPENCLAW_HOME/projects/"
 echo ""
 echo "Next steps:"
 echo "  1. Edit ~/.openclaw/openclaw.json — replace all YOUR_* placeholders"
 echo "  2. cp workspace-wp-publisher/TOOLS.md.example ~/.openclaw/workspace-wp-publisher/TOOLS.md"
-echo "  3. Update WP credentials in TOOLS.md and publish.sh / wp_post_actions.sh"
-echo "  4. Replace /home/USER with your home path in openclaw.json workspace paths"
-echo "  5. Start OpenClaw gateway and message the News Agent bot on Telegram"
+echo "  3. Add WP app passwords: credentials/wp/coinography.pass, credentials/wp/memecoinist.pass"
+echo "  4. Run: python3 workspace-orchestrator/skills/pipeline/sync_wp_categories.py --slug coinography"
+echo "  5. Replace /home/USER with your home path in openclaw.json workspace paths"
+echo "  6. Start OpenClaw gateway and message the News Agent bot on Telegram"

@@ -39,6 +39,7 @@
         "subagents": {
           "allowAgents": [
             "researcher",
+            "picker",
             "writer",
             "chart-generator",
             "creator",
@@ -76,6 +77,19 @@
         }
       },
       {
+        "id": "picker",
+        "workspace": "/home/USER/.openclaw/workspace-picker",
+        "model": {
+          "primary": "local-bifrost/gemini-2.5-pro"
+        },
+        "tools": {
+          "deny": [
+            "web_search",
+            "web_fetch"
+          ]
+        }
+      },
+      {
         "id": "writer",
         "workspace": "/home/USER/.openclaw/workspace-writer",
         "model": {
@@ -87,6 +101,11 @@
         "workspace": "/home/USER/.openclaw/workspace-creator",
         "model": {
           "primary": "local-bifrost/gemini-3.5-flash"
+        },
+        "tools": {
+          "deny": [
+            "image_generate"
+          ]
         }
       },
       {
@@ -125,17 +144,33 @@
             "name": "Gemini 3.1 Pro (Bifrost Vertex)",
             "contextWindow": 200000,
             "maxTokens": 32768,
-            "input": ["text"],
-            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
             "reasoning": true
           },
           {
             "id": "gemini-3.5-flash",
             "name": "Gemini 3.5 Flash (Bifrost Vertex)",
-            "contextWindow": 128000,
+            "contextWindow": 200000,
             "maxTokens": 16384,
-            "input": ["text"],
-            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
             "reasoning": true
           },
           {
@@ -143,8 +178,16 @@
             "name": "Gemini 2.5 Pro (Bifrost Vertex)",
             "contextWindow": 200000,
             "maxTokens": 32768,
-            "input": ["text"],
-            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
             "reasoning": true
           },
           {
@@ -152,13 +195,26 @@
             "name": "Gemini 2.5 Flash (Bifrost Vertex)",
             "contextWindow": 128000,
             "maxTokens": 16384,
-            "input": ["text"],
-            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
             "reasoning": true
           }
         ]
       }
     }
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "telegram:YOUR_TELEGRAM_USER_ID"
+    ]
   },
   "gateway": {
     "mode": "local",
@@ -168,8 +224,13 @@
     },
     "port": 18789,
     "bind": "loopback",
-    "tailscale": { "mode": "off", "resetOnExit": false },
-    "controlUi": { "allowInsecureAuth": true },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "controlUi": {
+      "allowInsecureAuth": true
+    },
     "nodes": {
       "denyCommands": [
         "camera.snap",
@@ -183,58 +244,108 @@
       ]
     }
   },
-  "session": { "dmScope": "per-channel-peer" },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "openclaw",
+    "headless": true,
+    "noSandbox": true,
+    "executablePath": "/home/USER/.openclaw/bin/chromium"
+  },
   "tools": {
     "profile": "coding",
-    "exec": { "security": "full", "ask": "off" },
+    "exec": {
+      "security": "full",
+      "ask": "off"
+    },
     "web": {
-      "search": { "provider": "searxng", "enabled": true, "openaiCodex": {} },
-      "fetch": { "enabled": true }
+      "search": {
+        "provider": "searxng",
+        "enabled": true,
+        "openaiCodex": {}
+      },
+      "fetch": {
+        "enabled": true
+      }
     }
   },
   "auth": {
     "profiles": {
-      "openrouter:default": { "provider": "openrouter", "mode": "api_key" }
+      "openrouter:default": {
+        "provider": "openrouter",
+        "mode": "api_key"
+      }
     }
   },
   "plugins": {
     "entries": {
       "searxng": {
         "enabled": true,
-        "config": { "webSearch": { "baseUrl": "https://paulgo.io" } }
+        "config": {
+          "webSearch": {
+            "baseUrl": "https://paulgo.io"
+          }
+        }
       },
-      "amazon-bedrock": { "enabled": false },
-      "openrouter": { "enabled": true },
-      "browser": { "enabled": true }
+      "amazon-bedrock": {
+        "enabled": false
+      },
+      "openrouter": {
+        "enabled": true
+      },
+      "browser": {
+        "enabled": true
+      }
     }
   },
   "hooks": {
     "internal": {
       "enabled": true,
       "entries": {
-        "session-memory": { "enabled": true },
-        "boot-md": { "enabled": true }
+        "session-memory": {
+          "enabled": true
+        },
+        "boot-md": {
+          "enabled": true
+        }
       }
     }
+  },
+  "wizard": {
+    "lastRunAt": "2026-05-29T10:47:11.431Z",
+    "lastRunVersion": "2026.4.23",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.4.23",
+    "lastTouchedAt": "2026-05-29T10:47:11.651Z"
   },
   "channels": {
     "telegram": {
       "enabled": true,
       "defaultAccount": "news",
-      "botToken": "YOUR_TELEGRAM_NEWS_BOT_TOKEN_FROM_BOTFATHER",
       "groupPolicy": "open",
-      "groups": {
-        "YOUR_TELEGRAM_NEWS_GROUP_ID": { "requireMention": true },
-        "*": { "requireMention": true }
-      },
       "accounts": {
         "news": {
           "name": "News Agent",
           "botToken": "YOUR_TELEGRAM_NEWS_BOT_TOKEN_FROM_BOTFATHER",
           "groupPolicy": "open",
+          "allowFrom": [
+            "YOUR_TELEGRAM_USER_ID"
+          ],
+          "groupAllowFrom": [
+            "YOUR_TELEGRAM_USER_ID"
+          ],
           "groups": {
-            "YOUR_TELEGRAM_NEWS_GROUP_ID": { "requireMention": true },
-            "*": { "requireMention": true }
+            "YOUR_TELEGRAM_NEWS_GROUP_ID": {
+              "requireMention": true
+            },
+            "*": {
+              "requireMention": true
+            }
           }
         }
       }
@@ -246,15 +357,23 @@
       "match": {
         "channel": "telegram",
         "accountId": "news",
-        "peer": { "kind": "group", "id": "YOUR_TELEGRAM_NEWS_GROUP_ID" }
+        "peer": {
+          "kind": "group",
+          "id": "YOUR_TELEGRAM_NEWS_GROUP_ID"
+        }
       }
     },
     {
       "agentId": "orchestrator",
-      "match": { "channel": "telegram", "accountId": "news" }
+      "match": {
+        "channel": "telegram",
+        "accountId": "news"
+      }
     }
   ],
   "skills": {
-    "install": { "nodeManager": "npm" }
+    "install": {
+      "nodeManager": "npm"
+    }
   }
 }

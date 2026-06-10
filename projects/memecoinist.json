@@ -1,0 +1,401 @@
+{
+  "slug": "memecoinist",
+  "callback_code": "mci",
+  "name": "MemeCoinist",
+  "description": "Memecoin news — launches, pumps, exchange listings, whale moves, Solana/Base meme trends, regulatory takes.",
+  "wordpress": {
+    "url": "https://memecoinist.com",
+    "user": "kaushikmayank1567@gmail.com",
+    "app_password_ref": "credentials/wp/memecoinist.pass",
+    "default_status": "draft",
+    "fallback_category_id": 10,
+    "picker_category_note": "Curated subset of live WP categories passed to the Picker. Run sync_wp_categories.py --slug memecoinist to refresh 'categories' from WP REST API.",
+    "picker_category_slugs": [
+      "latest-news",
+      "breaking-news",
+      "market-trends",
+      "market-insights",
+      "top-performers",
+      "trending-memecoins",
+      "dogecoin",
+      "shiba-inu-coin",
+      "pepe",
+      "solana-memecoins",
+      "ethereum-memecoins",
+      "base-memecoins",
+      "bnb-memecoins",
+      "dogs-memecoins",
+      "cats-memecoins",
+      "other-animals-memecoins",
+      "ai-meme-coins",
+      "politifi",
+      "trump-memecoins",
+      "celebrities-memecoins",
+      "sports-based-memecoins",
+      "regulatory-and-compliance",
+      "memecoin-scams-red-flags",
+      "pump-fun",
+      "top-memecoin-success-stories",
+      "memecoin-roi-tracker",
+      "community-buzz",
+      "emerging-memecoin-platforms"
+    ],
+    "categories": [
+      {
+        "id": 1,
+        "name": "MemeFi",
+        "slug": "uncategorized",
+        "count": 64
+      },
+      {
+        "id": 7,
+        "name": "Analysis",
+        "slug": "analysis",
+        "count": 100
+      },
+      {
+        "id": 8,
+        "name": "Events",
+        "slug": "events",
+        "count": 8
+      },
+      {
+        "id": 10,
+        "name": "Latest News",
+        "slug": "latest-news",
+        "count": 833
+      },
+      {
+        "id": 43,
+        "name": "Featured",
+        "slug": "featured",
+        "count": 18
+      },
+      {
+        "id": 48,
+        "name": "Dogecoin",
+        "slug": "dogecoin",
+        "count": 141
+      },
+      {
+        "id": 49,
+        "name": "Shiba Inu Coin",
+        "slug": "shiba-inu-coin",
+        "count": 119
+      },
+      {
+        "id": 50,
+        "name": "Ethereum Memecoins",
+        "slug": "ethereum-memecoins",
+        "count": 147
+      },
+      {
+        "id": 51,
+        "name": "Solana Memecoins",
+        "slug": "solana-memecoins",
+        "count": 161
+      },
+      {
+        "id": 53,
+        "name": "Trending Memecoins",
+        "slug": "trending-memecoins",
+        "count": 219
+      },
+      {
+        "id": 55,
+        "name": "How To",
+        "slug": "how-to",
+        "count": 16
+      },
+      {
+        "id": 65,
+        "name": "Animals Memecoins",
+        "slug": "animals-memecoins",
+        "count": 33
+      },
+      {
+        "id": 66,
+        "name": "Dog Memecoins",
+        "slug": "dogs-memecoins",
+        "count": 52
+      },
+      {
+        "id": 67,
+        "name": "Cats Memecoins",
+        "slug": "cats-memecoins",
+        "count": 27
+      },
+      {
+        "id": 69,
+        "name": "Other Animals Memecoins",
+        "slug": "other-animals-memecoins",
+        "count": 3
+      },
+      {
+        "id": 70,
+        "name": "Politifi",
+        "slug": "politifi",
+        "count": 9
+      },
+      {
+        "id": 71,
+        "name": "Trump Memecoins",
+        "slug": "trump-memecoins",
+        "count": 48
+      },
+      {
+        "id": 75,
+        "name": "Celebrities Memecoins",
+        "slug": "celebrities-memecoins",
+        "count": 6
+      },
+      {
+        "id": 76,
+        "name": "Base Memecoins",
+        "slug": "base-memecoins",
+        "count": 11
+      },
+      {
+        "id": 117,
+        "name": "Utilities",
+        "slug": "utilities",
+        "count": 17
+      },
+      {
+        "id": 164,
+        "name": "Ai meme coins",
+        "slug": "ai-meme-coins",
+        "count": 228
+      },
+      {
+        "id": 254,
+        "name": "Market Trends",
+        "slug": "market-trends",
+        "count": 76
+      },
+      {
+        "id": 262,
+        "name": "Breaking meme coin news",
+        "slug": "breaking-news",
+        "count": 152
+      },
+      {
+        "id": 263,
+        "name": "Market Insights",
+        "slug": "market-insights",
+        "count": 82
+      },
+      {
+        "id": 264,
+        "name": "Community Buzz",
+        "slug": "community-buzz",
+        "count": 23
+      },
+      {
+        "id": 265,
+        "name": "Top Performers",
+        "slug": "top-performers",
+        "count": 11
+      },
+      {
+        "id": 267,
+        "name": "Top Memecoin Success Stories",
+        "slug": "top-memecoin-success-stories",
+        "count": 4
+      },
+      {
+        "id": 270,
+        "name": "Regulatory and Compliance",
+        "slug": "regulatory-and-compliance",
+        "count": 369
+      },
+      {
+        "id": 273,
+        "name": "Pepe & Frog Memecoins",
+        "slug": "pepe",
+        "count": 90
+      },
+      {
+        "id": 275,
+        "name": "Bnb Memecoins",
+        "slug": "bnb-memecoins",
+        "count": 29
+      },
+      {
+        "id": 276,
+        "name": "Emerging Memecoin Platforms",
+        "slug": "emerging-memecoin-platforms",
+        "count": 264
+      },
+      {
+        "id": 277,
+        "name": "Memecoin Scams & Red Flags",
+        "slug": "memecoin-scams-red-flags",
+        "count": 53
+      },
+      {
+        "id": 278,
+        "name": "Fan Tokens",
+        "slug": "fan-tokens",
+        "count": 153
+      },
+      {
+        "id": 279,
+        "name": "Sports-Based Memecoins",
+        "slug": "sports-based-memecoins",
+        "count": 24
+      },
+      {
+        "id": 288,
+        "name": "Pump fun",
+        "slug": "pump-fun",
+        "count": 28
+      },
+      {
+        "id": 315,
+        "name": "bitcoin",
+        "slug": "bitcoin",
+        "count": 28
+      },
+      {
+        "id": 340,
+        "name": "Press Release",
+        "slug": "press-release",
+        "count": 5
+      },
+      {
+        "id": 353,
+        "name": "Memecoin Roi Tracker",
+        "slug": "memecoin-roi-tracker",
+        "count": 2
+      },
+      {
+        "id": 382,
+        "name": "Trump crypto",
+        "slug": "trump-crypto",
+        "count": 10
+      },
+      {
+        "id": 409,
+        "name": "market-data",
+        "slug": "market-data",
+        "count": 0
+      },
+      {
+        "id": 410,
+        "name": "trending memecoin",
+        "slug": "trending-memecoin",
+        "count": 1
+      },
+      {
+        "id": 412,
+        "name": "Pepe Frog Memecoins",
+        "slug": "pepe-frog-memecoins",
+        "count": 8
+      }
+    ]
+  },
+  "telegram": {
+    "account": "news",
+    "group_id": "-1003760909509",
+    "group_name": "news-agent",
+    "card_prefix": "[MemeCoinist]"
+  },
+  "research": {
+    "rss_feeds": [
+      {
+        "source": "CoinDesk",
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"
+      },
+      {
+        "source": "CoinTelegraph",
+        "url": "https://cointelegraph.com/rss"
+      },
+      {
+        "source": "Decrypt",
+        "url": "https://decrypt.co/feed"
+      },
+      {
+        "source": "Google News",
+        "url": "https://news.google.com/rss/search?q=memecoin+OR+%22meme+coin%22+OR+dogecoin+OR+shiba+OR+pepe+OR+floki+OR+bonk+OR+wif+OR+dogwifhat&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "BeInCrypto",
+        "url": "https://beincrypto.com/feed/"
+      },
+      {
+        "source": "The Block",
+        "url": "https://www.theblock.co/rss.xml"
+      },
+      {
+        "source": "CryptoSlate",
+        "url": "https://cryptoslate.com/feed/"
+      },
+      {
+        "source": "CryptoFox",
+        "url": "https://cryptofox.news/rss/markets/"
+      },
+      {
+        "source": "CryptoFox",
+        "url": "https://cryptofox.news/rss/regulation/"
+      }
+    ],
+    "source_priority_order": [
+      "CoinDesk",
+      "CoinTelegraph",
+      "Decrypt",
+      "The Block",
+      "BeInCrypto",
+      "CryptoSlate",
+      "CryptoFox",
+      "Google News"
+    ],
+    "exclude_keywords": [
+      "bitcoin etf",
+      "ethereum etf",
+      "stablecoin",
+      "institutional adoption",
+      "sec approval",
+      "blackrock",
+      "fidelity",
+      "l2 upgrade",
+      "layer 2 protocol",
+      "ethereum upgrade",
+      "layer-2",
+      "restaking"
+    ],
+    "exclude_keywords_note": "Deprioritize/skip macro-crypto and ETF stories unless they directly involve a memecoin angle.",
+    "headline_scan_target_count": 10,
+    "max_age_hours": 24
+  },
+  "picker": {
+    "diversity_window_hours": 72
+  },
+  "writer": {
+    "template_path": "workspace-mc-writer/MEMECOIN_TEMPLATE.md",
+    "min_body_words": 1000,
+    "max_body_words": 1200,
+    "sync_max_body_words": 1300,
+    "voice_hint": "Direct, trader-focused, analytical memecoin news. No hype, no fluff."
+  },
+  "creator": {
+    "image_style_hint": "Vibrant 3D render of memecoin character or coin logo, electric neon background, bold cinematic composition, no humans.",
+    "image_aspect": "16:9",
+    "image_size": "1024x576"
+  },
+  "publisher": {
+    "drive_doc_prefix": "Memecoin News",
+    "drive_parent_id": "1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx",
+    "drive_account": "YOUR_GOOGLE_ACCOUNT@gmail.com"
+  },
+  "authors": [
+    {
+      "id": 6,
+      "label": "meep AI",
+      "name": "meep AI"
+    }
+  ],
+  "state": {
+    "recent_topics_file": "workspace-orchestrator/state/recent_topics-memecoinist.json"
+  }
+}

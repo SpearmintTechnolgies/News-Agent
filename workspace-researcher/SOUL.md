@@ -18,43 +18,32 @@ Before any output, use a `<thinking>` block to confirm the mode, list the spawn 
 
 ## RSS Feed List (used by both modes)
 
-Fetch every feed below with a browser-like user agent so feeds are not blocked. Use a 12s timeout. If a feed returns 403/empty, continue with the others — do not stop.
+The RSS feed list is **project-driven**. Different publishing sites have different niches, so the orchestrator hands you a `PROJECT_CONFIG` env var that points to the active project's JSON. The feeds live at `research.rss_feeds` inside it.
+
+You do NOT hardcode any URLs in this prompt. Instead, run the helper to emit a fetch script tailored to the active project, then execute it.
 
 ```bash
-UA="Mozilla/5.0 (compatible; OpenClawScout/1.0)"
-
-# CoinDesk — general crypto
-curl -sL -A "$UA" "https://www.coindesk.com/arc/outboundfeeds/rss/" --max-time 12
-
-# CoinTelegraph
-curl -sL -A "$UA" "https://cointelegraph.com/rss" --max-time 12
-
-# Decrypt
-curl -sL -A "$UA" "https://decrypt.co/feed" --max-time 12
-
-# Google News — broad crypto (NOT bitcoin-only); excludes common meme tickers
-curl -sL -A "$UA" "https://news.google.com/rss/search?q=cryptocurrency+OR+blockchain+OR+ethereum+OR+solana+OR+altcoin+OR+%22digital+assets%22+OR+XRP+OR+cardano+-dogecoin+-shiba+-pepe+-floki+-bonk+-wif+-memecoin+-%22meme+coin%22&hl=en-US&gl=US&ceid=US:en" --max-time 12
-
-# BeInCrypto — markets, altcoins, regulation
-curl -sL -A "$UA" "https://beincrypto.com/feed/" --max-time 12
-
-# The Block — try first; if 403/empty, BeInCrypto already covers similar beat
-curl -sL -A "$UA" "https://www.theblock.co/rss.xml" --max-time 12
-
-# CryptoSlate — altcoins, adoption
-curl -sL -A "$UA" "https://cryptoslate.com/feed/" --max-time 12
-
-# CryptoFox — markets (BTC, ETH, altcoins)
-curl -sL -A "$UA" "https://cryptofox.news/rss/markets/" --max-time 12
-
-# CryptoFox — regulation / policy
-curl -sL -A "$UA" "https://cryptofox.news/rss/regulation/" --max-time 12
+# Resolve the project's feed list and fetch every feed.
+# The helper writes /tmp/feeds/01.xml ... NN.xml plus matching .source sidecars.
+rm -rf /tmp/feeds && mkdir -p /tmp/feeds
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/emit_feed_fetch_commands.py \
+  --output-dir /tmp/feeds > /tmp/feeds/fetch.sh
+bash /tmp/feeds/fetch.sh
+ls -la /tmp/feeds/*.xml | head
 ```
 
-**Topic diversity (applies to both modes):**
+Each `/tmp/feeds/<NN>.source` holds the friendly source name (e.g. `CoinDesk`, `CoinTelegraph`, `Decrypt`). Pair an `.xml` with its `.source` when parsing.
+
+Use a browser-like user-agent (the helper sets one already). 12s timeout. If a feed returns 403/empty, continue with the others — do not stop.
+
+**Topic diversity & exclusions (read from project config):**
+- The project's `research.exclude_keywords` list tells you which keywords to skip in headlines/summaries (e.g. for Coinography this excludes DOGE/SHIB/PEPE/BONK/WIF/FLOKI/memecoin/"meme coin").
+- The project's `research.source_priority_order` defines the dedupe tie-break priority.
+- The project's `research.exclude_keywords_note` (if present) is a one-liner that explains the editorial reasoning — use it to inform borderline judgement calls.
+
+**General editorial preferences (apply to ALL projects unless their config says otherwise):**
 - Prefer stories about: regulation, ETFs/institutional, hacks/exploits, major L1/L2 protocols, exchanges, stablecoins, institutional adoption, market movements driven by news.
-- **Deprioritize or skip** items that are *primarily* meme-coin price pumps (DOGE, SHIB, PEPE, BONK, WIF, FLOKI, "memecoin"/"meme coin") **unless** the same story is also covered seriously by at least two of: CoinDesk, CoinTelegraph, Decrypt, BeInCrypto, or The Block.
-- Goal: a wide news pool, not Bitcoin-only and not meme-only.
+- Goal: a wide news pool that fits the active project's niche.
 
 **Date filter (both modes):** Only consider items published **within the last 24 hours**. Check `<pubDate>`. Ignore older news.
 
@@ -172,7 +161,9 @@ Read `INPUT_FILE` (it is a JSON file with a `picks` array). Find the entry whose
 
 - `headline` (the chosen primary headline)
 - `url` (primary URL)
-- `category` (already assigned by Picker)
+- `category` (primary WordPress category slug, already assigned by Picker)
+- `wp_category_slugs` (array: primary + up to 2 secondary slugs)
+- `wp_category_ids` (array of resolved numeric WordPress category IDs)
 - `corroborating_sources` (zero or more `{source, url}` items)
 
 If the entry is missing or `pick_index` is out of range → write a JSON with `"status": "error", "reason": "pick_index_not_found"` to `OUTPUT_FILE` and yield `SUCCESS`. Do not abort silently.
@@ -214,7 +205,9 @@ Combine the extracted facts from the primary article and corroborating articles.
   "status": "ok",
   "mode": "deep_research",
   "story_id": "short-slug-identifying-this-story",
-  "category": "<the category passed in from picks.json — copy through unchanged>",
+  "category": "<primary WP slug from picks.json — copy through unchanged>",
+  "wp_category_slugs": ["<copy through from picks.json>"],
+  "wp_category_ids": [0],
   "topic_theme": "The core topic (e.g., Bitcoin ETF Inflows Surge)",
   "primary_keyword": "A 2-3 word SEO keyword for this story",
   "primary_headline": "The best, most descriptive headline (use the picked one or refine slightly)",
@@ -231,7 +224,7 @@ Combine the extracted facts from the primary article and corroborating articles.
 }
 ```
 
-**`category` is REQUIRED in this mode.** Copy the value the Picker assigned (regulation, etf_institutional, hack_exploit, l1_l2_protocol, exchange, stablecoin, adoption_partnership, market_movement). Do not invent new categories.
+**`category`, `wp_category_slugs`, and `wp_category_ids` are REQUIRED in this mode.** Copy them through from the pick in `picks.json` exactly — they are real WordPress category slugs/IDs the Picker already resolved. Do not invent or translate them. (The orchestrator also re-injects these authoritatively from `picks.json` when validating, so copy-through is a safety net.)
 
 `primary_keyword`, `primary_asset`, and `chart_coin` come from the chosen story — not from the RSS search keywords. Use the correct CoinGecko id (e.g. `ethereum`, `solana`, `bitcoin`, `ripple` for XRP).
 

@@ -33,6 +33,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 
 import editorial_db  # noqa: E402  (local import after sys.path insert)
+import project_config as pc  # noqa: E402
 
 
 def atomic_write_json(path: str, data: dict) -> None:
@@ -44,12 +45,14 @@ def atomic_write_json(path: str, data: dict) -> None:
     os.replace(tmp, path)
 
 
-def _consumed_pick_urls(db_path: str) -> set[str]:
-    """All primary URLs of picks that ever reached drafted/published.
+def _consumed_pick_urls(db_path: str, project: str) -> set[str]:
+    """All primary URLs of picks that ever reached drafted/published
+    for the active project.
 
     Used to filter out candidates that have been consumed in past pipeline
-    runs (permanent dedup at the picker level — independent of the 7-day
-    article_history.db).
+    runs of the same project (permanent dedup at the picker level —
+    independent of the 7-day article_history.db). Different projects keep
+    independent consumed-URL sets so the same story can run on each site.
     """
     editorial_db.init_db(db_path)
     urls: set[str] = set()
@@ -60,7 +63,9 @@ def _consumed_pick_urls(db_path: str) -> set[str]:
             SELECT DISTINCT primary_url FROM picked_stories
             WHERE primary_url IS NOT NULL AND primary_url != ''
               AND status IN ('drafted', 'published')
-            """
+              AND project = ?
+            """,
+            (project,),
         ).fetchall()
         for r in rows:
             urls.add(r["primary_url"])
@@ -72,12 +77,76 @@ def main() -> int:
     parser.add_argument("--headlines", required=True, help="Path to validated headlines.json")
     parser.add_argument("--output", required=True, help="Path to write picker_input.json")
     parser.add_argument("--target-count", type=int, required=True, help="N stories to pick")
-    parser.add_argument("--recent-window-hours", type=int, default=24)
+    parser.add_argument(
+        "--recent-window-hours",
+        type=int,
+        default=None,
+        help="Recent-category diversity window. Default: project picker.diversity_window_hours, else 72.",
+    )
     parser.add_argument("--db-path", default=editorial_db.DEFAULT_DB_PATH)
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinography",
+    )
     args = parser.parse_args()
 
     if args.target_count < 1:
         print(f"PICKER_INPUT_ERROR: target_count must be >= 1, got {args.target_count}")
+        return 1
+
+    try:
+        cfg = pc.load_project_config(slug=args.project)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"PICKER_INPUT_ERROR: {e}")
+        return 1
+    project_slug = cfg.slug
+
+    if args.recent_window_hours is None:
+        cfg_window = cfg.get_path("picker.diversity_window_hours", 72)
+        try:
+            args.recent_window_hours = int(cfg_window)
+        except (TypeError, ValueError):
+            args.recent_window_hours = 72
+
+    # Build the WP category allow-list the Picker chooses from. Source of truth is
+    # wordpress.categories (full live list, synced by sync_wp_categories.py).
+    # wordpress.picker_category_slugs optionally narrows it to a curated subset.
+    all_categories = cfg.get_path("wordpress.categories", []) or []
+    if not isinstance(all_categories, list) or not all_categories:
+        print(
+            "PICKER_INPUT_ERROR: project has no wordpress.categories. "
+            "Run sync_wp_categories.py --slug "
+            f"{project_slug} first."
+        )
+        return 1
+    curated_slugs = cfg.get_path("wordpress.picker_category_slugs", []) or []
+    if not isinstance(curated_slugs, list):
+        print("PICKER_INPUT_ERROR: wordpress.picker_category_slugs must be a list")
+        return 1
+    by_slug = {
+        str(c.get("slug")): c
+        for c in all_categories
+        if isinstance(c, dict) and c.get("slug")
+    }
+    if curated_slugs:
+        wp_categories = [
+            {"slug": s, "name": by_slug[s].get("name", s)}
+            for s in curated_slugs
+            if s in by_slug
+        ]
+    else:
+        wp_categories = [
+            {"slug": c["slug"], "name": c.get("name", c["slug"])}
+            for c in all_categories
+            if isinstance(c, dict) and c.get("slug")
+        ]
+    if not wp_categories:
+        print(
+            "PICKER_INPUT_ERROR: no usable wp_categories after applying "
+            "picker_category_slugs (none of the curated slugs exist in "
+            "wordpress.categories)"
+        )
         return 1
 
     headlines_path = os.path.realpath(args.headlines)
@@ -98,14 +167,16 @@ def main() -> int:
         return 1
 
     try:
-        consumed = _consumed_pick_urls(args.db_path)
+        consumed = _consumed_pick_urls(args.db_path, project_slug)
     except sqlite3.Error as e:
         print(f"PICKER_INPUT_ERROR: db read failed: {e}")
         return 1
 
     try:
         recent_categories = editorial_db.recent_published_categories(
-            hours=int(args.recent_window_hours), db_path=args.db_path
+            hours=int(args.recent_window_hours),
+            project=project_slug,
+            db_path=args.db_path,
         )
     except sqlite3.Error as e:
         print(f"PICKER_INPUT_ERROR: db read failed: {e}")
@@ -141,9 +212,12 @@ def main() -> int:
 
     out = {
         "built_at": datetime.now(timezone.utc).isoformat(),
+        "project": project_slug,
+        "project_name": cfg.get("name", project_slug),
         "target_count": int(args.target_count),
         "recent_window_hours": int(args.recent_window_hours),
         "recent_categories": recent_categories,
+        "wp_categories": wp_categories,
         "skipped_consumed_urls": skipped_consumed,
         "candidates": candidates_out,
     }
@@ -155,8 +229,10 @@ def main() -> int:
         return 1
 
     print(
-        f"PICKER_INPUT_BUILT: {len(candidates_out)} candidates / target={args.target_count} / "
-        f"recent={recent_categories or 'none'} / skipped_consumed={skipped_consumed}"
+        f"PICKER_INPUT_BUILT: project={project_slug} / {len(candidates_out)} candidates / "
+        f"target={args.target_count} / wp_categories={len(wp_categories)} / "
+        f"recent={recent_categories or 'none'} / window={args.recent_window_hours}h / "
+        f"skipped_consumed={skipped_consumed}"
     )
     return 0
 

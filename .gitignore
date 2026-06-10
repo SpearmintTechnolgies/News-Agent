@@ -2,6 +2,7 @@
 openclaw.json
 exec-approvals.json
 workspace-wp-publisher/TOOLS.md
+credentials/
 **/.openclaw/
 
 # Runtime state
