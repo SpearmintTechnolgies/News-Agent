@@ -27,16 +27,21 @@ from editorial_db import (
     DEFAULT_DB_PATH,
     clear_edit_session,
     get_edit_session_by_prompt,
+    get_feed_card,
     get_latest_version,
     init_db,
     lookup_by_alert_id,
     lookup_by_message_id,
     lookup_by_run_id,
+    mark_pool,
     record_editorial_action,
     record_rating,
     save_article_version,
+    set_feed_card_selection,
+    set_feed_card_status,
     set_wp_author,
     set_wp_status,
+    touch_last_contact,
     upsert_edit_session,
 )
 
@@ -72,6 +77,10 @@ _RE_PUB_NO = re.compile(r"^oc_pub_n:(.+)$")
 _RE_EDIT = re.compile(r"^oc_edit:(.+)$")
 _RE_EDIT_APPLY = re.compile(r"^oc_edit_apply:(.+)$")
 _RE_EDIT_CANCEL = re.compile(r"^oc_edit_cancel:(.+)$")
+# Approve-title-first feed card callbacks
+_RE_FEED_SEL = re.compile(r"^oc_sel:([^:]+):(\d{1,3})$")
+_RE_FEED_GO = re.compile(r"^oc_go:(.+)$")
+_RE_FEED_REFRESH = re.compile(r"^oc_feed_refresh:(.+)$")
 _RE_TEXT_RATE = re.compile(r"^(?:RATE|rate)\s+(\d{1,2})\b")
 _RE_TEXT_IMAGE = re.compile(r"^(?:IMAGE|image)\s+(\d{1,2})\b")
 _RE_TEXT_DRAFT = re.compile(r"^(?:DRAFT|draft|UNPUBLISH|unpublish)\s*$")
@@ -411,6 +420,19 @@ def extract_alert_from_text(text: str) -> str | None:
 def parse_input(payload: str | None, message_text: str | None) -> dict | None:
     if payload:
         p = payload.strip()
+        feed_sel = _RE_FEED_SEL.match(p)
+        if feed_sel:
+            return {
+                "action": "feed_select",
+                "feed_id": feed_sel.group(1).strip(),
+                "candidate_index": int(feed_sel.group(2)),
+            }
+        feed_go = _RE_FEED_GO.match(p)
+        if feed_go:
+            return {"action": "feed_go", "feed_id": feed_go.group(1).strip()}
+        feed_refresh = _RE_FEED_REFRESH.match(p)
+        if feed_refresh:
+            return {"action": "feed_refresh", "feed_id": feed_refresh.group(1).strip()}
         pub_yes = _RE_PUB_YES.match(p)
         if pub_yes:
             return {
@@ -937,6 +959,120 @@ def handle_edit_cancel(
     return f"EDIT_CANCELLED: {article.alert_id}"
 
 
+FEED_GO_DIR = "/tmp"
+
+
+def _feed_go_path(feed_id: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", feed_id)
+    return os.path.join(FEED_GO_DIR, f"openclaw-feed-go-{safe}.json")
+
+
+def handle_feed_select(
+    feed_id: str, candidate_index: int, token: str, chat_id: str, db_path: str
+) -> str:
+    card = get_feed_card(feed_id, db_path=db_path)
+    if not card:
+        return f"FEED_NOT_FOUND: {feed_id}"
+    try:
+        candidates = json.loads(card.candidates_json)
+    except (ValueError, TypeError):
+        candidates = []
+    valid = {int(c["index"]) for c in candidates if "index" in c}
+    if candidate_index not in valid:
+        return f"FEED_SELECT_INVALID: {feed_id} idx={candidate_index}"
+    try:
+        selected = set(int(i) for i in json.loads(card.selected_json or "[]"))
+    except (ValueError, TypeError):
+        selected = set()
+    if candidate_index in selected:
+        selected.discard(candidate_index)
+    else:
+        selected.add(candidate_index)
+    set_feed_card_selection(feed_id, sorted(selected), db_path=db_path)
+    if token and chat_id and card.telegram_message_id:
+        try:
+            import send_feed_card as sfc
+
+            kb = sfc.build_feed_keyboard(feed_id, candidates, sorted(selected))
+            from build_and_send_card import edit_message_reply_markup
+
+            edit_message_reply_markup(
+                token, chat_id, int(card.telegram_message_id), json.dumps(kb)
+            )
+        except Exception as e:  # editing is best-effort
+            print(f"FEED_EDIT_WARN: {e}", file=sys.stderr)
+    return f"FEED_SELECTED: {feed_id} selected={sorted(selected)}"
+
+
+def handle_feed_refresh(feed_id: str, token: str, chat_id: str, db_path: str) -> str:
+    try:
+        import send_feed_card as sfc
+
+        return sfc.refresh_card(feed_id, token=token, chat_id=chat_id, limit=10)
+    except Exception as e:
+        return f"FEED_REFRESH_FAIL: {feed_id} detail={e}"
+
+
+def handle_feed_go(feed_id: str, token: str, chat_id: str, reply_id: int | None, db_path: str) -> str:
+    card = get_feed_card(feed_id, db_path=db_path)
+    if not card:
+        return f"FEED_NOT_FOUND: {feed_id}"
+    try:
+        candidates = json.loads(card.candidates_json)
+    except (ValueError, TypeError):
+        candidates = []
+    try:
+        selected = sorted(set(int(i) for i in json.loads(card.selected_json or "[]")))
+    except (ValueError, TypeError):
+        selected = []
+    if not selected:
+        if token and chat_id:
+            send_message(
+                token,
+                chat_id,
+                "No stories selected yet — tap the number tiles first, then Publish selected.",
+                reply_to_message_id=reply_id,
+            )
+        return f"FEED_GO_EMPTY: {feed_id}"
+    by_idx = {int(c["index"]): c for c in candidates if "index" in c}
+    chosen = [by_idx[i] for i in selected if i in by_idx]
+    urls = [c["url"] for c in chosen]
+    headlines = [c.get("headline", "") for c in chosen]
+    mark_pool(card.project, urls, "selected", db_path=db_path)
+    set_feed_card_status(feed_id, "consumed", db_path=db_path)
+    payload = {
+        "feed_id": feed_id,
+        "project": card.project,
+        "count": len(chosen),
+        "urls": urls,
+        "headlines": headlines,
+    }
+    go_path = _feed_go_path(feed_id)
+    try:
+        with open(go_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+    except OSError as e:
+        return f"FEED_GO_FAIL: {feed_id} detail={e}"
+    if token and chat_id:
+        listing = "\n".join(f"{i}. {html_escape(h)}" for i, h in enumerate(headlines, 1))
+        send_message(
+            token,
+            chat_id,
+            f"Starting pipeline for <b>{len(chosen)}</b> selected stor"
+            f"{'y' if len(chosen) == 1 else 'ies'} on <b>{html_escape(card.project)}</b>:\n\n{listing}",
+            reply_to_message_id=reply_id,
+        )
+        # Clear the keyboard so the consumed card can't be re-fired.
+        if card.telegram_message_id:
+            try:
+                from build_and_send_card import edit_message_reply_markup
+
+                edit_message_reply_markup(token, chat_id, int(card.telegram_message_id), None)
+            except Exception:
+                pass
+    return f"FEED_GO: project={card.project} feed_id={feed_id} count={len(chosen)} selection_file={go_path}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Handle Telegram editorial feedback")
     parser.add_argument("--payload", help="Callback data")
@@ -1021,6 +1157,28 @@ def main() -> int:
     run_id = parsed.get("run_id")
     alert_id = parsed.get("alert_id")
     score = parsed.get("score")
+
+    # Any recognized engagement resets the 48h idle clock (group-level).
+    try:
+        touch_last_contact(db_path=args.db_path)
+    except Exception:
+        pass
+
+    # Feed-card selection actions operate on feed_cards/headline_pool, not the
+    # articles table — handle them before article resolution.
+    if action == "feed_select":
+        print(
+            handle_feed_select(
+                parsed["feed_id"], int(parsed["candidate_index"]), token, chat_id, args.db_path
+            )
+        )
+        return 0
+    if action == "feed_refresh":
+        print(handle_feed_refresh(parsed["feed_id"], token, chat_id, args.db_path))
+        return 0
+    if action == "feed_go":
+        print(handle_feed_go(parsed["feed_id"], token, chat_id, reply_id, args.db_path))
+        return 0
 
     article = resolve_article(
         chat_id=chat_id or None,

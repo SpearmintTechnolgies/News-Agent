@@ -19,8 +19,16 @@ import tempfile
 from datetime import datetime, timezone
 from typing import Any
 
+# ── shared research checks (single source of truth with Scout's self-check) ──
+_RESEARCH_CHECK_DIR = os.path.expanduser(
+    "~/.openclaw/workspace-researcher/skills/research-check"
+)
+if _RESEARCH_CHECK_DIR not in sys.path:
+    sys.path.insert(0, _RESEARCH_CHECK_DIR)
 
-REQUIRED_PER_CANDIDATE = ["headline", "url", "source"]
+import check_research as cr  # noqa: E402
+
+REQUIRED_PER_CANDIDATE = cr.HEADLINE_REQUIRED_PER_CANDIDATE
 
 
 def atomic_write_json(path: str, data: dict) -> None:
@@ -85,6 +93,11 @@ def main() -> int:
         print("HEADLINES_INVALID: file is empty")
         return 1
 
+    # Shared garbage guards — catch trajectory-log / raw-HTML dumps.
+    if cr.looks_like_log(text) or cr.looks_like_html(text):
+        print("HEADLINES_INVALID: output is a log/HTML dump, not headline JSON")
+        return 1
+
     start = text.find("{")
     end = text.rfind("}") + 1
     if start == -1 or end == 0:
@@ -117,6 +130,9 @@ def main() -> int:
             continue
         url = str(c.get("url") or "").strip()
         if not url or url.startswith(("mailto:", "javascript:")):
+            continue
+        # Unresolved aggregator wrappers should have been resolved at scan time.
+        if cr.is_aggregator_url(url):
             continue
         if url in seen_urls:
             continue

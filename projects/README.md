@@ -55,7 +55,7 @@ This fetches the live category list (id/name/slug) via the WP REST API and write
 
 ### 3. (Optional) Add a writer template
 
-If the site needs a distinct voice, copy `workspace-writer/COINOGRAPHY_TEMPLATE.md` to a new path and point `writer.template_path` at it.
+If the site needs a distinct voice, copy `workspace-writer/templates/COINOGRAPHY_TEMPLATE.md` to a new path and point `writer.template_path` at it.
 
 ### 4. Smoke-test
 

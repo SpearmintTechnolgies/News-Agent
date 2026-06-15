@@ -12,8 +12,12 @@ Handles Telegram feedback on news cards sent after pipeline Step 6. **Part of th
 | Callback `oc_draft:` / `oc_draft_yes:` / `oc_draft_no:` | Unpublish flow |
 | Callback `oc_publish:` / `oc_pub_a:` / `oc_pub_y:` / `oc_pub_n:` | Publish flow (author picker) |
 | Callback `oc_edit:` / `oc_edit_apply:` / `oc_edit_cancel:` | Edit flow |
+| Callback `oc_sel:` / `oc_feed_refresh:` | Feed card: toggle selection / refresh (handler does everything) |
+| Callback `oc_go:` | Feed card: publish selected — handler writes a selection file, THEN you start the pipeline (see below) |
 | Text | `RATE 8`, `IMAGE 7`, `DRAFT`, `PUBLISH`, `EDIT` |
 | Document reply | `.md` file replying to bot's edit prompt |
+
+**Channel:** All of this happens in the **news-agent GROUP** — never DM. The per-story pipeline approval gate (Step 2.5) is now in the group too.
 
 ---
 
@@ -38,14 +42,26 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.
 4. **If the handler already sent a Telegram reply, do NOT repeat stdout in the group — end turn silently.**
 5. If handler failed before replying, show the stdout line to the user.
 
+### Feed-card selection (`oc_sel` / `oc_feed_refresh` / `oc_go`)
+
+These come from the daily headline feed card (see `send_feed_card.py`). Run the same handler with `--payload`.
+
+- `oc_sel:` (toggle) and `oc_feed_refresh:` (refresh) are **fully handled** by `handle_card_feedback.py` (it edits the card in place). It prints `FEED_SELECTED` / `FEED_CARD_REFRESHED`. End your turn — do NOT start the pipeline.
+- `oc_go:` (Publish selected) is the **one exception that starts the pipeline**. Run the handler first; it marks the chosen pool stories `selected`, posts "Starting pipeline for N selected stories…" to the group, and prints one of:
+  - `FEED_GO_EMPTY: <feed_id>` → nothing selected; the handler already told the user. End turn.
+  - `FEED_GO: project=<slug> feed_id=<id> count=<N> selection_file=<path>` → now switch to **SOUL.md → Selected-stories entry**: set `PROJECT_SLUG`, `SELECTION_FILE`, `PICKER_MODE=classify-only`, `STEP25_GATE=ON`, `N=<count>`, and run the pipeline (Step 0 → Step 1 classify-only → Step 1c → Step 2 queue → Step 3).
+
 ---
 
 ## Pipeline vs feedback
 
-| User says | Route |
+| User says / incoming | Route |
 |-----------|-------|
-| `run pipeline`, `run crypto news pipeline` | SOUL.md pipeline |
-| RATE, IMAGE, DRAFT, PUBLISH, EDIT, callback taps, edit `.md` upload | This doc |
+| `run pipeline`, `run crypto news pipeline` | SOUL.md pipeline (pool-backed) |
+| `oc_go:` feed-card publish | This doc → then SOUL.md Selected-stories entry |
+| `AUTO_RUN ...` (idle watchdog cron) | SOUL.md Auto-run entry |
+| "fetch/latest/refresh news" | SOUL.md Refresh-feed entry (`send_feed_card.py`) |
+| RATE, IMAGE, DRAFT, PUBLISH, EDIT, `oc_sel`/`oc_feed_refresh` taps, edit `.md` upload | This doc |
 
 Pipeline takes precedence only when the message explicitly requests the pipeline.
 

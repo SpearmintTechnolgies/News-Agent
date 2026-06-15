@@ -1,6 +1,6 @@
 # COINOGRAPHY_TEMPLATE.md
 
-**Authoritative template:** `workspace-writer/COINOGRAPHY_TEMPLATE.md` (writer agent reads that file).
+**Authoritative template:** `workspace-writer/templates/COINOGRAPHY_TEMPLATE.md` (writer agent reads that file via project config).
 
 **Formatting Rules for Crypto News Articles**
 

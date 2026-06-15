@@ -72,11 +72,36 @@ def _consumed_pick_urls(db_path: str, project: str) -> set[str]:
     return urls
 
 
+def _load_pool_candidates(project: str, urls: list[str], db_path: str) -> list[dict]:
+    """Build candidate dicts from the headline_pool for the given URLs, in order."""
+    editorial_db.init_db(db_path)
+    rows = editorial_db.pool_by_urls(project, urls, db_path=db_path)
+    out: list[dict] = []
+    for c in rows:
+        corro = []
+        if c.corroborating_json:
+            try:
+                corro = json.loads(c.corroborating_json)
+            except (ValueError, TypeError):
+                corro = []
+        out.append(
+            {
+                "headline": c.headline,
+                "url": c.url,
+                "pub_date": c.pub_date,
+                "source": c.source or "Unknown",
+                "summary": c.summary or "",
+                "corroborating_sources": corro if isinstance(corro, list) else [],
+            }
+        )
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--headlines", required=True, help="Path to validated headlines.json")
+    parser.add_argument("--headlines", help="Path to validated headlines.json (HEADLINE_SCAN mode)")
     parser.add_argument("--output", required=True, help="Path to write picker_input.json")
-    parser.add_argument("--target-count", type=int, required=True, help="N stories to pick")
+    parser.add_argument("--target-count", type=int, default=None, help="N stories to pick (default: candidate count in pool mode)")
     parser.add_argument(
         "--recent-window-hours",
         type=int,
@@ -89,10 +114,44 @@ def main() -> int:
         default=None,
         help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinography",
     )
+    # Approve-title-first: build candidates from the headline_pool (selected
+    # stories) instead of a headlines.json file.
+    parser.add_argument("--from-pool", action="store_true", help="Source candidates from headline_pool")
+    parser.add_argument("--urls", help="Comma-separated candidate URLs (pool mode)")
+    parser.add_argument("--selection-file", help="JSON file with {project, urls[]} (pool mode)")
+    parser.add_argument(
+        "--pool-fresh",
+        type=int,
+        default=None,
+        help="Pool mode: auto-pull the top N fresh pool candidates for the project "
+        "(manual/auto runs where the picker SELECTS with diversity).",
+    )
+    parser.add_argument(
+        "--classify-only",
+        action="store_true",
+        help="Keep ALL provided candidates; picker only classifies (no diversity selection/drop)",
+    )
     args = parser.parse_args()
 
-    if args.target_count < 1:
-        print(f"PICKER_INPUT_ERROR: target_count must be >= 1, got {args.target_count}")
+    pool_mode = bool(args.from_pool or args.urls or args.selection_file or args.pool_fresh)
+
+    # In pool mode a selection file can carry the authoritative project + urls.
+    pool_urls: list[str] = []
+    if args.selection_file:
+        try:
+            with open(os.path.realpath(args.selection_file), encoding="utf-8") as f:
+                sel = json.load(f)
+            pool_urls = [str(u) for u in (sel.get("urls") or [])]
+            if not args.project and sel.get("project"):
+                args.project = str(sel["project"])
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"PICKER_INPUT_ERROR: cannot read selection-file: {e}")
+            return 1
+    elif args.urls:
+        pool_urls = [u.strip() for u in args.urls.split(",") if u.strip()]
+
+    if not pool_mode and not args.headlines:
+        print("PICKER_INPUT_ERROR: --headlines required unless --from-pool/--urls/--selection-file")
         return 1
 
     try:
@@ -149,21 +208,45 @@ def main() -> int:
         )
         return 1
 
-    headlines_path = os.path.realpath(args.headlines)
-    if not os.path.exists(headlines_path):
-        print(f"PICKER_INPUT_ERROR: headlines not found: {headlines_path}")
-        return 1
+    if pool_mode:
+        if not pool_urls and args.pool_fresh:
+            fresh = editorial_db.fresh_pool(
+                project_slug, limit=int(args.pool_fresh), db_path=args.db_path
+            )
+            pool_urls = [c.url for c in fresh]
+        if not pool_urls:
+            print("PICKER_INPUT_ERROR: pool mode but no candidates (empty pool / no urls)")
+            return 1
+        candidates_in = _load_pool_candidates(project_slug, pool_urls, args.db_path)
+        if not candidates_in:
+            print(
+                f"PICKER_INPUT_ERROR: none of the {len(pool_urls)} urls found in "
+                f"headline_pool for project={project_slug}"
+            )
+            return 1
+    else:
+        headlines_path = os.path.realpath(args.headlines)
+        if not os.path.exists(headlines_path):
+            print(f"PICKER_INPUT_ERROR: headlines not found: {headlines_path}")
+            return 1
 
-    try:
-        with open(headlines_path, encoding="utf-8") as f:
-            hdata = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
-        print(f"PICKER_INPUT_ERROR: cannot parse headlines.json: {e}")
-        return 1
+        try:
+            with open(headlines_path, encoding="utf-8") as f:
+                hdata = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"PICKER_INPUT_ERROR: cannot parse headlines.json: {e}")
+            return 1
 
-    candidates_in = hdata.get("candidates") or []
-    if not isinstance(candidates_in, list) or not candidates_in:
-        print("PICKER_INPUT_ERROR: headlines.json has no candidates")
+        candidates_in = hdata.get("candidates") or []
+        if not isinstance(candidates_in, list) or not candidates_in:
+            print("PICKER_INPUT_ERROR: headlines.json has no candidates")
+            return 1
+
+    # Resolve target_count: in classify-only/pool mode default to candidate count.
+    if args.target_count is None:
+        args.target_count = len(candidates_in)
+    if args.target_count < 1:
+        print(f"PICKER_INPUT_ERROR: target_count must be >= 1, got {args.target_count}")
         return 1
 
     try:
@@ -210,11 +293,17 @@ def main() -> int:
         )
         return 1
 
+    # classify-only: every provided candidate is kept; the picker just labels
+    # categories and never drops for diversity, so target == surviving count.
+    if args.classify_only:
+        args.target_count = len(candidates_out)
+
     out = {
         "built_at": datetime.now(timezone.utc).isoformat(),
         "project": project_slug,
         "project_name": cfg.get("name", project_slug),
         "target_count": int(args.target_count),
+        "classify_only": bool(args.classify_only),
         "recent_window_hours": int(args.recent_window_hours),
         "recent_categories": recent_categories,
         "wp_categories": wp_categories,
@@ -230,7 +319,8 @@ def main() -> int:
 
     print(
         f"PICKER_INPUT_BUILT: project={project_slug} / {len(candidates_out)} candidates / "
-        f"target={args.target_count} / wp_categories={len(wp_categories)} / "
+        f"target={args.target_count} / classify_only={bool(args.classify_only)} / "
+        f"wp_categories={len(wp_categories)} / "
         f"recent={recent_categories or 'none'} / window={args.recent_window_hours}h / "
         f"skipped_consumed={skipped_consumed}"
     )

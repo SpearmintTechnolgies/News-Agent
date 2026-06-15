@@ -30,7 +30,13 @@ STAMP_LOGO="${STAMP_LOGO:-1}"
 OUTPUT_PATH="${OUTPUT_PATH:-/tmp/${PROJECT_SLUG:-crypto}-feature.jpg}"
 RESULT_FILE="/tmp/image-result.txt"
 ERROR_FILE="/tmp/image-error.log"
-LOGO_PATH="$HOME/.openclaw/assets/logo.png"
+PROJECT_CONFIG_PY="$HOME/.openclaw/workspace-orchestrator/skills/pipeline/project_config.py"
+LOGO_REL=$(python3 "$PROJECT_CONFIG_PY" --field creator.logo_path 2>/dev/null || echo "")
+if [ -n "$LOGO_REL" ]; then
+  LOGO_PATH="$HOME/.openclaw/$LOGO_REL"
+else
+  LOGO_PATH="$HOME/.openclaw/assets/logo.png"
+fi
 MAX_GENERATE_RETRIES=3
 WIDTH=1024
 HEIGHT=576
@@ -62,7 +68,7 @@ EFFECTIVE_OUTPUT="$OUTPUT_PATH"
 mkdir -p "$(dirname "$EFFECTIVE_OUTPUT")" 2>/dev/null || true
 
 log_info "Starting image generation for prompt: ${PROMPT:0:80}..."
-log_info "Primary: $IMAGE_MODEL | Fallback: $IMAGE_MODEL_FALLBACK | Size: ${WIDTH}x${HEIGHT} | Stamp logo: $STAMP_LOGO"
+log_info "Primary: $IMAGE_MODEL | Fallback: $IMAGE_MODEL_FALLBACK | Size: ${WIDTH}x${HEIGHT} | Stamp logo: $STAMP_LOGO | Logo: $LOGO_PATH"
 echo "[INFO] endpoint=${BIFROST_BASE_URL%/}/images/generations primary=$IMAGE_MODEL fallback=$IMAGE_MODEL_FALLBACK" >> "$ERROR_FILE"
 
 call_imagen() {
@@ -189,19 +195,24 @@ ensure_jpeg() {
 stamp_logo() {
   if [ "$STAMP_LOGO" != "1" ]; then
     log_info "Logo stamping disabled (STAMP_LOGO=$STAMP_LOGO)."
+    echo "stamp_disabled:$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${EFFECTIVE_OUTPUT}.watermarked"
     return 0
   fi
-  if ! command -v convert &>/dev/null || [ ! -f "$LOGO_PATH" ]; then
-    log_warn "Logo stamping skipped (convert or logo missing)."
-    return 0
+  if ! command -v convert &>/dev/null; then
+    fatal "WATERMARK: ImageMagick 'convert' not found."
   fi
-  log_info "Stamping logo..."
+  if [ ! -f "$LOGO_PATH" ]; then
+    fatal "WATERMARK: logo not found at $LOGO_PATH (project=${PROJECT_SLUG:-?}). Add it or set STAMP_LOGO=0."
+  fi
+  log_info "Stamping logo from $LOGO_PATH..."
   TEMP_LOGO="/tmp/temp_logo_$$.png"
   if convert "$LOGO_PATH" -resize 100x "$TEMP_LOGO" 2>/dev/null && \
      composite -gravity SouthEast -geometry +16+16 "$TEMP_LOGO" "$EFFECTIVE_OUTPUT" "$EFFECTIVE_OUTPUT" 2>/dev/null; then
-    log_info "Logo stamped."
+    log_info "Logo stamped ($LOGO_PATH)."
+    echo "stamped:$(date -u +%Y-%m-%dT%H:%M:%SZ):$LOGO_PATH" > "${EFFECTIVE_OUTPUT}.watermarked"
   else
-    log_warn "Logo stamping failed — continuing without watermark."
+    rm -f "$TEMP_LOGO"
+    fatal "WATERMARK: composite failed for $LOGO_PATH onto $EFFECTIVE_OUTPUT."
   fi
   rm -f "$TEMP_LOGO"
 }

@@ -97,7 +97,54 @@ CREATE TABLE IF NOT EXISTS picked_stories (
 CREATE INDEX IF NOT EXISTS idx_picked_status ON picked_stories(status, pick_run_id);
 CREATE INDEX IF NOT EXISTS idx_picked_category ON picked_stories(category, created_at);
 CREATE INDEX IF NOT EXISTS idx_picked_pipeline ON picked_stories(pipeline_run_id);
+
+-- Approve-title-first: persistent per-project headline pool filled by the 24x7
+-- scanner. STRICTLY project-scoped: every read MUST filter by project (the
+-- UNIQUE key is (project, url) so the same URL can exist independently for two
+-- projects and the two lists can never bleed into each other).
+CREATE TABLE IF NOT EXISTS headline_pool (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project TEXT NOT NULL,
+  url TEXT NOT NULL,
+  headline TEXT NOT NULL,
+  source TEXT,
+  pub_date TEXT,
+  summary TEXT,
+  corroborating_json TEXT,
+  scanned_at TEXT DEFAULT (datetime('now')),
+  status TEXT NOT NULL DEFAULT 'fresh',
+  UNIQUE(project, url)
+);
+CREATE INDEX IF NOT EXISTS idx_pool_project_status ON headline_pool(project, status, pub_date);
+
+-- Daily feed card (the tap-to-select menu posted to the group). One row per
+-- card sent; selected_json holds the toggled candidate indexes.
+CREATE TABLE IF NOT EXISTS feed_cards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  feed_id TEXT NOT NULL UNIQUE,
+  project TEXT NOT NULL,
+  telegram_group TEXT NOT NULL,
+  telegram_message_id INTEGER,
+  candidates_json TEXT NOT NULL,
+  selected_json TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_feed_cards_msg ON feed_cards(telegram_group, telegram_message_id);
+
+-- Small key/value state store (e.g. group-level last_contact_at for the 48h
+-- idle clock). project '_global' is used for group-wide values.
+CREATE TABLE IF NOT EXISTS pipeline_state (
+  project TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT,
+  updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (project, key)
+);
 """
+
+GLOBAL_PROJECT = "_global"
 
 
 @dataclass
@@ -728,3 +775,419 @@ def recent_published_categories(
             (project, f"-{int(hours)} hours"),
         ).fetchall()
     return [r["category"] for r in rows if r["category"]]
+
+
+# ---------------------------------------------------------------------------
+# headline_pool — 24x7 scanner candidate list (STRICTLY project-scoped)
+# ---------------------------------------------------------------------------
+
+POOL_VALID_STATUSES = {"fresh", "shown", "selected", "consumed"}
+
+
+@dataclass
+class PoolCandidate:
+    id: int
+    project: str
+    url: str
+    headline: str
+    source: str | None
+    pub_date: str | None
+    summary: str | None
+    corroborating_json: str | None
+    scanned_at: str | None
+    status: str
+
+
+def _require_project(project: str | None) -> str:
+    """Hard guard: pool/feed/state reads must always name a project.
+
+    There is intentionally no default here so a caller can never accidentally
+    query across projects and mix the two lists.
+    """
+    p = (project or "").strip()
+    if not p:
+        raise ValueError("project is required (no cross-project queries allowed)")
+    return p
+
+
+def _row_to_pool(row: sqlite3.Row) -> PoolCandidate:
+    return PoolCandidate(
+        id=row["id"],
+        project=row["project"],
+        url=row["url"],
+        headline=row["headline"],
+        source=row["source"],
+        pub_date=row["pub_date"],
+        summary=row["summary"],
+        corroborating_json=row["corroborating_json"],
+        scanned_at=row["scanned_at"],
+        status=row["status"],
+    )
+
+
+def upsert_pool_candidates(
+    project: str,
+    candidates: list[dict[str, Any]],
+    *,
+    db_path: str = DEFAULT_DB_PATH,
+) -> int:
+    """Insert/refresh scanner candidates for ONE project. Returns rows added.
+
+    Existing (project, url) rows are left untouched (so a 'shown'/'selected'
+    status is preserved); only genuinely new URLs are inserted as 'fresh'.
+    """
+    project = _require_project(project)
+    if not candidates:
+        return 0
+    import json as _json
+
+    added = 0
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        for cand in candidates:
+            url = str(cand.get("url") or "").strip()
+            headline = str(cand.get("headline") or "").strip()
+            if not url or not headline:
+                continue
+            corro = cand.get("corroborating_sources")
+            corro_json = _json.dumps(corro, ensure_ascii=False) if isinstance(corro, list) else None
+            cur = conn.execute(
+                """
+                INSERT INTO headline_pool (
+                  project, url, headline, source, pub_date, summary,
+                  corroborating_json, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'fresh')
+                ON CONFLICT(project, url) DO NOTHING
+                """,
+                (
+                    project,
+                    url,
+                    headline,
+                    str(cand.get("source") or "") or None,
+                    str(cand.get("pub_date") or "") or None,
+                    str(cand.get("summary") or "") or None,
+                    corro_json,
+                ),
+            )
+            if cur.rowcount:
+                added += 1
+        conn.commit()
+    return added
+
+
+def fresh_pool(
+    project: str,
+    *,
+    limit: int = 10,
+    max_age_hours: int | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> list[PoolCandidate]:
+    """Top fresh candidates for ONE project, newest first. status='fresh' only."""
+    project = _require_project(project)
+    init_db(db_path)
+    clauses = ["project = ?", "status = 'fresh'"]
+    params: list[Any] = [project]
+    if max_age_hours is not None:
+        clauses.append("(scanned_at >= datetime('now', ?))")
+        params.append(f"-{int(max_age_hours)} hours")
+    where = " AND ".join(clauses)
+    params.append(int(limit))
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT * FROM headline_pool
+            WHERE {where}
+            ORDER BY (pub_date IS NULL), pub_date DESC, scanned_at DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+    return [_row_to_pool(r) for r in rows]
+
+
+def available_for_backfill(
+    project: str,
+    *,
+    exclude_urls: list[str] | None = None,
+    limit: int = 50,
+    db_path: str = DEFAULT_DB_PATH,
+) -> list[PoolCandidate]:
+    """Candidates usable to replace a failed story: status fresh OR shown
+    (i.e. seen on a card but not yet selected/consumed), newest first,
+    excluding the given URLs. STRICTLY one project.
+    """
+    project = _require_project(project)
+    init_db(db_path)
+    exclude = set(exclude_urls or [])
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM headline_pool
+            WHERE project = ? AND status IN ('fresh', 'shown')
+            ORDER BY (pub_date IS NULL), pub_date DESC, scanned_at DESC
+            LIMIT ?
+            """,
+            (project, int(limit) + len(exclude)),
+        ).fetchall()
+    out = [_row_to_pool(r) for r in rows if r["url"] not in exclude]
+    return out[:limit]
+
+
+def pool_by_urls(
+    project: str, urls: list[str], *, db_path: str = DEFAULT_DB_PATH
+) -> list[PoolCandidate]:
+    """Fetch specific pool rows by URL for ONE project (selection resolution)."""
+    project = _require_project(project)
+    urls = [u for u in (urls or []) if u]
+    if not urls:
+        return []
+    init_db(db_path)
+    placeholders = ",".join("?" * len(urls))
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM headline_pool WHERE project = ? AND url IN ({placeholders})",
+            (project, *urls),
+        ).fetchall()
+    by_url = {r["url"]: _row_to_pool(r) for r in rows}
+    # Preserve caller order
+    return [by_url[u] for u in urls if u in by_url]
+
+
+def mark_pool(
+    project: str,
+    urls: list[str],
+    status: str,
+    *,
+    db_path: str = DEFAULT_DB_PATH,
+) -> int:
+    """Set status for the given URLs within ONE project. Returns rows changed."""
+    project = _require_project(project)
+    if status not in POOL_VALID_STATUSES:
+        raise ValueError(f"invalid pool status: {status}")
+    urls = [u for u in (urls or []) if u]
+    if not urls:
+        return 0
+    init_db(db_path)
+    placeholders = ",".join("?" * len(urls))
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            f"UPDATE headline_pool SET status = ? WHERE project = ? AND url IN ({placeholders})",
+            (status, project, *urls),
+        )
+        conn.commit()
+        return cur.rowcount
+
+
+def prune_pool(
+    project: str,
+    *,
+    older_than_hours: int = 168,
+    db_path: str = DEFAULT_DB_PATH,
+) -> int:
+    """Delete stale rows for ONE project (default 7 days). Returns rows deleted."""
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM headline_pool WHERE project = ? AND scanned_at < datetime('now', ?)",
+            (project, f"-{int(older_than_hours)} hours"),
+        )
+        conn.commit()
+        return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# feed_cards — the daily tap-to-select menu
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FeedCard:
+    id: int
+    feed_id: str
+    project: str
+    telegram_group: str
+    telegram_message_id: int | None
+    candidates_json: str
+    selected_json: str
+    status: str
+
+
+def _row_to_feed_card(row: sqlite3.Row) -> FeedCard:
+    return FeedCard(
+        id=row["id"],
+        feed_id=row["feed_id"],
+        project=row["project"],
+        telegram_group=row["telegram_group"],
+        telegram_message_id=row["telegram_message_id"],
+        candidates_json=row["candidates_json"],
+        selected_json=row["selected_json"],
+        status=row["status"],
+    )
+
+
+def insert_feed_card(
+    feed_id: str,
+    project: str,
+    telegram_group: str,
+    candidates: list[dict[str, Any]],
+    *,
+    telegram_message_id: int | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> int:
+    project = _require_project(project)
+    import json as _json
+
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO feed_cards (
+              feed_id, project, telegram_group, telegram_message_id,
+              candidates_json, selected_json, status
+            ) VALUES (?, ?, ?, ?, ?, '[]', 'open')
+            ON CONFLICT(feed_id) DO UPDATE SET
+              project = excluded.project,
+              telegram_group = excluded.telegram_group,
+              telegram_message_id = excluded.telegram_message_id,
+              candidates_json = excluded.candidates_json,
+              updated_at = datetime('now')
+            """,
+            (
+                feed_id,
+                project,
+                str(telegram_group),
+                int(telegram_message_id) if telegram_message_id is not None else None,
+                _json.dumps(candidates, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        row = conn.execute("SELECT id FROM feed_cards WHERE feed_id = ?", (feed_id,)).fetchone()
+        return int(row["id"]) if row else 0
+
+
+def set_feed_card_message_id(
+    feed_id: str, telegram_message_id: int, *, db_path: str = DEFAULT_DB_PATH
+) -> None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE feed_cards SET telegram_message_id = ?, updated_at = datetime('now') WHERE feed_id = ?",
+            (int(telegram_message_id), feed_id),
+        )
+        conn.commit()
+
+
+def get_feed_card(feed_id: str, *, db_path: str = DEFAULT_DB_PATH) -> FeedCard | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT * FROM feed_cards WHERE feed_id = ?", (feed_id,)).fetchone()
+    return _row_to_feed_card(row) if row else None
+
+
+def get_feed_card_by_message(
+    telegram_group: str, telegram_message_id: int, *, db_path: str = DEFAULT_DB_PATH
+) -> FeedCard | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM feed_cards WHERE telegram_group = ? AND telegram_message_id = ? ORDER BY id DESC LIMIT 1",
+            (str(telegram_group), int(telegram_message_id)),
+        ).fetchone()
+    return _row_to_feed_card(row) if row else None
+
+
+def set_feed_card_selection(
+    feed_id: str, selected: list[int], *, db_path: str = DEFAULT_DB_PATH
+) -> None:
+    import json as _json
+
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE feed_cards SET selected_json = ?, updated_at = datetime('now') WHERE feed_id = ?",
+            (_json.dumps(sorted(set(int(i) for i in selected))), feed_id),
+        )
+        conn.commit()
+
+
+def set_feed_card_status(feed_id: str, status: str, *, db_path: str = DEFAULT_DB_PATH) -> None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE feed_cards SET status = ?, updated_at = datetime('now') WHERE feed_id = ?",
+            (status, feed_id),
+        )
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# pipeline_state — key/value (group-level idle clock, daily counters)
+# ---------------------------------------------------------------------------
+
+
+def set_state(project: str, key: str, value: str, *, db_path: str = DEFAULT_DB_PATH) -> None:
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO pipeline_state (project, key, value, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(project, key) DO UPDATE SET
+              value = excluded.value, updated_at = datetime('now')
+            """,
+            (project, key, value),
+        )
+        conn.commit()
+
+
+def get_state(project: str, key: str, *, db_path: str = DEFAULT_DB_PATH) -> str | None:
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT value FROM pipeline_state WHERE project = ? AND key = ?",
+            (project, key),
+        ).fetchone()
+    return row["value"] if row else None
+
+
+def touch_last_contact(*, db_path: str = DEFAULT_DB_PATH) -> None:
+    """Stamp the GROUP-level last_contact_at to now (resets the 48h idle clock)."""
+    set_state(GLOBAL_PROJECT, "last_contact_at", "", db_path=db_path)
+    # set_state stamps updated_at = now; we read updated_at as the timestamp.
+
+
+def hours_since_last_contact(*, db_path: str = DEFAULT_DB_PATH) -> float | None:
+    """Hours since the last group engagement, or None if never recorded."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT (julianday('now') - julianday(updated_at)) * 24.0 AS h
+            FROM pipeline_state WHERE project = ? AND key = 'last_contact_at'
+            """,
+            (GLOBAL_PROJECT,),
+        ).fetchone()
+    if not row or row["h"] is None:
+        return None
+    return float(row["h"])
+
+
+def published_today(project: str, *, db_path: str = DEFAULT_DB_PATH) -> int:
+    """Count of stories that completed the pipeline today (local day) for a
+    project: picked_stories with status 'published' updated today.
+    """
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS c FROM picked_stories
+            WHERE project = ? AND status = 'published'
+              AND date(updated_at, 'localtime') = date('now', 'localtime')
+            """,
+            (project,),
+        ).fetchone()
+    return int(row["c"]) if row else 0

@@ -22,9 +22,14 @@ GCP project/region (for reference): see `openclaw.json` env (`GOOGLE_CLOUD_PROJE
 
 ## Brand Assets
 
-| Asset | Path |
-|---|---|
-| **Logo** | `~/.openclaw/assets/logo.png` |
+Per-project watermark logos (relative to `~/.openclaw/`, set in `projects/<slug>.json` → `creator.logo_path`):
+
+| Project | Config key | Default path |
+|---|---|---|
+| **Coinography** | `creator.logo_path` | `assets/logo.png` |
+| **MemeCoinist** | `creator.logo_path` | `assets/logo-memecoinist.png` |
+
+`generate.sh` resolves the logo from the active project config. If `STAMP_LOGO=1` (default) and the configured logo is missing, generation **fails** with a `WATERMARK:` error.
 
 ---
 

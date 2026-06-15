@@ -278,6 +278,38 @@ def send_telegram_card(
     return msg.get("message_id")
 
 
+def edit_message_reply_markup(
+    token: str, chat_id: str, message_id: int, reply_markup: str | None
+) -> dict:
+    """Update only the inline keyboard of an existing message (e.g. selection
+    checkmarks on the feed card). Pass reply_markup=None to clear it."""
+    data: dict[str, str] = {"chat_id": str(chat_id), "message_id": str(int(message_id))}
+    if reply_markup:
+        data["reply_markup"] = reply_markup
+    return telegram_request(token, "editMessageReplyMarkup", data=data)
+
+
+def edit_message_text(
+    token: str,
+    chat_id: str,
+    message_id: int,
+    text: str,
+    reply_markup: str | None = None,
+) -> dict:
+    """Replace the text + (optionally) keyboard of an existing message in place
+    (used by the feed card on Refresh)."""
+    data: dict[str, str] = {
+        "chat_id": str(chat_id),
+        "message_id": str(int(message_id)),
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": "true",
+    }
+    if reply_markup:
+        data["reply_markup"] = reply_markup
+    return telegram_request(token, "editMessageText", data=data)
+
+
 def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]:
     manifest = load_json(manifest_path)
     if not manifest:

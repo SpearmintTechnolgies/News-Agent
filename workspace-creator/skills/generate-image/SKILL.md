@@ -21,7 +21,8 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Photoreali
 | `BIFROST_BASE_URL` | `http://172.30.176.1:8888/v1` | Bifrost OpenAI-compatible API base |
 | `IMAGE_MODEL` | `vertex/imagen-4.0-fast-generate-001` | Primary (fast, ~5–8s) |
 | `IMAGE_MODEL_FALLBACK` | `vertex/imagen-4.0-generate-001` | Quality fallback if primary fails |
-| `STAMP_LOGO` | `1` | Set `0` to skip Coinography logo composite |
+| `STAMP_LOGO` | `1` | Set `0` to skip logo composite |
+| `PROJECT_SLUG` | (from run env) | Used with project config to resolve `creator.logo_path` |
 
 ## Return Values
 
@@ -37,7 +38,7 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Photoreali
 - Up to 3 retry rounds with exponential backoff
 - Single-response base64 decode (no async polling or CDN download)
 - Symlink-safe write to `/tmp/crypto-feature.jpg`
-- Optional logo stamp (100px, bottom-right)
+- Optional logo stamp (100px, bottom-right) — logo path from active project `creator.logo_path`; **fails loudly** if logo missing when `STAMP_LOGO=1`
 - Expect **5–10 seconds** per successful generation (Imagen 4 Fast primary)
 
 ## What YOU Must Do (Your Only Job)

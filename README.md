@@ -23,8 +23,8 @@ Publishing targets live in [`projects/`](projects/):
 
 | Slug | Site | Template |
 |------|------|----------|
-| `coinography` | coinography.com | `workspace-writer/COINOGRAPHY_TEMPLATE.md` |
-| `memecoinist` | memecoinist.com | `workspace-mc-writer/MEMECOIN_TEMPLATE.md` |
+| `coinography` | coinography.com | `workspace-writer/templates/COINOGRAPHY_TEMPLATE.md` |
+| `memecoinist` | memecoinist.com | `workspace-writer/templates/MEMECOIN_TEMPLATE.md` |
 
 Trigger examples on Telegram:
 ```
@@ -40,6 +40,17 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/sync_wp_categories.py
 ```
 
 See [`projects/README.md`](projects/README.md) for project config schema.
+
+## Approve-title-first flow
+
+The pipeline uses a **headline pool** (24/7 scanner, no LLM) and a daily **feed card** in the news-agent Telegram group:
+
+- `update_headline_pool.py` — fills per-project headline pool
+- `send_feed_card.py` — posts ~10 headlines with inline select buttons
+- `pool_scheduler.py` — orchestrates scanner + feed card + idle watchdog
+- `check_auto_run.py` — auto-runs pipeline after 48h group silence (capped)
+
+See [PLANS/approve-title-first.md](PLANS/approve-title-first.md) for the full spec.
 
 ---
 
@@ -151,8 +162,9 @@ Creates editorial DB, article history DB, and seeds topic dedup state.
 ### Step 7 — Start and run
 
 1. Start the OpenClaw gateway
-2. Message the News Agent bot on Telegram: `run pipeline coinography 1`
-3. Use editorial feedback in the group: `RATE 8`, `PUBLISH`, `EDIT`
+2. (Optional) Enable the pool scheduler systemd unit from `workspace-orchestrator/config/openclaw-pool-scheduler.service`
+3. Message the News Agent bot on Telegram: `run pipeline coinography 1`
+4. Use editorial feedback in the group: `RATE 8`, `PUBLISH`, `EDIT`
 
 See [workspace-orchestrator/EDITORIAL_FEEDBACK.md](workspace-orchestrator/EDITORIAL_FEEDBACK.md).
 
@@ -168,14 +180,14 @@ News-Agent/
 ├── README.md
 ├── AGENT_PIPELINE_REGISTRY.md
 ├── PIPELINE_ARCHITECTURE.md
+├── PLANS/                         # Feature specs (approve-title-first, telegram cards)
 ├── PIPELINE_DOCS/
-├── projects/                    # coinography.json, memecoinist.json
+├── projects/                      # coinography.json, memecoinist.json
 ├── skills/chart-generator/
-├── workspace-orchestrator/      # Nexus + pipeline scripts
+├── workspace-orchestrator/        # Nexus + pipeline scripts
 ├── workspace-researcher/
-├── workspace-picker/            # Sieve — WP category picker
-├── workspace-writer/
-├── workspace-mc-writer/           # MemeCoinist article template only
+├── workspace-picker/              # Sieve — WP category picker
+├── workspace-writer/              # Quill — templates/ + article skills
 ├── workspace-chart-generator/
 ├── workspace-creator/
 ├── workspace-publisher/
@@ -190,3 +202,4 @@ News-Agent/
 - [PIPELINE_ARCHITECTURE.md](PIPELINE_ARCHITECTURE.md) — architecture overview
 - [projects/README.md](projects/README.md) — project config schema
 - [PIPELINE_DOCS/coinography-wordpress-api-integration.md](PIPELINE_DOCS/coinography-wordpress-api-integration.md) — WP REST API guide
+- [PLANS/approve-title-first.md](PLANS/approve-title-first.md) — headline pool + feed card flow

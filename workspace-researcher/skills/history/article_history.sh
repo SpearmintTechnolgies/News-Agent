@@ -4,37 +4,34 @@
 # Usage:
 #   article_history.sh check <url> [--project <slug>]
 #   article_history.sh add   <url> [--project <slug>]
+#   article_history.sh check-batch [--project <slug>] [--stdin] [url ...]
 #
-# Project resolution (in order):
-#   1. --project flag
-#   2. $PROJECT_SLUG env var
-#   3. "coinography" (backward compat)
-#
-# Each project has its own dedup namespace: the same URL on coinography and
-# memecoinist would NOT be considered a duplicate. The DB stores a single
-# table keyed on (url, project).
-#
-# The active-URL side-channel file used to hand off the chosen URL to the
-# WP-Publisher is project-prefixed: /tmp/<project>-active-url.txt. The legacy
-# /tmp/openclaw_active_url.txt is also written for backward compat.
+# check-batch: prints URLs that EXIST (one per line). Uses batched SQLite via history_batch.py.
 
 set -euo pipefail
 
 DB_PATH="${ARTICLE_HISTORY_DB:-/home/bhard/.openclaw/article_history.db}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BATCH_PY="${SCRIPT_DIR}/history_batch.py"
 
 PROJECT_SLUG_DEFAULT="${PROJECT_SLUG:-coinography}"
 
 ACTION=""
 URL=""
 PROJECT="$PROJECT_SLUG_DEFAULT"
+USE_STDIN=0
+URLS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    check|add)
+    check|add|check-batch)
       ACTION="$1"; shift ;;
     --project)
       PROJECT="$2"; shift 2 ;;
+    --stdin)
+      USE_STDIN=1; shift ;;
     *)
+      URLS+=("$1")
       if [[ -z "$URL" ]]; then URL="$1"; fi
       shift ;;
   esac
@@ -44,30 +41,41 @@ PROJECT="${PROJECT:-coinography}"
 ACTIVE_URL_FILE="/tmp/${PROJECT}-active-url.txt"
 LEGACY_ACTIVE_URL_FILE="/tmp/openclaw_active_url.txt"
 
-sqlite3 "$DB_PATH" <<SQL
-CREATE TABLE IF NOT EXISTS history (
-  url TEXT PRIMARY KEY,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-SQL
-
-# Additive migration: add `project` column + composite PK if absent.
-HAS_PROJECT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM pragma_table_info('history') WHERE name='project';")
-if [[ "$HAS_PROJECT" == "0" ]]; then
+_ensure_schema_once() {
   sqlite3 "$DB_PATH" <<SQL
-ALTER TABLE history ADD COLUMN project TEXT NOT NULL DEFAULT 'coinography';
-UPDATE history SET project='coinography' WHERE project IS NULL OR project='';
-CREATE INDEX IF NOT EXISTS idx_history_url_project ON history(url, project);
+CREATE TABLE IF NOT EXISTS history (
+  url TEXT NOT NULL,
+  project TEXT NOT NULL DEFAULT 'coinography',
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (url, project)
+);
 CREATE INDEX IF NOT EXISTS idx_history_project_ts ON history(project, timestamp);
 SQL
+}
+
+_purge_old_once() {
+  sqlite3 "$DB_PATH" "DELETE FROM history WHERE timestamp <= datetime('now', '-7 days');"
+}
+
+if [[ "$ACTION" == "check-batch" ]]; then
+  _ensure_schema_once
+  _purge_old_once
+  export ARTICLE_HISTORY_DB="$DB_PATH"
+  if [[ "$USE_STDIN" == "1" ]]; then
+    python3 "$BATCH_PY" check-batch --project "$PROJECT" --stdin
+  else
+    python3 "$BATCH_PY" check-batch --project "$PROJECT" "${URLS[@]}"
+  fi
+  exit 0
 fi
 
-# Cleanup older than 7 days
-sqlite3 "$DB_PATH" "DELETE FROM history WHERE timestamp <= datetime('now', '-7 days');"
+_ensure_schema_once
+_purge_old_once
 
 if [[ -z "$ACTION" ]]; then
   echo "Usage: $0 check <url> [--project <slug>]"
   echo "       $0 add   <url> [--project <slug>]"
+  echo "       $0 check-batch [--project <slug>] [--stdin] [url ...]"
   exit 2
 fi
 

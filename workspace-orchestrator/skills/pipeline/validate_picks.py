@@ -80,6 +80,18 @@ def main() -> int:
         default=None,
         help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinography",
     )
+    parser.add_argument(
+        "--classify-only",
+        action="store_true",
+        help="Keep every pick; do NOT enforce batch primary-category uniqueness "
+        "(human-selected / backfill flow where the picker only labels categories).",
+    )
+    parser.add_argument(
+        "--append-to",
+        default=None,
+        help="Canonical picks.json to APPEND these picks to (backfill). pick_index "
+        "continues after the existing max; new picks are merged into that file.",
+    )
     args = parser.parse_args()
 
     try:
@@ -153,7 +165,22 @@ def main() -> int:
         print(f"PICKS_INVALID: too many picks ({len(picks)} > target {target_count})")
         return 1
 
-    diversity_relaxed = bool(pdata.get("diversity_relaxed"))
+    # classify-only (flag OR picker_input marker): keep every pick, skip the
+    # hard batch primary-category uniqueness. Backfill/human-selected flow.
+    classify_only = bool(args.classify_only) or bool(idata.get("classify_only"))
+    diversity_relaxed = bool(pdata.get("diversity_relaxed")) or classify_only
+
+    # Backfill: continue pick_index after the existing canonical picks.json max.
+    index_offset = 0
+    existing_picks: list[dict] = []
+    if args.append_to:
+        existing = _read_json_loose(os.path.realpath(args.append_to)) or {}
+        existing_picks = existing.get("picks") or []
+        if isinstance(existing_picks, list) and existing_picks:
+            try:
+                index_offset = max(int(ep.get("pick_index") or 0) for ep in existing_picks)
+            except (TypeError, ValueError):
+                index_offset = len(existing_picks)
 
     seen_pick_indices: set[int] = set()
     seen_candidate_indices: set[int] = set()
@@ -247,7 +274,7 @@ def main() -> int:
         seen_primary_slugs.add(primary)
 
         cleaned = {
-            "pick_index": pick_index,
+            "pick_index": index_offset + pick_index,
             "candidate_index": candidate_index,
             "category": primary,
             "wp_category_slugs": resolved_slugs,
@@ -268,15 +295,7 @@ def main() -> int:
         }
         cleaned_picks.append(cleaned)
 
-    rewritten = dict(pdata)
-    rewritten["picked_count"] = len(cleaned_picks)
-    rewritten["picks"] = cleaned_picks
-    try:
-        atomic_write_json(picks_path, rewritten)
-    except OSError as e:
-        print(f"PICKS_INVALID: cannot rewrite picks.json: {e}")
-        return 1
-
+    # Insert the NEW picks into the DB regardless of mode.
     try:
         ids = editorial_db.insert_picked_stories(
             cleaned_picks,
@@ -289,12 +308,44 @@ def main() -> int:
         print(f"PICKS_INVALID: db insert failed: {e}")
         return 1
 
+    if args.append_to:
+        # Backfill: merge new picks into the canonical picks.json so the
+        # researcher (which reads INPUT_FILE by PICK_INDEX) sees them.
+        append_path = os.path.realpath(args.append_to)
+        merged = _read_json_loose(append_path) or {"status": "ok", "picks": []}
+        merged_picks = list(merged.get("picks") or [])
+        merged_picks.extend(cleaned_picks)
+        merged["picks"] = merged_picks
+        merged["picked_count"] = len(merged_picks)
+        try:
+            atomic_write_json(append_path, merged)
+        except OSError as e:
+            print(f"PICKS_INVALID: cannot append to picks.json: {e}")
+            return 1
+        new_indices = [p["pick_index"] for p in cleaned_picks]
+        print(
+            f"PICKS_APPENDED: project={project_slug} / {len(cleaned_picks)} picks "
+            f"into {append_path} ids={ids} pick_index={new_indices} "
+            f"primary={[p['category'] for p in cleaned_picks]}"
+        )
+        return 0
+
+    rewritten = dict(pdata)
+    rewritten["picked_count"] = len(cleaned_picks)
+    rewritten["picks"] = cleaned_picks
+    try:
+        atomic_write_json(picks_path, rewritten)
+    except OSError as e:
+        print(f"PICKS_INVALID: cannot rewrite picks.json: {e}")
+        return 1
+
     print(
         f"PICKS_VALID: project={project_slug} / {len(cleaned_picks)} picks for "
         f"{args.pick_run_id} ids={ids} "
         f"primary={[p['category'] for p in cleaned_picks]} "
         f"wp_category_ids={[p['wp_category_ids'] for p in cleaned_picks]}"
         + (" diversity_relaxed=true" if diversity_relaxed else "")
+        + (" classify_only=true" if classify_only else "")
     )
     return 0
 

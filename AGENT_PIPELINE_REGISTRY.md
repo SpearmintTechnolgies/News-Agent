@@ -1,6 +1,6 @@
 # Agent Pipeline Registry
 
-**Last updated:** 2026-06-03  
+**Last updated:** 2026-06-12  
 **Purpose:** Canonical living reference for the OpenClaw crypto news pipeline — all agents, subagents, prompts, tools, skills, and pipeline steps.  
 **Config source of truth:** [`openclaw.json`](openclaw.json)
 
@@ -15,7 +15,7 @@ Update this registry in the **same change** whenever you edit any of:
 | Category | Paths |
 |----------|-------|
 | Config | `openclaw.json`, `exec-approvals.json` |
-| Prompts | `workspace-*/SOUL.md`, `workspace-*/AGENTS.md`, `workspace-*/IDENTITY.md`, `workspace-*/TOOLS.md`, `workspace-writer/COINOGRAPHY_TEMPLATE.md` |
+| Prompts | `workspace-*/SOUL.md`, `workspace-*/AGENTS.md`, `workspace-*/IDENTITY.md`, `workspace-writer/templates/*.md` |
 | Skills | `workspace-*/skills/**`, `skills/**` |
 | Pipeline scripts | `workspace-orchestrator/skills/pipeline/**` |
 
@@ -192,7 +192,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | 1c | Spawn `picker` (Sieve) → `picks.json` → `validate_picks.py` inserts each pick into `picked_stories` table |
 | 2.0 | `switch_iteration.sh --start <N>` (per pick) — archive previous iter, truncate canonical files |
 | 2.1 | Spawn researcher in `MODE: DEEP_RESEARCH` for the current pick → `validate_research.py` (with `--raw-path`/`--validated-path` for per-iteration files when using sub-bundles) → 24h topic dedup |
-| 2.2 | Spawn writer → sync/validate article (structure, anchors, word count) — same retry/repair contract as before |
+| 2.2 | Spawn writer → self-check (`check_article.py` on raw) → sync → single gate (`check_article.py --post-sync` on final) — targeted REVISION MODE repairs |
 | 2.3 | Spawn creator → validate JPEG (chart sub-step still gated by `ENABLE_ARTICLE_CHARTS`) |
 | 2.4 | Build DOCX with pandoc → `verify_artifacts.py --stage pre_drive` → spawn publisher for Drive upload |
 | 2.5 | Per-story user gate — reply with headline + category + Drive link, **STOP** for `yes`/`no`/`stop` |
@@ -204,9 +204,9 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 **Spawn message templates:**
 
 - **researcher (HEADLINE_SCAN):** `MODE: HEADLINE_SCAN` / `OUTPUT_FILE: $RUN_DIR/research/headlines.json` / `TARGET_COUNT: 10`
-- **researcher (DEEP_RESEARCH):** `MODE: DEEP_RESEARCH` / `INPUT_FILE: $RUN_DIR/picker/picks.json` / `PICK_INDEX: <N>` / `OUTPUT_FILE: $RUN_DIR/research/raw.json`
+- **researcher (DEEP_RESEARCH):** `MODE: DEEP_RESEARCH` / `INPUT_FILE: $RUN_DIR/picker/picks.json` / `PICK_INDEX: <N>` / `OUTPUT_FILE: $RUN_DIR/research/raw.json`. Scout resolves aggregator URLs, scrapes, then self-checks with `check_research.py`; yields `SUCCESS` only on `RESEARCH_CHECK: PASS`.
 - **picker:** `INPUT_FILE: $RUN_DIR/picker/picker_input.json` / `OUTPUT_FILE: $RUN_DIR/picker/picks.json`
-- **writer:** Read `validated.json` + `COINOGRAPHY_TEMPLATE.md`; 1000–1200 body words; write to `$RUN_DIR/article/raw.md`; yield `SUCCESS` only.
+- **writer:** Resolve template from `PROJECT_CONFIG`; pre-writing plan → write `raw.md` → run `check_article.py` until `ARTICLE_CHECK: PASS`; yield `SUCCESS` only on pass.
 - **chart-generator:** `CHART_COIN: [coin]` / `CHART_DAYS: 30` / `CHART_OUTPUT: $RUN_DIR/media/chart.png`
 - **creator:** Generate feature image from `validated.json` using Scene Formula in SOUL; run `generate.sh`.
 - **publisher:** Run exact `gog drive upload /tmp/crypto-article.docx ...`; return `webViewLink`.
@@ -233,8 +233,8 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 
 | Mode | Job | Output |
 |------|-----|--------|
-| `HEADLINE_SCAN` | Fetch RSS feeds, parse and dedupe items, return up to 10 fresh candidate headlines (last 24h). No deep extraction. | `$RUN_DIR/research/headlines.json` |
-| `DEEP_RESEARCH` | Read the assigned pick from `INPUT_FILE` + `PICK_INDEX`, validate URLs, run `trafilatura` on primary + corroborating sources, build aggregated research JSON (≥600 words). Carries `category` through unchanged from the picker. | `$RUN_DIR/research/raw.json` (or `--validated-path` per-iteration variant) |
+| `HEADLINE_SCAN` | Run `scan_headlines.py` (deterministic, project-aware); LLM fallback if script fails. Returns up to 10 fresh candidate headlines. No deep extraction. | `$RUN_DIR/research/headlines.json` |
+| `DEEP_RESEARCH` | Read assigned pick, resolve URLs (cached), extract **≥2 sources** when corroboration exists via `extract_article.py`, build aggregated research JSON (≥600 words), self-check. | `$RUN_DIR/research/raw.json` (or `--validated-path` per-iteration variant) |
 
 **Tools denied:** `web_search`, `web_fetch`
 
@@ -244,13 +244,23 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 
 **DEEP_RESEARCH required JSON fields:** `status="ok"`, `mode="deep_research"`, `story_id`, `category`, `topic_theme`, `primary_keyword`, `primary_headline`, `primary_asset`, `chart_coin`, `sources_used`, `source_urls`, `combined_key_facts`, `aggregated_raw_content` (≥600 words).
 
-**Workspace skills/scripts:**
+**Workspace skills/scripts:** SOUL is thin (identity + mode triggers + output contract); procedures live in the mode skills below.
 
 | Path | Purpose |
 |------|---------|
-| `skills/research/verify_feeds.sh` | RSS health check |
-| `skills/history/article_history.sh` | SQLite duplicate URL check (7-day window) — used inside HEADLINE_SCAN |
-| `skills/web-reader-pro/SKILL.md` | Optional fallback reader — not primary path in SOUL |
+| `skills/headline-scan/SKILL.md` | HEADLINE_SCAN: script-first via `scan_headlines.py`, LLM manual fallback, final verification thinking block |
+| `skills/headline-scan/scan_headlines.py` | Deterministic project-aware scanner (parallel fetch, cached resolve, in-code filters/dedupe, batched history) |
+| `skills/deep-research/SKILL.md` | DEEP_RESEARCH: min 2 sources when corroboration exists, parallel extract via `extract_article.py` |
+| `skills/deep-research/extract_article.py` | Multi-tier extraction ladder (trafilatura → curl+trafilatura → bs4 → optional lynx/markdownify) |
+| `skills/research-check/check_research.py` | Self-check validator (`--mode headline_scan\|deep_research`); single source of truth shared with orchestrator gates |
+| `skills/research-check/resolve_url.py` | Resolve aggregator URLs; disk cache + retry + `--batch` mode |
+| `skills/research-check/SKILL.md` | Self-check loop + resolver usage |
+| `skills/history/history_batch.py` | Batched URL history checks (single SQLite connection) |
+| `skills/research/verify_feeds.sh` | Project-aware RSS health check (via `emit_feed_fetch_commands.py`) |
+| `skills/history/article_history.sh` | SQLite duplicate URL check (7-day window); `check-batch` mode |
+| `skills/web-reader-pro/SKILL.md` | Optional fallback reader — not primary path |
+
+**Reliability (self-check before handoff):** Both modes run `check_research.py` and yield `SUCCESS` only on `RESEARCH_CHECK: PASS`. The checker rejects trajectory-log / raw-HTML dumps and unresolved aggregator URLs, and accepts a clean error JSON (`status:error` with a known reason) so a bad pick is skipped instead of dumping garbage. `validate_research.py` and `validate_headlines.py` import the same check functions, so the gate can never diverge from the self-check.
 
 **Duplicate guards (cross-cutting):**
 1. Scout HEADLINE_SCAN — `article_history.sh check` per candidate URL (7-day TTL).
@@ -296,23 +306,27 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Field | Value |
 |-------|-------|
 | Workspace | `workspace-writer/` |
-| SOUL | `workspace-writer/SOUL.md` |
-| Template | `workspace-writer/COINOGRAPHY_TEMPLATE.md` |
-| Model | gpt-5.4 |
-| Pipeline step | 2 |
+| SOUL | `workspace-writer/SOUL.md` (thin: identity, triggers, output contract) |
+| Templates | `workspace-writer/templates/COINOGRAPHY_TEMPLATE.md`, `MEMECOIN_TEMPLATE.md` (via `writer.template_path` in project config) |
+| Skills | `skills/write-article/`, `skills/revise-article/`, `skills/article/` |
+| Model | gemini-2.5-pro |
+| Pipeline step | 2.2 |
 
-**Job:** Read `validated.json`, write SEO article per COINOGRAPHY rules, output to `$RUN_DIR/article/raw.md`, yield `SUCCESS`.
+**Job:** Read `validated.json`, follow `write-article` or `revise-article` skill, self-check with `check_article.py`, output to `$RUN_DIR/article/raw.md`, yield `SUCCESS` only when `ARTICLE_CHECK: PASS`.
 
-**Editorial rules (summary):** 1000–1200 body words; META limits (55/70/155 chars); exactly 2 source anchor links; 2–4 H2s, 3–6 H3s, 3–6 FAQs; fixed section order (Conclusion before FAQs).
+**Editorial rules (summary):** 1000–1200 body words; META limits (55/50/155 chars); exactly 2 source anchor links; 2–4 H2s, 3–6 H3s, 3–6 FAQs; fixed section order (Conclusion before FAQs). Rules live in project templates, not SOUL.
 
 **Tools:** Default coding profile (no special allow/deny).
 
-**Validation scripts (run by Nexus, not Quill):**
+**Validation (writer self-check + orchestrator gate — same script):**
 
-| Script | Purpose |
-|--------|---------|
-| `skills/validate_article_structure.py` | H2/H3/FAQ counts, section order |
-| `skills/validate_anchor_links.py` | Exactly 2 distinct source URLs |
+| Script / skill | Purpose |
+|----------------|---------|
+| `skills/write-article/SKILL.md` | Initial write workflow + pre-plan |
+| `skills/revise-article/SKILL.md` | REVISION MODE diff-repair |
+| `skills/article/check_article.py` | Combined validator: structure, word band, anchors, topic, META, footers, style |
+| `skills/article/validate_article_structure.py` | Internal module (also CLI) |
+| `skills/article/validate_anchor_links.py` | Internal module (also CLI) |
 
 **Output artifact:** `$RUN_DIR/article/raw.md` → synced to `final.md` at `/tmp/crypto-article.md`
 
@@ -416,12 +430,12 @@ All under `workspace-orchestrator/skills/pipeline/`:
 |--------|----------|
 | `init_run.sh` | Create run bundle, manifest (now includes `batch.target_count` + `pick_run_id`), `/tmp` symlinks, env file. Touches `headlines.json`, `picker_input.json`, `picks.json` placeholders too. |
 | `manifest_paths.py` | Resolve artifact paths from manifest |
-| `validate_headlines.py` | NEW — validate Scout's `HEADLINE_SCAN` output, dedupe URLs, normalize pub_date |
+| `validate_headlines.py` | Validate Scout's `HEADLINE_SCAN` output, dedupe URLs, normalize pub_date. Imports shared garbage guards + aggregator detection + per-candidate field list from researcher `check_research.py`; drops unresolved aggregator URLs. |
 | `build_picker_input.py` | NEW — assemble picker input with `target_count`, `recent_categories`, and consumed-URL filter from `picked_stories` |
 | `validate_picks.py` | NEW — validate Sieve's `picks.json`, enforce taxonomy, insert each pick into `picked_stories` |
 | `update_pick_status.py` | NEW — CLI wrapper around `editorial_db.update_pick_status` (researching/writing/drafted/published/failed/cancelled) |
 | `switch_iteration.sh` | NEW — `--start <N>` archives previous iter into `iter_<N-1>/` and truncates canonical files; `--archive <N>` saves last iter; `--reset <N>` archives into `iter_<N>_failed/` after a mid-iteration failure |
-| `validate_research.py` | Validate raw research JSON → `validated.json`. Now accepts `--raw-path` + `--validated-path` for per-iteration variants and carries `category` into manifest.story. |
+| `validate_research.py` | Validate raw research JSON → `validated.json`. Imports the shared `run_deep_research_checks` from researcher `check_research.py` (single source of truth with Scout's self-check); treats clean error JSON as a skip signal. Accepts `--raw-path` + `--validated-path` for per-iteration variants and carries `category` into manifest.story. |
 | `check_recent_topic_duplicates.py` | 24h topic dedup vs `state/recent_topics.json` |
 | `update_recent_topics.py` | Register researched/drafted/published topics. Now also stores `category`. |
 | `verify_artifacts.py` | Stage gates: `pre_write`, `pre_sync`, `post_sync`, `post_image` (feature_image ≥50 KB, JPEG magic bytes), `pre_drive`, `pre_wp`. `post_image` is run after Creator (Pixel) yields; retried once with Universal Fallback prompt before continuing without image. |
@@ -445,8 +459,8 @@ All under `workspace-orchestrator/skills/pipeline/`:
 | Agent | Skill / scripts |
 |-------|-----------------|
 | Orchestrator | Pipeline scripts (14 files above) + `EDITORIAL_FEEDBACK.md` |
-| Researcher | `verify_feeds.sh`, `article_history.sh`, `web-reader-pro` |
-| Writer | `validate_article_structure.py`, `validate_anchor_links.py` |
+| Researcher | `skills/headline-scan/`, `skills/deep-research/`, `skills/research-check/` (`check_research.py`, `resolve_url.py`), `verify_feeds.sh`, `article_history.sh`, `web-reader-pro` |
+| Writer | `skills/write-article/`, `skills/revise-article/`, `skills/article/check_article.py` |
 | Chart-generator | `skills/chart-generator/` (global) |
 | Creator | `generate-image/` |
 | Publisher | `gog/` |
@@ -544,3 +558,10 @@ Legacy `/tmp/...` paths are symlinks into the canonical (current-iteration) file
 | 2026-06-08 | Added `PIPELINE_DOCS/coinography-wordpress-api-integration.md` — full Coinography WP REST API integration reference: Application Password setup (WP admin step-by-step), credential storage, project config wiring, all endpoints, publish/update flows with payloads, lifecycle table, error handling, smoke tests. Google Doc: https://docs.google.com/document/d/1mLAN9WyfZL8GTl7w6niWEG2hvfEGljSItuxLvsAaGp8/edit |
 | 2026-06-10 | **Real WordPress categories + diversity (Phase 1: Coinography).** Picker no longer uses the hardcoded 8-item taxonomy — it now classifies each story into 1 primary + up to 2 secondary **live WP category slugs** from `wordpress.picker_category_slugs` (curated subset of `wordpress.categories`, synced from the site by new `sync_wp_categories.py`). New `wordpress.fallback_category_id` (17) replaces single `category_id`. `validate_picks.py` resolves slugs → numeric IDs, enforces **hard batch-unique primary category** + **72h primary exclusion** (graceful `diversity_relaxed` flag when the pool can't fill the batch), and rejects unknown/duplicate primaries. IDs flow via `picks.json` → `validate_research.py` (`--picks/--pick-index` authoritative injection) → `validated.json` → `publish.sh` which now sends `"categories": wp_category_ids` (fallback to `fallback_category_id`). New DB columns `wp_category_slugs`/`wp_category_ids` on `picked_stories` + `articles`. Creator SOUL got a slug→scene-template map. Files: `sync_wp_categories.py` (new), `build_picker_input.py`, `validate_picks.py`, `validate_research.py`, `editorial_db.py`, `publish.sh`, picker SOUL+USER, researcher SOUL, creator SOUL, orchestrator SOUL, `projects/coinography.json`. Phase 2 (memecoinist) delivered 2026-06-10 — see next row. |
 | 2026-06-10 | **Real WordPress categories + diversity (Phase 2: MemeCoinist).** Config-only change — all pipeline code from Phase 1 is project-generic. `sync_wp_categories.py --slug memecoinist` populated 42 live WP categories into `projects/memecoinist.json`. Removed legacy `wordpress.category_id` and `site_categories[]`. Added `wordpress.fallback_category_id: 10` (Latest News), `wordpress.picker_category_slugs` (28 curated memecoin-relevant slugs), and `wordpress.categories[]` (full live list). Removed dead `picker.allowed_categories`; updated `picker.diversity_window_hours` 24→72. The Picker now assigns real memecoinist.com WP categories with hard 72h primary-category diversity, identical to Coinography behaviour. |
+| 2026-06-11 | **Writer self-check reliability.** New `workspace-writer/skills/article/check_article.py` consolidates structure, anchor, word band, topic, META, footer, and style checks — used by Quill before SUCCESS and by Nexus as the single post-sync gate (`--post-sync` on `final.md`). Writer SOUL: mandatory write → check → fix-only-flagged loop (max 3 self-iterations). REVISION MODE: explicit PRESERVE list + targeted diff-repair. Orchestrator Step 2.2: slim spawn (template via `PROJECT_CONFIG`), slug limit standardized to ≤50, repairs route through REVISION MODE with one FAIL line. MemeCoinist template repointed to shared checker. |
+| 2026-06-11 | **MemeCoinist mc-* pipeline removed; writer workspace restructured.** Deleted legacy `mc-orchestrator` + 6 `mc-*` agents/workspaces, dedicated `memecoin` Telegram bot/bindings, and `MEMECOIN_PIPELINE_DOCUMENTATION.md`. MemeCoinist now runs only via main news-agent (`run pipeline memecoinist N`). Both templates live under `workspace-writer/templates/`; Quill SOUL thinned to identity/triggers/contract; procedural workflows moved to `skills/write-article`, `skills/revise-article`, `skills/article`. Validators consolidated under `skills/article/`. |
+| 2026-06-11 | **Researcher (Scout) reliability + restructure.** Mirrors the writer hardening. New `workspace-researcher/skills/research-check/check_research.py` (`--mode headline_scan\|deep_research`) is a self-check Scout runs before yielding `SUCCESS` (only on `RESEARCH_CHECK: PASS`); it rejects trajectory-log/raw-HTML dumps and unresolved aggregator URLs, requires prose ≥600 words, and accepts a clean error JSON as a skip signal. New `resolve_url.py` decodes `news.google.com/rss/articles/CBM...` wrappers to the publisher URL (redirect follow + `batchexecute`), used at scan time and as a deep-research safety net — fixes the Google News redirect-trap incident (log/HTML dumps). Orchestrator `validate_research.py` and `validate_headlines.py` now import the shared check functions (single source of truth). Scout SOUL thinned to identity/mode-triggers/output-contract; procedures moved to `skills/headline-scan/` and `skills/deep-research/`. Cleanup: ~95 stray dev files removed from workspace root; `TOOLS.md` trimmed. |
+| 2026-06-12 | **Researcher (Scout) speed + robustness optimization.** HEADLINE_SCAN is now script-first: new `scan_headlines.py` (project-aware, parallel feed fetch with retries, cached/parallel `resolve_url`, in-code `exclude_keywords` + dedupe, batched history via `history_batch.py`). LLM manual fallback + final verification thinking block if the script fails or returns too few candidates. `resolve_url.py` gains disk cache, retry, and `--batch` mode. `article_history.sh` adds `check-batch` + composite `(url, project)` PK. DEEP_RESEARCH requires ≥2 extracted sources when corroboration exists; new `extract_article.py` multi-tier ladder (trafilatura → curl+trafilatura → bs4 → optional lynx/markdownify). `run_headline_scan.py` deprecated (delegates to scanner). `verify_feeds.sh` now project-aware. Installed free deps: `markdownify`, `diskcache`. |
+| 2026-06-12 | **Per-project image watermarks.** `generate.sh` resolves logo from `creator.logo_path` in each project JSON (Coinography → `assets/logo.png`, MemeCoinist → `assets/logo-memecoinist.png`) via `project_config.py`. Same stamped `$RUN_DIR/media/feature.jpg` flows to Telegram, WordPress, and Drive. `stamp_logo()` now fails loudly (`WATERMARK:` fatal) when `STAMP_LOGO=1` and logo missing or composite fails — no silent unwatermarked publish. |
+| 2026-06-12 | **WP publish run-scoping + watermark guard + H1 dedup.** Fixed concurrent-run cross-contamination: `publish.sh` now writes canonical results to `$RUN_DIR/publish/wordpress.json` + `wp-url.txt` and per-slug `/tmp/<slug>-wp-result.{json,txt}` instead of shared `/tmp/wp-result.*` (legacy global write retained best-effort only). Orchestrator SOUL Step 2.6 reads run-scoped URL; Step 2.3 uses run-scoped feature path instead of `/tmp/crypto-feature.jpg`. `generate.sh` writes `${feature.jpg}.watermarked` sidecar after stamp; `publish.sh` refuses upload without marker. H1 dedup normalizes Unicode apostrophes/quotes/dashes before comparing post title to body H1 (fixes duplicate headline on titles like `Gensler's`). |
+| 2026-06-13 | **Approve-title-first flow.** Inverted the pipeline: a standalone 24/7 scanner fills a per-project `headline_pool` (no LLM); a daily 09:00 feed card posts ~10 headlines to the group with inline select buttons (`oc_sel`/`oc_go`/`oc_feed_refresh`); team selection runs the pipeline classify-only (picker labels categories, all selected stories kept); a cron `--command` idle watchdog (`check_auto_run.py`, hourly, zero tokens) auto-runs after 48h group silence capped at 4/day/project, daily-while-silent; any AUTOMATIC failure backfills a fresh pool story so the batch hits its target. **No heartbeat used** (default heartbeat untouched); no Telegram permission changes; all contact in the news-agent group. In-pipeline HEADLINE_SCAN spawn removed — candidates always come from the pool (`scan_headlines.py` kept as the scanner engine). New scripts: `update_headline_pool.py`, `send_feed_card.py`, `get_backfill_candidate.py`, `check_auto_run.py`. New `editorial_db` tables: `headline_pool`, `feed_cards`, `pipeline_state` (all project-scoped, no cross-project read path). Extended: `build_picker_input.py` (`--from-pool`/`--urls`/`--selection-file`/`--pool-fresh`/`--classify-only`), `validate_picks.py` (`--classify-only`/`--append-to`), `handle_card_feedback.py` (feed callbacks + `last_contact_at` stamp), `build_and_send_card.py` (`editMessageReplyMarkup`/`editMessageText` helpers), orchestrator `SOUL.md` (entry routing + Selected/Auto/Refresh entries + refillable queue with backfill + conditional Step 2.5), `EDITORIAL_FEEDBACK.md`. Cron: 3 `--command` jobs (scanner 30m, feed card 09:00, idle watchdog hourly). See `PLANS/approve-title-first.md`. |

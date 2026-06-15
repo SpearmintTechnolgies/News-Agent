@@ -16,6 +16,30 @@ THINKING REQUIRED: Before every step, use a `<thinking>` block to confirm which 
 
 ---
 
+## Entry routing (READ FIRST every turn)
+
+The news pipeline is **approve-title-first**: a separate 24/7 scanner keeps a per-project `headline_pool` full; stories are chosen UP FRONT (by a human on the daily feed card, or automatically after 48h of silence), and only then does the research→write→image→publish pipeline run. There is **no in-pipeline HEADLINE_SCAN spawn anymore** — candidates always come from the pool.
+
+Classify the incoming message into ONE mode and set the two run flags, then jump to the matching entry:
+
+| Incoming | Mode | PICKER_MODE | STEP25_GATE | Go to |
+|----------|------|-------------|-------------|-------|
+| Editorial callback/text on a news card (`oc_r:`,`oc_draft:`,`oc_publish:`,`oc_edit:`, `RATE`/`PUBLISH`/`EDIT`…) | FEEDBACK | — | — | **EDITORIAL_FEEDBACK.md** (do not run pipeline) |
+| Feed-card selection callbacks (`oc_sel:`,`oc_go:`,`oc_feed_refresh:`) | FEEDBACK | — | — | **EDITORIAL_FEEDBACK.md** (the `oc_go` handler then hands you a selection file — see "Selected-stories entry") |
+| "fetch latest news", "latest news", "refresh news", "send the feed" | REFRESH | — | — | **Refresh-feed entry** |
+| Message starts with `AUTO_RUN ` (from the idle watchdog cron) | AUTO | select | OFF | **Auto-run entry** |
+| `FEED_GO:` handoff (a selection file exists) | SELECTED | classify-only | ON | **Selected-stories entry** |
+| `run pipeline [<project>] N` (manual) | MANUAL | select | ON | Step 0.0 below |
+
+Run flags used throughout:
+- **PICKER_MODE = select**: the Picker chooses N from the pool with category diversity (manual + auto).
+- **PICKER_MODE = classify-only**: the Picker only labels categories; ALL provided stories are kept (human feed selection).
+- **STEP25_GATE = ON**: keep the per-story confirmation gate (Step 2.5) in the GROUP. **OFF**: skip it (auto-run publishes straight to draft + card).
+
+All human/agent contact happens in the **news-agent group** (never DM).
+
+---
+
 ## Standard Operating Procedure
 
 ### Step 0.0 — Detect intent
@@ -132,52 +156,39 @@ PYEOF
 echo "[Step 0.5] Batch target=$N pick_run_id=$PICK_RUN_ID"
 ```
 
-If `N == 1`, you can skip Steps 1a–1c entirely and run the legacy single-story path: spawn researcher with no MODE line (it defaults to `DEEP_RESEARCH` with no input file, falling back to "pick the best fresh story yourself"). Continue from Step 2 with `pick_index=1`. **Recommended: even for N=1, run the new flow (1a–1c) so the category is captured properly.** Choose either path; default to the new flow.
+Set the run flags for a MANUAL run: `PICKER_MODE=select`, `STEP25_GATE=ON`. Then continue to Step 1.
 
-For `N >= 1` using the new flow, continue with Step 1a.
-
-Tell the user: "Scanning headlines for batch of $N stor[y|ies]..."
+Tell the user: "Building a batch of $N stor[y|ies] from the pool..."
 
 ---
 
-### Step 1a — Headline scan (Scout, MODE: HEADLINE_SCAN)
+### Step 1 — Build picker input from the pool
 
-1. Use `sessions_spawn` and `sessions_yield` to spawn the `researcher` agent with this message (replace `$RUN_DIR` with the actual path):
+Candidates always come from the per-project `headline_pool` (filled by the 24/7 scanner) — never a live HEADLINE_SCAN. Build the input according to PICKER_MODE:
 
-   ```
-   MODE: HEADLINE_SCAN
-   OUTPUT_FILE: $RUN_DIR/research/headlines.json
-   TARGET_COUNT: 10
-   ```
-
-   Then immediately call `sessions_yield`. Do not end your turn.
-
-2. When the researcher yields back, validate the headlines file:
-
-   ```bash
-   python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/validate_headlines.py \
-     --path "$RUN_DIR/research/headlines.json" --min 3
-   ```
-
-   - `HEADLINES_VALID: <count> candidates` → proceed to Step 1b.
-   - `HEADLINES_INVALID: <reason>` → retry researcher (max 2 retries) with a clarifying spawn message that re-states `MODE: HEADLINE_SCAN` and the validator error. If still invalid after 3 total attempts → stop and report.
-
----
-
-### Step 1b — Build picker input
+**PICKER_MODE = select** (MANUAL / AUTO) — picker chooses N with diversity:
 
 ```bash
 python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_picker_input.py \
-  --headlines "$RUN_DIR/research/headlines.json" \
+  --from-pool --pool-fresh 15 \
   --output "$RUN_DIR/picker/picker_input.json" \
   --target-count $N \
-  --recent-window-hours 72
+  --project "$PROJECT_SLUG"
 ```
 
-This injects the project's curated WordPress categories (`wp_categories`) and the last-72h primary categories so the Picker can assign real WP categories and enforce day-to-day variation. (`--recent-window-hours` defaults to the project's `picker.diversity_window_hours` (72) if omitted.)
+**PICKER_MODE = classify-only** (SELECTED feed card) — keep ALL chosen stories, picker only labels categories:
 
-- `PICKER_INPUT_BUILT: <count> candidates / target=N / wp_categories=K / recent=...` → proceed.
-- `PICKER_INPUT_ERROR: all candidates filtered out (consumed=K)` → all 10 fresh headlines have already been published in past runs. Re-run Step 1a once with a strong note in the spawn message ("Avoid these consumed URLs: …" — list the top 10 from `picked_stories` where status='published'). If still empty → stop and tell the user "No fresh stories available right now."
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_picker_input.py \
+  --from-pool --selection-file "$SELECTION_FILE" --classify-only \
+  --output "$RUN_DIR/picker/picker_input.json" \
+  --project "$PROJECT_SLUG"
+```
+
+This injects the project's curated WordPress categories and the last-72h primary categories so the Picker assigns real WP categories.
+
+- `PICKER_INPUT_BUILT: ... candidates / target=N / classify_only=... ` → proceed to Step 1c.
+- `PICKER_INPUT_ERROR: pool mode but no candidates ...` → the pool is empty (scanner hasn't run or everything is consumed). Tell the user "No fresh stories in the pool right now — the scanner will refill shortly." and stop.
 - Other `PICKER_INPUT_ERROR` → stop and report the exact line.
 
 ---
@@ -196,14 +207,16 @@ This injects the project's curated WordPress categories (`wp_categories`) and th
 2. When picker yields back, validate picks and insert into `picked_stories`:
 
    ```bash
+   # Append --classify-only when PICKER_MODE=classify-only (SELECTED feed-card runs)
    python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/validate_picks.py \
      --picks "$RUN_DIR/picker/picks.json" \
      --picker-input "$RUN_DIR/picker/picker_input.json" \
      --pick-run-id "$PICK_RUN_ID" \
-     --pipeline-run-id "$RUN_ID"
+     --pipeline-run-id "$RUN_ID" \
+     ${CLASSIFY_ONLY_FLAG}   # = "--classify-only" when PICKER_MODE=classify-only, else empty
    ```
 
-   - `PICKS_VALID: <K> picks for <pick_run_id> ids=[…] categories=[…]` → proceed. Save the `ids=` list and `K`.
+   - `PICKS_VALID: <K> picks for <pick_run_id> ids=[…] categories=[…]` → proceed. Save the `ids=` list and `K`. Set `TARGET=K` (the batch must publish up to this many; backfill tops it back up on automatic failures).
    - `PICKS_INVALID: <reason>` → retry picker (max 2 retries) with a follow-up spawn message that pastes the validator error and asks Sieve to re-write `picks.json`. If still invalid after 3 total attempts → stop and report.
 
 3. Tell the user: "Picked K stor[y|ies]:" then list each `pick_index. category — headline (source)`.
@@ -212,22 +225,65 @@ This injects the project's curated WordPress categories (`wp_categories`) and th
 
 ### Step 2 — Per-story loop (each pick goes through the full pipeline)
 
-You will iterate `pick_index` from 1 to K (the number returned by `validate_picks.py`). For each pick, run Steps 2.0 through 2.6 in order, then move to the next pick. Track `pick_id` (the DB row id) for each iteration so status updates target the correct row.
-
-The order of picks comes from the file: read `$RUN_DIR/picker/picks.json` and process picks in `pick_index` order.
+This is a **refillable queue**, not a fixed loop. The batch must publish up to `TARGET` stories. Each pick runs Steps 2.0–2.6. If a pick fails for an **automatic** reason (research/topic-duplicate/write/image), you **backfill** a fresh story from the pool so the batch still reaches `TARGET` (see "Backfill on automatic failure" below). A human `no`/`stop` at Step 2.5 is deliberate and is **never** backfilled.
 
 ```bash
-PICK_IDS=( <paste the ids list from PICKS_VALID, space-separated, e.g. 12 13 14> )
-TOTAL_PICKS=${#PICK_IDS[@]}
+PICK_QUEUE=( <paste the ids list from PICKS_VALID, space-separated, e.g. 12 13 14> )
+TARGET=${#PICK_QUEUE[@]}   # for AUTO this is the per-project count (4 - published_today)
+PUBLISHED=0
+BACKFILLS_USED=0
+MAX_BACKFILLS=$((TARGET + 3))   # safety cap so a thin pool can't loop forever
 ```
 
-For each `i` in `1..TOTAL_PICKS` (1-based to match `pick_index`):
+Process the queue FIFO. Maintain `PICK_INDEX` = the pick's `pick_index` (from `picks.json`), and `PICK_ID` = the DB row id. Pop the next `PICK_ID`, look up its `pick_index`, and run Steps 2.0–2.6. Stop when the queue is empty (or, in any mode, once `PUBLISHED == TARGET`).
 
 ```bash
-PICK_INDEX=$i
-PICK_ID=${PICK_IDS[$((i-1))]}
-echo "=== Iteration $PICK_INDEX/$TOTAL_PICKS (pick_id=$PICK_ID) ==="
+# Conceptual loop (you execute it step by step, validating each sub-step):
+#   while PICK_QUEUE not empty AND PUBLISHED < TARGET:
+#     PICK_ID = pop(PICK_QUEUE);  PICK_INDEX = its pick_index
+#     run Steps 2.0 .. 2.6
+#     on success at 2.6  -> PUBLISHED++
+#     on AUTOMATIC failure -> mark failed + BACKFILL (may push a new PICK_ID)
+echo "=== pick_id=$PICK_ID (index $PICK_INDEX) | published=$PUBLISHED/$TARGET ==="
 ```
+
+**Daily cap (both human and auto):** before publishing a story at Step 2.6, check the project's daily count. If `published_today($PROJECT_SLUG) >= 4`, do NOT publish more today — mark the remaining queued picks `cancelled` (`failed_reason="daily_cap_reached"`), tell the group "Daily limit of 4 reached for $PROJECT_SLUG.", and break to Step 3.
+
+```bash
+PUB_TODAY=$(python3 -c "import sys;sys.path.insert(0,'$HOME/.openclaw/workspace-orchestrator/skills/pipeline');import editorial_db as d;print(d.published_today('$PROJECT_SLUG'))")
+```
+
+#### Backfill on automatic failure (keep the batch at TARGET)
+
+Whenever you would mark a pick `failed` for an **automatic** reason — `topic_duplicate` (Step 2.1 dedup), research-validation failure, writer failure, or image failure — do the bookkeeping (`update_pick_status --status failed`, `switch_iteration.sh --reset $PICK_INDEX`), then attempt ONE backfill **before** moving on, but only if `PUBLISHED + (#items still in PICK_QUEUE) < TARGET` and `BACKFILLS_USED < MAX_BACKFILLS`:
+
+```bash
+# 1) Exclude everything already in this batch (any status) + the failed url.
+EXCLUDE=$(python3 -c "import sys;sys.path.insert(0,'$HOME/.openclaw/workspace-orchestrator/skills/pipeline');import editorial_db as d;rows=d.list_picks_by_run('$PICK_RUN_ID');print(','.join(r.primary_url for r in rows if r.primary_url))")
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/get_backfill_candidate.py \
+  --project "$PROJECT_SLUG" --exclude-urls "$EXCLUDE" \
+  --output "/tmp/${PROJECT_SLUG}-backfill.json"
+```
+
+- `BACKFILL_NONE:` → pool exhausted; stop backfilling and accept the shorter batch. Tell the group "Story replaced — but no fresh pool story available; continuing with what's left."
+- `BACKFILL_CANDIDATE: url=... selection_file=<path>` → classify it and append to the batch:
+
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_picker_input.py \
+  --from-pool --selection-file "/tmp/${PROJECT_SLUG}-backfill.json" --classify-only \
+  --output "$RUN_DIR/picker/backfill_input.json" --project "$PROJECT_SLUG"
+# spawn picker (Sieve) on backfill_input.json -> $RUN_DIR/picker/backfill_picks.json (yield/wait)
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/validate_picks.py \
+  --picks "$RUN_DIR/picker/backfill_picks.json" \
+  --picker-input "$RUN_DIR/picker/backfill_input.json" \
+  --pick-run-id "$PICK_RUN_ID" --pipeline-run-id "$RUN_ID" \
+  --classify-only --append-to "$RUN_DIR/picker/picks.json"
+```
+
+- `PICKS_APPENDED: ... ids=[<new_id>] pick_index=[<new_index>]` → push `<new_id>` onto `PICK_QUEUE`, `BACKFILLS_USED++`, and tell the group: "Story $PICK_INDEX failed (<reason>) — replaced with: <new headline>." Then `continue` the queue.
+- `PICKS_INVALID:` → skip backfill (accept short batch), `continue`.
+
+When you reach a `continue` from an automatic failure, ALWAYS run the backfill block first (subject to the caps). The legacy "mark failed → continue" lines in Steps 2.1–2.3 below now mean "mark failed → backfill → continue".
 
 #### Step 2.0 — Begin iteration
 
@@ -326,17 +382,26 @@ Word-count policy: writer contract is 1000–1200 (aim 1100); orchestrator sync 
 1. Spawn the `writer` agent:
 
    ```
-   Read $RUN_DIR/research/validated.json (also at /tmp/research.json). Read COINOGRAPHY_TEMPLATE.md in your workspace. Choose article structure within the template borders (H2/H3/FAQ min-max). Length: 1000-1200 body words (aim 1100). META limits: SEO Title <= 55 chars, URL Slug <= 70 chars, Meta Description <= 155 chars (count in thinking). Order: Conclusion then FAQs last before Sources. Write the full article to $RUN_DIR/article/raw.md (also at /tmp/crypto-article-raw.md). Do NOT return the article in your chat response. Yield back ONLY the word "SUCCESS".
+   PROJECT_CONFIG: $PROJECT_CONFIG
+   PROJECT_SLUG: $PROJECT_SLUG
+
+   Read $RUN_DIR/research/validated.json (also at /tmp/${PROJECT_SLUG}-research.json).
+   Resolve writer.template_path from PROJECT_CONFIG and read that template file.
+   Follow workspace-writer/SOUL.md: pre-writing plan, then write → run check_article.py self-check loop on raw.md before SUCCESS.
+   Write to $RUN_DIR/article/raw.md (also at /tmp/${PROJECT_SLUG}-article-raw.md).
+   Yield SUCCESS only when check_article.py prints ARTICLE_CHECK: PASS.
    ```
 
-2. After writer yields, run the full sync + structure + post-sync gauntlet:
+   Do **not** paste the full template rules into the spawn — the template + SOUL + check_article skill are the source of truth.
+
+2. After writer yields, run the sync + single-check gauntlet:
 
    A. Pre-sync freshness:
    ```bash
    python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/verify_artifacts.py \
      --stage pre_sync --manifest "$PIPELINE_MANIFEST"
    ```
-   - OK → proceed; FAIL → up to 2 writer retries with: "You did not write the article file. Write the full article to $RUN_DIR/article/raw.md and yield SUCCESS." If still failing → mark pick failed, `--reset`, `continue`.
+   - OK → proceed; FAIL → up to 2 writer retries: "Write the full article to $RUN_DIR/article/raw.md, run check_article.py until PASS, then yield SUCCESS." If still failing → mark pick failed, `--reset`, `continue`.
 
    B. Sync raw -> final:
    ```bash
@@ -344,14 +409,17 @@ Word-count policy: writer contract is 1000–1200 (aim 1100); orchestrator sync 
      --manifest "$PIPELINE_MANIFEST"
    ```
    - `ARTICLE_SYNCED: <N> words` → proceed.
-   - `ARTICLE_STALE: H1 topic mismatch` → topic repair (see below).
-   - `ARTICLE_INVALID: Too short/long` → length repair (see below).
+   - `ARTICLE_STALE: H1 topic mismatch` or `ARTICLE_INVALID:` → revision repair (see below).
 
-   C. Structure + anchor validation:
+   C. Combined article check (same script Quill uses; post-sync mode on final.md):
    ```bash
-   python3 ~/.openclaw/workspace-writer/skills/validate_article_structure.py /tmp/crypto-article.md
-   python3 ~/.openclaw/workspace-writer/skills/validate_anchor_links.py /tmp/crypto-article.md /tmp/research.json
+   python3 ~/.openclaw/workspace-writer/skills/article/check_article.py \
+     --article "$RUN_DIR/article/final.md" \
+     --research "$RUN_DIR/research/validated.json" \
+     --post-sync
    ```
+   - `ARTICLE_CHECK: PASS` → proceed to D.
+   - `ARTICLE_CHECK: FAIL` → revision repair (see below).
 
    D. Post-sync gate:
    ```bash
@@ -361,7 +429,17 @@ Word-count policy: writer contract is 1000–1200 (aim 1100); orchestrator sync 
    - `ARTIFACTS_OK: post_sync` → proceed to Step 2.3.
    - `ARTIFACTS_FAIL:` → mark pick failed, `--reset`, `continue`.
 
-   Repair rules: max 2 repairs per failure type (length / structure / anchors / topic each separate). The writer contract block to paste with every repair is the same shared block from the legacy single-story flow (re-read validated.json, full contract, length/anchor/topic specifics). When the same validator type fails 3 times in a row → mark pick failed (`--reset`), `continue` to next pick. **The loop continues — one bad story does not abort the batch.**
+   **Revision repair (targeted diff — max 2 per failure type):** Re-spawn `writer` with **`REVISION MODE`** and paste **only** the single failing line from sync or check_article output, plus this preserve block:
+
+   ```
+   REVISION MODE
+   PRESERVE: exact H1 title, Sources block, Word Count footer, existing source links, and all sections not named in the failure below.
+   Fix ONLY this failure:
+   <paste one FAIL: line or ARTICLE_INVALID/STALE reason>
+   Re-read validated.json. Overwrite $RUN_DIR/article/raw.md. Run check_article.py until ARTICLE_CHECK: PASS. Yield SUCCESS.
+   ```
+
+   When the same failure type fails **3 times in a row** → mark pick failed (`--reset`), `continue` to next pick. **The loop continues — one bad story does not abort the batch.**
 
 3. Update manifest + pick status:
 
@@ -379,7 +457,7 @@ Reply to user: "Story $PICK_INDEX — generating feature image..."
 1. Spawn the `creator` agent with this exact message (replace the bracketed values):
 
    ```
-   Read the article topic from <$RUN_DIR>/research/validated.json (also at /tmp/research.json) — use the `primary_headline` and `category` fields. Pick the closest scene template for the topic from your SOUL and craft a prompt under 300 characters following your COINOGRAPHY image rules. Run your generate-image skill. The image MUST be saved to <$RUN_DIR>/media/feature.jpg (also at /tmp/crypto-feature.jpg). Return EITHER the absolute path "/tmp/crypto-feature.jpg" on success, OR "IMAGE_FAILED: <reason>" on failure. Do not return anything else.
+   Read the article topic from <$RUN_DIR>/research/validated.json (also at /tmp/${PROJECT_SLUG}-research.json) — use the `primary_headline` and `category` fields. Pick the closest scene template for the topic from your SOUL and craft a prompt under 300 characters following your COINOGRAPHY image rules. Run your generate-image skill. The image MUST be saved to <$RUN_DIR>/media/feature.jpg (also at /tmp/${PROJECT_SLUG}-feature.jpg). Return EITHER the absolute path "<$RUN_DIR>/media/feature.jpg" on success, OR "IMAGE_FAILED: <reason>" on failure. Do not return anything else.
    ```
 
    (Expand `$RUN_DIR` to its real value in the spawn message — e.g. `/tmp/crypto-run-20260604-120000`.)
@@ -425,12 +503,14 @@ Run the existing Drive upload flow:
 
 Tell the user: "Story $PICK_INDEX — Drive upload done."
 
-#### Step 2.5 — User approval gate (per story)
+#### Step 2.5 — Per-story approval gate (GROUP) — ONLY when STEP25_GATE = ON
 
-Reply to the user EXACTLY:
+**If STEP25_GATE = OFF (auto-run):** skip this gate entirely — go straight to Step 2.6 and publish the draft + card.
+
+**If STEP25_GATE = ON (manual + selected feed-card runs):** post EXACTLY this to the news-agent GROUP (not DM) and wait:
 
 ```
-Story $PICK_INDEX/$TOTAL_PICKS draft ready.
+Story $PICK_INDEX (published $PUBLISHED/$TARGET) draft ready.
 
 Headline: [headline]
 Category: [category]
@@ -440,7 +520,7 @@ Push this one to WordPress as a draft on $PROJECT_SLUG?
 Reply yes (publish this one), no (skip this one), or stop (end the batch).
 ```
 
-STOP HERE. Wait for the user's reply.
+STOP HERE. Wait for the user's reply in the group.
 
 User responses:
 - yes → run Step 2.6.
@@ -467,23 +547,24 @@ Run the existing WP + card flow (legacy Step 6):
 
    Read the finished article from $RUN_DIR/article/final.md and the feature
    image from $RUN_DIR/media/feature.jpg. Publish to WordPress as a draft for
-   project $PROJECT_SLUG. Save the URL to /tmp/wp-result.txt and yield ONLY
-   the URL on success.
+   project $PROJECT_SLUG. publish.sh writes the URL to $RUN_DIR/publish/wp-url.txt
+   automatically. Yield ONLY the URL on success.
    ```
    WordPress categories are resolved automatically: `publish.sh` reads `wp_category_ids` from `validated.json` (set by the Picker → validate_research) and falls back to the project's `fallback_category_id` if absent. No category needs to be passed in the spawn message.
-3. Read `/tmp/wp-result.txt` — empty → mark pick failed, continue.
-4. `update_recent_topics.py --status drafted --published-url "$(cat /tmp/wp-result.txt)" --run-id "$RUN_ID-iter$PICK_INDEX"`
+3. Read `$RUN_DIR/publish/wp-url.txt` (fallback: `/tmp/${PROJECT_SLUG}-wp-result.txt`) — empty → mark pick failed, continue.
+4. `update_recent_topics.py --status drafted --published-url "$(cat "$RUN_DIR/publish/wp-url.txt" 2>/dev/null || cat "/tmp/${PROJECT_SLUG}-wp-result.txt")" --run-id "$RUN_ID-iter$PICK_INDEX"`
 5. `update_manifest_step.sh --step wordpress --status succeeded`
 6. `build_and_send_card.py` — fail-open; check stdout for `CARD_SENT:` or `CARD_FAILED:`.
-7. Mark pick `published`:
+7. Mark pick `published` and increment the counter:
    ```bash
    python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/update_pick_status.py \
      --pick-id $PICK_ID --status published
    ```
+   Then `PUBLISHED=$((PUBLISHED+1))`. If `PUBLISHED >= TARGET`, the batch is done — go to Step 3. (The 48h idle clock is reset automatically by `handle_card_feedback.py` on any human tap; the auto-run daily cap is enforced by the Step 2.6 pre-check above.)
 
-Reply to the user (success):
+Reply to the group (success):
 ```
-Story $PICK_INDEX/$TOTAL_PICKS published to WordPress draft.
+Story $PICK_INDEX published to WordPress draft (published $PUBLISHED/$TARGET).
 
 Draft: [actual WordPress URL]
 Status: Draft - use Telegram card to Publish when ready.
@@ -497,13 +578,13 @@ After Step 2.6, archive this iteration's artifacts:
 bash ~/.openclaw/workspace-orchestrator/skills/pipeline/switch_iteration.sh --archive $PICK_INDEX
 ```
 
-Then **continue the loop** to the next `pick_index`.
+Then pop the **next `PICK_ID`** from `PICK_QUEUE` (including any backfill replacements pushed onto it) and continue, until the queue is empty or `PUBLISHED == TARGET`.
 
 ---
 
 ### Step 3 — Final batch report + cleanup
 
-After the loop ends (either all K iterations done, or user said `stop`), summarize:
+After the queue empties (or `PUBLISHED == TARGET`, the daily cap was hit, or the user said `stop`), summarize:
 
 ```bash
 python3 - <<PYEOF
@@ -537,13 +618,48 @@ Pipeline complete!
 
 ---
 
+## Alternate entries (Selected / Auto / Refresh)
+
+These reuse Steps 0, 1, 1c, 2, 3 — only the setup differs. Set the run flags, then run the SAME steps.
+
+### Selected-stories entry (feed card → human picked titles)
+
+Reached when a `oc_go:` tap was routed through EDITORIAL_FEEDBACK.md and `handle_card_feedback.py` printed `FEED_GO: project=<slug> feed_id=<id> count=<N> selection_file=<path>` (it has already posted "Starting pipeline for N selected stories…" to the group). If it printed `FEED_GO_EMPTY`, do nothing.
+
+1. Set: `PROJECT_SLUG=<slug from FEED_GO>`, `SELECTION_FILE=<path>`, `PICKER_MODE=classify-only`, `STEP25_GATE=ON`, `CLASSIFY_ONLY_FLAG="--classify-only"`, `N=<count>`.
+2. Run Step 0 (`init_run.sh "$PROJECT_SLUG"`, source env) and Step 0.5 (persist `N`, `PICK_RUN_ID`).
+3. Run Step 1 (classify-only branch, using `$SELECTION_FILE`), Step 1c (with `--classify-only`), then the Step 2 queue (STEP25_GATE=ON, backfill on automatic failures), then Step 3.
+
+### Auto-run entry (48h idle watchdog)
+
+Reached when the incoming message starts with `AUTO_RUN ` followed by JSON like `{"projects":[{"project":"coinography","count":2}]}` (delivered by the `check_auto_run.py` one-shot cron job). Parse the JSON. For EACH project entry, **one by one** (finish project A fully before starting project B):
+
+1. Set: `PROJECT_SLUG=<entry.project>`, `N=<entry.count>`, `PICKER_MODE=select`, `STEP25_GATE=OFF`, `CLASSIFY_ONLY_FLAG=""`.
+2. Run Step 0, Step 0.5 (`N`), Step 1 (select branch, `--pool-fresh 15`, target=N), Step 1c, then the Step 2 queue with **STEP25_GATE=OFF** (publish straight to draft + card, no per-story gate), backfill on automatic failures, and the daily-cap check at Step 2.6.
+3. After a project's batch finishes, post its mini-report to the group, then proceed to the next project. After all projects, end the turn. (Do not wait for input — there is no human in an auto-run.)
+
+### Refresh-feed entry ("send me the latest news")
+
+Reached on "fetch latest news", "latest news", "refresh news", "send the feed", or the `oc_feed_refresh:` button (the button is handled inside EDITORIAL_FEEDBACK.md; this text path is for a typed request).
+
+Run the pure-Python sender (no pipeline, no subagents) and end the turn — it posts a fresh feed card per project to the group:
+
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/send_feed_card.py --all
+```
+
+If the user named one project, use `--project <slug>` instead of `--all`. Do not reply with anything extra; the card itself is the response.
+
+---
+
 ## Rules
 
+- CRITICAL: NEVER spawn `orchestrator` as a subagent. You ARE the orchestrator. Your only valid spawn targets are: `researcher`, `picker`, `writer`, `chart-generator`, `creator`, `publisher`, `wp-publisher`. Spawning any other agent ID — especially yourself — is a bug.
 - CRITICAL: You MUST use native `sessions_spawn` and `sessions_yield` tools to delegate to other agents. Do not run `openclaw agent ... --deliver` in bash blocks.
-- CRITICAL: Pipeline = one batch run. After "Pipeline started (Run: ...)", do not end your turn until either (a) Step 2.5 user gate (per story), (b) Step 3 final report, or (c) a fatal stop. Step 2.5 is the ONLY place inside the loop where you wait for user input.
+- CRITICAL: Pipeline = one batch run. After "Pipeline started (Run: ...)", do not end your turn until either (a) a Step 2.5 gate when STEP25_GATE=ON (per story), (b) Step 3 final report, or (c) a fatal stop. When STEP25_GATE=ON, Step 2.5 is the ONLY place inside the queue where you wait for user input. When STEP25_GATE=OFF (auto-run), you never wait for input.
 - CRITICAL: Tell agents to write files directly into `$RUN_DIR/...` paths. Always include the real expanded path in spawn messages (not the variable name).
 - CRITICAL: Validate every step before proceeding. If a validator exits with code 1, follow the retry/stop rules.
-- CRITICAL: One bad story does not abort the batch. Mark the pick failed (`update_pick_status.py --status failed`), call `switch_iteration.sh --reset $PICK_INDEX --reason "..."`, and `continue` to the next pick.
+- CRITICAL: One bad story does not abort the batch. On an AUTOMATIC failure, mark the pick failed (`update_pick_status.py --status failed`), `switch_iteration.sh --reset $PICK_INDEX`, run the **Backfill** block (push any replacement onto `PICK_QUEUE`, subject to `MAX_BACKFILLS` and the daily cap), then continue the queue. A human `no`/`stop` is NOT a failure and is never backfilled.
 - CRITICAL: You MUST see `ARTICLE_SYNCED` AND `ARTIFACTS_OK: post_sync` before Step 2.3 in each iteration.
 - CRITICAL: Writer word band is 1000–1200 only. Sync allows +100 buffer; never tell the writer about 1300 or the buffer.
 - CRITICAL: You MUST see `ARTIFACTS_OK: pre_drive` before Drive upload (per iteration), and `ARTIFACTS_OK: pre_wp` before WordPress publish (per iteration).

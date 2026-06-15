@@ -13,9 +13,11 @@
 # Pipeline cleanup: strips META block, Sources footer, Word Count line, and thinking blocks
 # before publishing so only clean article content reaches WordPress.
 #
-# Output:
-#   Exit 0 → /tmp/wp-result.txt contains the WordPress post URL
-#   Exit 1 → /tmp/wp-error.log  contains the human-readable error reason
+# Output (run-scoped — safe for concurrent coinography + memecoinist runs):
+#   Exit 0 → $RUN_DIR/publish/wp-url.txt + wordpress.json (canonical)
+#            /tmp/${PROJECT_SLUG}-wp-result.txt + .json (per-slug)
+#            /tmp/wp-result.txt (legacy best-effort only)
+#   Exit 1 → /tmp/wp-error.log contains the human-readable error reason
 # =============================================================================
 
 set -euo pipefail
@@ -39,12 +41,16 @@ POST_STATUS="draft"
 PROJECT_ARG=""
 CLEAN_MD=""
 HTML_PATH=""
-RESULT_FILE="/tmp/wp-result.txt"
 ERROR_FILE="/tmp/wp-error.log"
 MAX_RETRIES=3
 
 ARTICLE_PATH=""
 IMAGE_PATH=""
+RUN_DIR=""
+RESULT_FILE=""
+RESULT_JSON=""
+WP_JSON_PATH=""
+WP_URL_PATH=""
 
 # --- Helpers (defined early so arg parsing can fatal) ------------------------
 log_info()  { echo "[INFO]  $*"; }
@@ -118,10 +124,32 @@ fi
 WP_API="${WP_URL}/wp-json/wp/v2"
 RM_API="${WP_URL}/wp-json/rankmath/v1"
 
-# Per-project /tmp paths (legacy /tmp/crypto-* still resolve via init_run.sh
-# symlinks when project=coinography for full backward compat).
+# Resolve RUN_DIR from manifest (canonical run bundle root).
+if [[ -n "${PIPELINE_MANIFEST:-}" && -f "${PIPELINE_MANIFEST}" ]]; then
+  RUN_DIR="$(dirname "$(readlink -f "$PIPELINE_MANIFEST" 2>/dev/null || echo "$PIPELINE_MANIFEST")")"
+elif [[ -n "${CRYPTO_RUN_DIR:-}" && -d "${CRYPTO_RUN_DIR}" ]]; then
+  RUN_DIR="$CRYPTO_RUN_DIR"
+fi
+
+# Run-scoped publish outputs (source of truth for build_and_send_card.py).
+if [[ -n "$RUN_DIR" ]]; then
+  mkdir -p "${RUN_DIR}/publish"
+  WP_JSON_PATH="${RUN_DIR}/publish/wordpress.json"
+  WP_URL_PATH="${RUN_DIR}/publish/wp-url.txt"
+fi
+
+# Per-slug /tmp paths (safe across concurrent runs; legacy /tmp/crypto-* still
+# resolve via init_run.sh symlinks for coinography backward compat).
+RESULT_FILE="/tmp/${PROJECT_SLUG_RESOLVED}-wp-result.txt"
+RESULT_JSON="/tmp/${PROJECT_SLUG_RESOLVED}-wp-result.json"
 ARTICLE_PATH="${ARTICLE_PATH:-/tmp/${PROJECT_SLUG_RESOLVED}-article.md}"
-IMAGE_PATH="${IMAGE_PATH:-/tmp/${PROJECT_SLUG_RESOLVED}-feature.jpg}"
+if [[ -z "${IMAGE_PATH:-}" ]]; then
+  if [[ -n "$RUN_DIR" && -f "${RUN_DIR}/media/feature.jpg" ]]; then
+    IMAGE_PATH="${RUN_DIR}/media/feature.jpg"
+  else
+    IMAGE_PATH="/tmp/${PROJECT_SLUG_RESOLVED}-feature.jpg"
+  fi
+fi
 CLEAN_MD="/tmp/${PROJECT_SLUG_RESOLVED}-article-clean.md"
 HTML_PATH="/tmp/${PROJECT_SLUG_RESOLVED}-article.html"
 
@@ -414,6 +442,10 @@ if [ -f "$IMAGE_PATH" ]; then
 fi
 
 if [ -f "$EFFECTIVE_IMAGE" ]; then
+  WATERMARK_MARKER="${EFFECTIVE_IMAGE}.watermarked"
+  if [ ! -f "$WATERMARK_MARKER" ]; then
+    fatal "WATERMARK: feature image at $EFFECTIVE_IMAGE lacks .watermarked marker — refusing to upload a pre-stamp image. Re-run generate-image."
+  fi
   FILE_SIZE=$(stat -c%s "$EFFECTIVE_IMAGE" 2>/dev/null || stat -f%z "$EFFECTIVE_IMAGE" 2>/dev/null || echo 0)
   if [ "$FILE_SIZE" -gt 51200 ]; then
     log_info "Uploading featured image from $EFFECTIVE_IMAGE ($FILE_SIZE bytes)..."
@@ -474,7 +506,13 @@ path = "${HTML_PATH}"
 post_title = """${POST_TITLE}""".strip()
 
 def norm_text(s):
-    return re.sub(r"\s+", " ", s).strip()
+    s = s.translate(str.maketrans({
+        "\u2018": "'", "\u2019": "'",
+        "\u201c": '"', "\u201d": '"',
+        "\u2013": "-", "\u2014": "-",
+    }))
+    s = re.sub(r"\s+", " ", s).strip().lower()
+    return s
 
 with open(path, "r", encoding="utf-8") as f:
     html = f.read()
@@ -694,7 +732,16 @@ if [ "$RANK_MATH_APPLIED" != "true" ]; then
   fatal "Rank Math updateMeta failed after $MAX_RETRIES attempts. Last HTTP: $RM_HTTP. Body: ${RM_BODY:0:300}"
 fi
 
-echo "$POST_URL" > "$RESULT_FILE"
+write_publish_results() {
+  echo "$POST_URL" > "$RESULT_FILE"
+  if [[ -n "$WP_URL_PATH" ]]; then
+    echo "$POST_URL" > "$WP_URL_PATH"
+  fi
+  # Legacy global paths — best-effort compat only, not source of truth.
+  echo "$POST_URL" > /tmp/wp-result.txt 2>/dev/null || true
+}
+
+write_publish_results
 
 log_info "================================================"
 log_info "SUCCESS — WordPress post saved!"
@@ -716,9 +763,11 @@ else
   log_info "Live post:     $POST_URL"
 fi
 
-# Write structured JSON result for orchestrator
+# Write structured JSON result for orchestrator (run-scoped + per-slug paths)
 python3 - <<PYEOF
 import json
+import os
+
 result = {
   "status": "ok",
   "post_id": "${POST_ID}",
@@ -735,19 +784,40 @@ result = {
   "secondary_keywords": """${SECONDARY_KEYWORDS}""",
   "rank_math_focus_keyword": """${RANK_MATH_FOCUS_KEYWORD}""",
 }
-with open("/tmp/wp-result.json", "w") as f:
-    json.dump(result, f, indent=2)
+
+paths = [
+    "${RESULT_JSON}",
+    "${WP_JSON_PATH}",
+    "/tmp/wp-result.json",  # legacy best-effort only
+]
+for path in paths:
+    if not path:
+        continue
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+    except OSError:
+        pass
+
 print(json.dumps(result, indent=2))
 PYEOF
 
 # =============================================================================
 # PHASE 5: Record History
 # =============================================================================
-if [ -f "/tmp/openclaw_active_url.txt" ]; then
+ACTIVE_URL=""
+if [[ -n "$RUN_DIR" && -f "${RUN_DIR}/.active_url" ]]; then
+  ACTIVE_URL=$(cat "${RUN_DIR}/.active_url")
+elif [ -f "/tmp/${PROJECT_SLUG_RESOLVED}-active-url.txt" ]; then
+  ACTIVE_URL=$(cat "/tmp/${PROJECT_SLUG_RESOLVED}-active-url.txt")
+elif [ -f "/tmp/openclaw_active_url.txt" ]; then
   ACTIVE_URL=$(cat /tmp/openclaw_active_url.txt)
+fi
+if [ -n "$ACTIVE_URL" ]; then
   log_info "Recording article history for URL: $ACTIVE_URL"
   bash ~/.openclaw/workspace-wp-publisher/skills/history/article_history.sh add "$ACTIVE_URL"
-  rm -f "/tmp/openclaw_active_url.txt"
+  rm -f "${RUN_DIR}/.active_url" "/tmp/${PROJECT_SLUG_RESOLVED}-active-url.txt" "/tmp/openclaw_active_url.txt" 2>/dev/null || true
 fi
 
 echo "SUCCESS: $POST_URL"

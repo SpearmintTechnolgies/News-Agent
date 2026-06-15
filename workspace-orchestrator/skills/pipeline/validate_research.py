@@ -29,15 +29,16 @@ import sys
 import tempfile
 import argparse
 
+# ── shared research checks (single source of truth with Scout's self-check) ──
+_RESEARCH_CHECK_DIR = os.path.expanduser(
+    "~/.openclaw/workspace-researcher/skills/research-check"
+)
+if _RESEARCH_CHECK_DIR not in sys.path:
+    sys.path.insert(0, _RESEARCH_CHECK_DIR)
 
-REQUIRED_FIELDS = [
-    "story_id",
-    "primary_headline",
-    "topic_theme",
-    "combined_key_facts",
-    "source_urls",
-    "chart_coin",
-]
+import check_research as cr  # noqa: E402
+
+REQUIRED_FIELDS = cr.RESEARCH_REQUIRED_FIELDS
 
 
 def atomic_write_json(path: str, data: dict) -> None:
@@ -109,31 +110,22 @@ def main() -> int:
         print(f"RESEARCH_INVALID: cannot read raw file: {e}")
         return 1
 
-    # Extract JSON block
-    start = text.find("{")
-    end   = text.rfind("}") + 1
-    if start == -1 or end == 0:
-        print("RESEARCH_INVALID: no JSON object found in research_raw")
+    # Extract JSON block (shared lenient extractor)
+    data, _ = cr.extract_json_block(text)
+
+    # A clean error JSON is a deliberate "skip this story" signal, not valid
+    # research — report it so the orchestrator drops the pick cleanly.
+    if isinstance(data, dict) and data.get("status") == "error":
+        print(f"RESEARCH_INVALID: {data.get('reason') or 'researcher error'}")
         return 1
 
-    try:
-        data = json.loads(text[start:end])
-    except json.JSONDecodeError as e:
-        print(f"RESEARCH_INVALID: JSON parse error: {e}")
-        return 1
-
-    # Field validation
-    missing = [k for k in REQUIRED_FIELDS if not data.get(k)]
-    if missing:
-        print(f"RESEARCH_INVALID: missing fields: {missing}")
-        return 1
-
-    if len(data.get("combined_key_facts", [])) < 2:
-        print("RESEARCH_INVALID: combined_key_facts must have at least 2 entries")
-        return 1
-
-    if not isinstance(data.get("source_urls", []), list) or not data["source_urls"]:
-        print("RESEARCH_INVALID: source_urls must be a non-empty list")
+    # Run the shared deep-research checklist — the exact rules Scout
+    # self-checks on, so the gate and self-check can never diverge.
+    results = cr.run_deep_research_checks(data, text)
+    failures = [(name, detail) for name, ok, detail in results if not ok]
+    if failures:
+        name, detail = failures[0]
+        print(f"RESEARCH_INVALID: {name}: {detail}")
         return 1
 
     data.pop("tweet_quotes", None)

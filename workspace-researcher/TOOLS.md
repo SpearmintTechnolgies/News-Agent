@@ -1,74 +1,63 @@
-# TOOLS.md - Local Notes
+# TOOLS.md — Scout's local notes
 
-Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+Skills define _how_ tools work. This file is for researcher-specific reference. Procedures live in `skills/headline-scan/`, `skills/deep-research/`, and `skills/research-check/`.
 
-## What Goes Here
+## RSS sources
 
-Things like:
-
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
-
-## Examples
-
-```markdown
-### Cameras
-
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
-
-### SSH
-
-- home-server → 192.168.1.100, user: admin
-
-### TTS
-
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
-```
-
-## Why Separate?
-
-Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
-
-## RSS sources (Scout Step 1)
-
-Scout fetches **8 feeds** for broad cryptocurrency coverage (not Bitcoin-only). Verify anytime:
+Feeds are **project-driven** — the orchestrator sets `PROJECT_CONFIG` and the feed list comes from `research.rss_feeds`. Do not hardcode URLs. Fetch them with:
 
 ```bash
-bash ~/.openclaw/workspace-researcher/skills/research/verify_feeds.sh
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/emit_feed_fetch_commands.py \
+  --output-dir /tmp/feeds > /tmp/feeds/fetch.sh && bash /tmp/feeds/fetch.sh
 ```
 
-| Source | URL |
-|--------|-----|
-| CoinDesk | `https://www.coindesk.com/arc/outboundfeeds/rss/` |
-| CoinTelegraph | `https://cointelegraph.com/rss` |
-| Decrypt | `https://decrypt.co/feed` |
-| Google News | Broad OR query (see `SOUL.md` Step 1); excludes meme tickers (`-dogecoin -memecoin -shiba -pepe`, etc.) |
-| The Block | `https://www.theblock.co/rss.xml` — if curl gets 403/Cloudflare, use **BeInCrypto** `https://beincrypto.com/feed/` instead |
-| CryptoSlate | `https://cryptoslate.com/feed/` |
-| CryptoFox Markets | `https://cryptofox.news/rss/markets/` |
-| CryptoFox Regulation | `https://cryptofox.news/rss/regulation/` |
+Verify the active project's feeds anytime:
 
-**Selection policy:** Prefer regulation, ETFs, hacks, major L1/L2 (ETH, SOL, XRP, etc.). Deprioritize meme-coin-only headlines unless cross-covered by major outlets. See `SOUL.md` Step 2.
+```bash
+bash ~/.openclaw/workspace-researcher/skills/research/verify_feeds.sh [--project <slug>]
+```
 
-## Article History Tool
+**HEADLINE_SCAN primary path** (deterministic — run this first):
 
-Use this tool to prevent publishing duplicate topics. You must check a candidate URL before fully researching it.
+```bash
+OUTPUT_FILE="<path>" TARGET_COUNT=10 \
+  python3 ~/.openclaw/workspace-researcher/skills/headline-scan/scan_headlines.py
+```
 
-**Path:** `~/.openclaw/workspace-researcher/skills/history/article_history.sh`
+**DEEP_RESEARCH extraction** (multi-tier fallbacks):
 
-**Usage:**
+```bash
+python3 ~/.openclaw/workspace-researcher/skills/deep-research/extract_article.py "<publisher_url>"
+```
+
+Selection policy and exclusions also come from the project config (`research.exclude_keywords`, `research.source_priority_order`). See [`skills/headline-scan/SKILL.md`](skills/headline-scan/SKILL.md).
+
+## Aggregator URL resolver
+
+Resolve `news.google.com` / `/rss/articles/` wrappers to the real publisher URL before using them:
+
+```bash
+python3 ~/.openclaw/workspace-researcher/skills/research-check/resolve_url.py "<url>"
+```
+
+Prints the publisher URL, or `RESOLVE_FAILED`. See [`skills/research-check/SKILL.md`](skills/research-check/SKILL.md).
+
+## Article history tool
+
+Check a candidate URL before researching it, to avoid duplicates:
+
 ```bash
 bash ~/.openclaw/workspace-researcher/skills/history/article_history.sh check "https://coindesk.com/example"
 ```
-- Returns `EXISTS` if it has been published in the last 7 days.
-- Returns `NOT_FOUND` if it's safe to use.
 
----
+- `EXISTS` — published within the last 7 days; drop it.
+- `NOT_FOUND` — safe to use.
 
-Add whatever helps you do your job. This is your cheat sheet.
+## Self-check validator
+
+Always self-check the output before yielding `SUCCESS`:
+
+```bash
+python3 ~/.openclaw/workspace-researcher/skills/research-check/check_research.py \
+  --file "$OUTPUT_FILE" --mode deep_research|headline_scan
+```

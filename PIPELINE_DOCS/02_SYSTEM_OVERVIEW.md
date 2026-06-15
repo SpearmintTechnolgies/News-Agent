@@ -43,4 +43,4 @@ The permissions are stored in `~/.openclaw/exec-approvals.json`.
 ## 🔑 Authentication Secrets
 - **OpenRouter API Key**: Stored in the shell environment (`OPENROUTER_API_KEY`).
 - **Leonardo AI API Key**: Stored in the shell environment (`LEONARDO_API_KEY`).
-- **Google Drive Auth**: Authenticated via the `gog` CLI. Because OpenClaw runs non-interactively, bypass the keyring password prompt by prepending `GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD"` to every `gog` command.
+- **Google Drive Auth**: Authenticated via the `gog` CLI. Because OpenClaw runs non-interactively, we bypass the keyring password prompt by prepending `GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD"` to every `gog` command.

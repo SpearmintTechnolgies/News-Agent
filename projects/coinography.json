@@ -353,7 +353,7 @@
   },
   "telegram": {
     "account": "news",
-    "group_id": "-1003760909509",
+    "group_id": "YOUR_TELEGRAM_NEWS_GROUP_ID",
     "group_name": "news-agent",
     "card_prefix": "[Coinography]"
   },
@@ -424,7 +424,7 @@
     "diversity_window_hours": 72
   },
   "writer": {
-    "template_path": "workspace-writer/COINOGRAPHY_TEMPLATE.md",
+    "template_path": "workspace-writer/templates/COINOGRAPHY_TEMPLATE.md",
     "min_body_words": 1000,
     "max_body_words": 1200,
     "sync_max_body_words": 1300,
@@ -433,7 +433,8 @@
   "creator": {
     "image_style_hint": "Cinematic crypto editorial, photorealistic 3D coin renders or brand logo compositions, dark studio background, dramatic lighting, no humans.",
     "image_aspect": "16:9",
-    "image_size": "1024x576"
+    "image_size": "1024x576",
+    "logo_path": "assets/logo.png"
   },
   "publisher": {
     "drive_doc_prefix": "Crypto News",

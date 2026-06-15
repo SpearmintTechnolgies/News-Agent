@@ -23,7 +23,7 @@ fi
 
 echo "[setup] OpenClaw home: $OPENCLAW_HOME"
 
-# 1. Editorial DB (Telegram cards + feedback)
+# 1. Editorial DB (Telegram cards + feedback + headline pool)
 mkdir -p "$OPENCLAW_HOME/data"
 python3 "$ORCH/skills/pipeline/editorial_db.py" init "$OPENCLAW_HOME/data/editorial.db"
 
@@ -61,4 +61,5 @@ echo "  2. cp workspace-wp-publisher/TOOLS.md.example ~/.openclaw/workspace-wp-p
 echo "  3. Add WP app passwords: credentials/wp/coinography.pass, credentials/wp/memecoinist.pass"
 echo "  4. Run: python3 workspace-orchestrator/skills/pipeline/sync_wp_categories.py --slug coinography"
 echo "  5. Replace /home/USER with your home path in openclaw.json workspace paths"
-echo "  6. Start OpenClaw gateway and message the News Agent bot on Telegram"
+echo "  6. (Optional) Install pool scheduler: cp workspace-orchestrator/config/openclaw-pool-scheduler.service ~/.config/systemd/user/ && systemctl --user enable --now openclaw-pool-scheduler"
+echo "  7. Start OpenClaw gateway and message the News Agent bot on Telegram"
