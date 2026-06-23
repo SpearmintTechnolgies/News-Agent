@@ -23,11 +23,14 @@ import tempfile
 import argparse
 from urllib.parse import urlparse
 
-# Writer contract (Quill SOUL / COINOGRAPHY): 1000–1200 body words.
-# Orchestrator sync adds a tolerance buffer only — never tell the writer a higher max.
-WRITER_WORD_MIN = 1000
-WRITER_WORD_MAX = 1200
-GATE_BUFFER_WORDS = 100  # sync passes up to WRITER_WORD_MAX + buffer before ARTICLE_INVALID
+# Writer band (Quill SOUL / COINOGRAPHY): writer aims ~1100; validator accepts 950–1250.
+# Relaxed 2026-06-19 from 1000–1200 to cut near-miss rewrites (LLMs can't count words while
+# writing). check_article.py imports these, so writer self-check and the orchestrator gate
+# share the same band. GATE_BUFFER_WORDS=0 removes the old 1200-vs-1300 asymmetry so sync's
+# ARTICLE_INVALID and the post-sync check_article gate agree exactly.
+WRITER_WORD_MIN = 950
+WRITER_WORD_MAX = 1250
+GATE_BUFFER_WORDS = 0  # sync band == check_article band (no hidden buffer)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

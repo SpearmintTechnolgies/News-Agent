@@ -9,11 +9,15 @@
 #   bash wp_post_actions.sh --post-id 123 --set-status publish --author 17
 #   bash wp_post_actions.sh --post-id 123 --markdown /path/to/article.md --update-content
 #   bash wp_post_actions.sh --post-id 123 --set-status draft --project memecoinist
+#   bash wp_post_actions.sh --post-id 123 --ensure-featured-image /path/to/feature.jpg
 #
 # Output (stdout):
 #   WP_DRAFT_OK: post_id=... url=...
 #   WP_PUBLISH_OK: post_id=... url=... [author_id=...]
 #   WP_UPDATE_OK: post_id=...
+#   WP_IMAGE_OK: already_set=<media_id>
+#   WP_IMAGE_SET: media_id=<id>
+#   WP_IMAGE_MISSING: <path>
 #   WP_ACTION_FAILED: reason
 set -euo pipefail
 
@@ -25,6 +29,7 @@ SET_STATUS=""
 AUTHOR_ID=""
 MARKDOWN_PATH=""
 UPDATE_CONTENT=0
+ENSURE_IMAGE_PATH=""
 PROJECT_ARG=""
 
 while [[ $# -gt 0 ]]; do
@@ -34,6 +39,7 @@ while [[ $# -gt 0 ]]; do
     --author) AUTHOR_ID="$2"; shift 2 ;;
     --markdown) MARKDOWN_PATH="$2"; shift 2 ;;
     --update-content) UPDATE_CONTENT=1; shift ;;
+    --ensure-featured-image) ENSURE_IMAGE_PATH="$2"; shift 2 ;;
     --project) PROJECT_ARG="$2"; shift 2 ;;
     *) echo "WP_ACTION_FAILED: unknown arg $1"; exit 1 ;;
   esac
@@ -122,6 +128,80 @@ wp_post_json() {
     --data "$payload" \
     --max-time 60
 }
+
+wp_get_json() {
+  local endpoint="$1"
+  curl --silent --write-out "\n__STATUS__%{http_code}" \
+    --user "${WP_USER}:${WP_PASS}" \
+    "${WP_API}/${endpoint}" \
+    --max-time 60
+}
+
+if [[ -n "$ENSURE_IMAGE_PATH" ]]; then
+  FEAT_RESP=$(wp_get_json "posts/${POST_ID}?_fields=featured_media")
+  FEAT_HTTP=$(echo "$FEAT_RESP" | tail -1 | sed 's/__STATUS__//')
+  FEAT_BODY=$(echo "$FEAT_RESP" | sed '$d')
+  if [[ "$FEAT_HTTP" != "200" ]]; then
+    echo "WP_IMAGE_MISSING: GET featured_media HTTP ${FEAT_HTTP}"
+    exit 0
+  fi
+  EXISTING_MEDIA=$(echo "$FEAT_BODY" | python3 -c \
+    "import json,sys; print(int(json.load(sys.stdin).get('featured_media') or 0))" 2>/dev/null || echo 0)
+  if [[ "$EXISTING_MEDIA" -gt 0 ]]; then
+    echo "WP_IMAGE_OK: already_set=${EXISTING_MEDIA}"
+    exit 0
+  fi
+
+  EFFECTIVE_IMAGE="$ENSURE_IMAGE_PATH"
+  if [[ -f "$ENSURE_IMAGE_PATH" ]]; then
+    EFFECTIVE_IMAGE=$(readlink -f "$ENSURE_IMAGE_PATH" 2>/dev/null || echo "$ENSURE_IMAGE_PATH")
+  fi
+
+  if [[ ! -f "$EFFECTIVE_IMAGE" ]]; then
+    echo "WP_IMAGE_MISSING: ${ENSURE_IMAGE_PATH}"
+    exit 0
+  fi
+
+  FILE_SIZE=$(stat -c%s "$EFFECTIVE_IMAGE" 2>/dev/null || stat -f%z "$EFFECTIVE_IMAGE" 2>/dev/null || echo 0)
+  if [[ "$FILE_SIZE" -le 40960 ]]; then
+    echo "WP_IMAGE_MISSING: ${ENSURE_IMAGE_PATH} (too small: ${FILE_SIZE} bytes)"
+    exit 0
+  fi
+
+  MEDIA_RESPONSE=$(curl --silent --write-out "\n__STATUS__%{http_code}" \
+    --user "${WP_USER}:${WP_PASS}" \
+    --request POST "${WP_API}/media" \
+    --header "Content-Disposition: attachment; filename=${PROJECT_SLUG_RESOLVED}-feature.jpg" \
+    --header "Content-Type: image/jpeg" \
+    --data-binary @"$EFFECTIVE_IMAGE" \
+    --max-time 60)
+
+  MEDIA_BODY=$(echo "$MEDIA_RESPONSE" | sed '$d')
+  MEDIA_STATUS=$(echo "$MEDIA_RESPONSE" | tail -1 | sed 's/__STATUS__//')
+
+  if [[ "$MEDIA_STATUS" != "201" && "$MEDIA_STATUS" != "200" ]]; then
+    echo "WP_IMAGE_MISSING: upload HTTP ${MEDIA_STATUS}"
+    exit 0
+  fi
+
+  MEDIA_ID=$(echo "$MEDIA_BODY" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin).get('id', 0))" 2>/dev/null || echo 0)
+  if [[ "$MEDIA_ID" -le 0 ]]; then
+    echo "WP_IMAGE_MISSING: upload returned no media id"
+    exit 0
+  fi
+
+  PATCH_PAYLOAD=$(python3 -c "import json; print(json.dumps({'featured_media': int('${MEDIA_ID}')}))")
+  PATCH_RESP=$(wp_post_json "$PATCH_PAYLOAD")
+  PATCH_HTTP=$(echo "$PATCH_RESP" | tail -1 | sed 's/__STATUS__//')
+  if [[ "$PATCH_HTTP" != "200" ]]; then
+    echo "WP_IMAGE_MISSING: set featured_media HTTP ${PATCH_HTTP}"
+    exit 0
+  fi
+
+  echo "WP_IMAGE_SET: media_id=${MEDIA_ID}"
+  exit 0
+fi
 
 if [[ -n "$SET_STATUS" ]]; then
   case "$SET_STATUS" in

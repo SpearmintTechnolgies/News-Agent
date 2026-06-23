@@ -133,6 +133,21 @@ CREATE TABLE IF NOT EXISTS feed_cards (
 );
 CREATE INDEX IF NOT EXISTS idx_feed_cards_msg ON feed_cards(telegram_group, telegram_message_id);
 
+-- Serial execution queue for single-click feed-card taps (one pipeline at a time).
+CREATE TABLE IF NOT EXISTS feed_jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project TEXT NOT NULL,
+  feed_id TEXT NOT NULL,
+  candidate_index INTEGER NOT NULL,
+  headline TEXT NOT NULL,
+  selection_file TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  started_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_feed_jobs_status ON feed_jobs(status, id);
+
 -- Small key/value state store (e.g. group-level last_contact_at for the 48h
 -- idle clock). project '_global' is used for group-wide values.
 CREATE TABLE IF NOT EXISTS pipeline_state (
@@ -164,6 +179,11 @@ class Article:
     wp_author_id: int | None = None
     category: str | None = None
     project: str = "coinography"
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    tokens_total: int | None = None
+    tokens_by_model: str | None = None
+    cost_usd: float | None = None
 
 
 @dataclass
@@ -205,6 +225,11 @@ class PickedStory:
     status: str
     failed_reason: str | None
     project: str = "coinography"
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    tokens_total: int | None = None
+    tokens_by_model: str | None = None
+    cost_usd: float | None = None
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -248,6 +273,26 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE articles ADD COLUMN wp_category_slugs TEXT")
     if not _column_exists(conn, "articles", "wp_category_ids"):
         conn.execute("ALTER TABLE articles ADD COLUMN wp_category_ids TEXT")
+    if not _column_exists(conn, "articles", "tokens_in"):
+        conn.execute("ALTER TABLE articles ADD COLUMN tokens_in INTEGER")
+    if not _column_exists(conn, "articles", "tokens_out"):
+        conn.execute("ALTER TABLE articles ADD COLUMN tokens_out INTEGER")
+    if not _column_exists(conn, "articles", "tokens_total"):
+        conn.execute("ALTER TABLE articles ADD COLUMN tokens_total INTEGER")
+    if not _column_exists(conn, "picked_stories", "tokens_in"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN tokens_in INTEGER")
+    if not _column_exists(conn, "picked_stories", "tokens_out"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN tokens_out INTEGER")
+    if not _column_exists(conn, "picked_stories", "tokens_total"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN tokens_total INTEGER")
+    if not _column_exists(conn, "articles", "tokens_by_model"):
+        conn.execute("ALTER TABLE articles ADD COLUMN tokens_by_model TEXT")
+    if not _column_exists(conn, "articles", "cost_usd"):
+        conn.execute("ALTER TABLE articles ADD COLUMN cost_usd REAL")
+    if not _column_exists(conn, "picked_stories", "tokens_by_model"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN tokens_by_model TEXT")
+    if not _column_exists(conn, "picked_stories", "cost_usd"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN cost_usd REAL")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_project ON articles(project, created_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_picked_project ON picked_stories(project, pick_run_id)")
     conn.execute("UPDATE articles SET wp_status = 'draft' WHERE wp_status IS NULL")
@@ -282,6 +327,11 @@ def _row_to_article(row: sqlite3.Row) -> Article:
         ),
         category=row["category"] if "category" in keys else None,
         project=(row["project"] if "project" in keys else None) or "coinography",
+        tokens_in=int(row["tokens_in"]) if "tokens_in" in keys and row["tokens_in"] is not None else None,
+        tokens_out=int(row["tokens_out"]) if "tokens_out" in keys and row["tokens_out"] is not None else None,
+        tokens_total=int(row["tokens_total"]) if "tokens_total" in keys and row["tokens_total"] is not None else None,
+        tokens_by_model=row["tokens_by_model"] if "tokens_by_model" in keys else None,
+        cost_usd=float(row["cost_usd"]) if "cost_usd" in keys and row["cost_usd"] is not None else None,
     )
 
 
@@ -307,13 +357,22 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
         raise ValueError("telegram_message_id and telegram_group required")
 
     project = str(card.get("project") or "coinography").strip() or "coinography"
+    import json as _json
+
+    by_model = card.get("by_model")
+    tokens_by_model = (
+        _json.dumps(by_model, ensure_ascii=False) if isinstance(by_model, dict) and by_model else None
+    )
+    cost_usd = float(card["cost_usd"]) if card.get("cost_usd") is not None else None
+
     with _connect(db_path) as conn:
         conn.execute(
             """
             INSERT INTO articles (
               run_id, alert_id, story_id, headline, category, wp_url, wp_post_id,
-              telegram_group, telegram_message_id, card_sent_at, run_dir, wp_status, project
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              telegram_group, telegram_message_id, card_sent_at, run_dir, wp_status, project,
+              tokens_in, tokens_out, tokens_total, tokens_by_model, cost_usd
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id) DO UPDATE SET
               alert_id = excluded.alert_id,
               story_id = excluded.story_id,
@@ -326,7 +385,12 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
               card_sent_at = excluded.card_sent_at,
               run_dir = excluded.run_dir,
               wp_status = COALESCE(excluded.wp_status, articles.wp_status),
-              project = excluded.project
+              project = excluded.project,
+              tokens_in = COALESCE(excluded.tokens_in, articles.tokens_in),
+              tokens_out = COALESCE(excluded.tokens_out, articles.tokens_out),
+              tokens_total = COALESCE(excluded.tokens_total, articles.tokens_total),
+              tokens_by_model = COALESCE(excluded.tokens_by_model, articles.tokens_by_model),
+              cost_usd = COALESCE(excluded.cost_usd, articles.cost_usd)
             """,
             (
                 run_id,
@@ -342,6 +406,11 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
                 str(card.get("run_dir") or "") or None,
                 str(card.get("wp_status") or "draft"),
                 project,
+                int(card["tokens_in"]) if card.get("tokens_in") is not None else None,
+                int(card["tokens_out"]) if card.get("tokens_out") is not None else None,
+                int(card["tokens_total"]) if card.get("tokens_total") is not None else None,
+                tokens_by_model,
+                cost_usd,
             ),
         )
         conn.commit()
@@ -596,6 +665,11 @@ def _row_to_pick(row: sqlite3.Row) -> PickedStory:
         status=row["status"],
         failed_reason=row["failed_reason"],
         project=(row["project"] if "project" in keys else None) or "coinography",
+        tokens_in=int(row["tokens_in"]) if "tokens_in" in keys and row["tokens_in"] is not None else None,
+        tokens_out=int(row["tokens_out"]) if "tokens_out" in keys and row["tokens_out"] is not None else None,
+        tokens_total=int(row["tokens_total"]) if "tokens_total" in keys and row["tokens_total"] is not None else None,
+        tokens_by_model=row["tokens_by_model"] if "tokens_by_model" in keys else None,
+        cost_usd=float(row["cost_usd"]) if "cost_usd" in keys and row["cost_usd"] is not None else None,
     )
 
 
@@ -669,6 +743,11 @@ def update_pick_status(
     *,
     failed_reason: str | None = None,
     pipeline_run_id: str | None = None,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+    tokens_total: int | None = None,
+    tokens_by_model: str | None = None,
+    cost_usd: float | None = None,
     db_path: str = DEFAULT_DB_PATH,
 ) -> None:
     if status not in PICK_VALID_STATUSES:
@@ -679,19 +758,50 @@ def update_pick_status(
             conn.execute(
                 """
                 UPDATE picked_stories
-                SET status = ?, failed_reason = ?, pipeline_run_id = ?, updated_at = datetime('now')
+                SET status = ?, failed_reason = ?, pipeline_run_id = ?,
+                    tokens_in = COALESCE(?, tokens_in),
+                    tokens_out = COALESCE(?, tokens_out),
+                    tokens_total = COALESCE(?, tokens_total),
+                    tokens_by_model = COALESCE(?, tokens_by_model),
+                    cost_usd = COALESCE(?, cost_usd),
+                    updated_at = datetime('now')
                 WHERE id = ?
                 """,
-                (status, failed_reason, pipeline_run_id, pick_id),
+                (
+                    status,
+                    failed_reason,
+                    pipeline_run_id,
+                    tokens_in,
+                    tokens_out,
+                    tokens_total,
+                    tokens_by_model,
+                    cost_usd,
+                    pick_id,
+                ),
             )
         else:
             conn.execute(
                 """
                 UPDATE picked_stories
-                SET status = ?, failed_reason = ?, updated_at = datetime('now')
+                SET status = ?, failed_reason = ?,
+                    tokens_in = COALESCE(?, tokens_in),
+                    tokens_out = COALESCE(?, tokens_out),
+                    tokens_total = COALESCE(?, tokens_total),
+                    tokens_by_model = COALESCE(?, tokens_by_model),
+                    cost_usd = COALESCE(?, cost_usd),
+                    updated_at = datetime('now')
                 WHERE id = ?
                 """,
-                (status, failed_reason, pick_id),
+                (
+                    status,
+                    failed_reason,
+                    tokens_in,
+                    tokens_out,
+                    tokens_total,
+                    tokens_by_model,
+                    cost_usd,
+                    pick_id,
+                ),
             )
         conn.commit()
 
@@ -1078,6 +1188,20 @@ def set_feed_card_message_id(
         conn.commit()
 
 
+def update_feed_card_candidates(
+    feed_id: str, candidates: list[dict[str, Any]], *, db_path: str = DEFAULT_DB_PATH
+) -> None:
+    import json as _json
+
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE feed_cards SET candidates_json = ?, updated_at = datetime('now') WHERE feed_id = ?",
+            (_json.dumps(candidates, ensure_ascii=False), feed_id),
+        )
+        conn.commit()
+
+
 def get_feed_card(feed_id: str, *, db_path: str = DEFAULT_DB_PATH) -> FeedCard | None:
     init_db(db_path)
     with _connect(db_path) as conn:
@@ -1121,6 +1245,275 @@ def set_feed_card_status(feed_id: str, status: str, *, db_path: str = DEFAULT_DB
         conn.commit()
 
 
+def claim_feed_card(feed_id: str, *, db_path: str = DEFAULT_DB_PATH) -> bool:
+    """Atomically flip a feed card 'open' -> 'consumed'. Returns True only if
+    THIS call won (status was 'open'); False if a prior tap already claimed it.
+    Single-flight guard against duplicate oc_go taps spawning multiple runs."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            "UPDATE feed_cards SET status = 'consumed', updated_at = datetime('now') "
+            "WHERE feed_id = ? AND status = 'open'",
+            (feed_id,),
+        )
+        conn.commit()
+        return cur.rowcount == 1
+
+
+def claim_feed_card_index(
+    feed_id: str, candidate_index: int, *, db_path: str = DEFAULT_DB_PATH
+) -> bool:
+    """Mark a single headline index as claimed on its feed card. Returns False if
+    already claimed or index not found. Per-card duplicate guard for oc_go taps."""
+    import json as _json
+
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT candidates_json FROM feed_cards WHERE feed_id = ?", (feed_id,)
+        ).fetchone()
+        if not row:
+            return False
+        try:
+            candidates = _json.loads(row["candidates_json"])
+        except (ValueError, TypeError):
+            return False
+        found = False
+        for c in candidates:
+            if int(c.get("index", -1)) == int(candidate_index):
+                if c.get("claimed"):
+                    return False
+                c["claimed"] = True
+                found = True
+                break
+        if not found:
+            return False
+        conn.execute(
+            "UPDATE feed_cards SET candidates_json = ?, updated_at = datetime('now') WHERE feed_id = ?",
+            (_json.dumps(candidates, ensure_ascii=False), feed_id),
+        )
+        conn.commit()
+        return True
+
+
+# ---------------------------------------------------------------------------
+# feed_jobs — serial execution queue for single-click feed taps
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FeedJob:
+    id: int
+    project: str
+    feed_id: str
+    candidate_index: int
+    headline: str
+    selection_file: str
+    status: str
+    started_at: str | None
+
+
+def _row_to_feed_job(row: sqlite3.Row) -> FeedJob:
+    return FeedJob(
+        id=int(row["id"]),
+        project=row["project"],
+        feed_id=row["feed_id"],
+        candidate_index=int(row["candidate_index"]),
+        headline=row["headline"],
+        selection_file=row["selection_file"],
+        status=row["status"],
+        started_at=row["started_at"],
+    )
+
+
+def enqueue_feed_job(
+    project: str,
+    feed_id: str,
+    candidate_index: int,
+    headline: str,
+    selection_file: str,
+    *,
+    db_path: str = DEFAULT_DB_PATH,
+) -> int:
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO feed_jobs (
+              project, feed_id, candidate_index, headline, selection_file, status
+            ) VALUES (?, ?, ?, ?, ?, 'queued')
+            """,
+            (project, feed_id, int(candidate_index), headline, selection_file),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def count_queued_jobs(*, project: str | None = None, db_path: str = DEFAULT_DB_PATH) -> int:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        if project:
+            project = _require_project(project)
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM feed_jobs WHERE status = 'queued' AND project = ?",
+                (project,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM feed_jobs WHERE status = 'queued'"
+            ).fetchone()
+        return int(row["n"]) if row else 0
+
+
+def projects_with_queued_jobs(*, db_path: str = DEFAULT_DB_PATH) -> list[str]:
+    """Distinct projects that have at least one queued feed job."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT project FROM feed_jobs WHERE status = 'queued' ORDER BY project"
+        ).fetchall()
+    return [r["project"] for r in rows]
+
+
+def active_feed_job(*, db_path: str = DEFAULT_DB_PATH) -> FeedJob | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM feed_jobs WHERE status = 'running' ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+    return _row_to_feed_job(row) if row else None
+
+
+def count_running_jobs(*, db_path: str = DEFAULT_DB_PATH) -> int:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM feed_jobs WHERE status = 'running'"
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+
+def running_projects(*, db_path: str = DEFAULT_DB_PATH) -> set[str]:
+    """Projects that currently have a running feed job."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT project FROM feed_jobs WHERE status = 'running'"
+        ).fetchall()
+    return {r["project"] for r in rows}
+
+
+def claim_next_feed_job(
+    *,
+    project: str | None = None,
+    max_concurrent: int = 1,
+    db_path: str = DEFAULT_DB_PATH,
+) -> FeedJob | None:
+    """Atomically promote the oldest eligible queued job to running.
+
+    When ``project`` is set, only claims from that project's queue (used by the
+    self-draining FEED_DRAIN worker). Otherwise uses the global concurrency
+    model: at most ``max_concurrent`` jobs run at once AND at most one job per
+    project runs at a time.
+    """
+    max_concurrent = max(1, int(max_concurrent))
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        if project:
+            project = _require_project(project)
+            candidate = conn.execute(
+                """
+                SELECT * FROM feed_jobs
+                WHERE status = 'queued' AND project = ?
+                ORDER BY id ASC LIMIT 1
+                """,
+                (project,),
+            ).fetchone()
+            if candidate is None:
+                return None
+        else:
+            running_rows = conn.execute(
+                "SELECT project FROM feed_jobs WHERE status = 'running'"
+            ).fetchall()
+            if len(running_rows) >= max_concurrent:
+                return None
+            busy_projects = {r["project"] for r in running_rows}
+            candidate = None
+            for row in conn.execute(
+                "SELECT * FROM feed_jobs WHERE status = 'queued' ORDER BY id ASC"
+            ).fetchall():
+                if row["project"] not in busy_projects:
+                    candidate = row
+                    break
+            if candidate is None:
+                return None
+        cur = conn.execute(
+            """
+            UPDATE feed_jobs
+            SET status = 'running', started_at = datetime('now'), updated_at = datetime('now')
+            WHERE id = ? AND status = 'queued'
+            """,
+            (int(candidate["id"]),),
+        )
+        conn.commit()
+        if cur.rowcount != 1:
+            return None
+        fresh = conn.execute(
+            "SELECT * FROM feed_jobs WHERE id = ?", (int(candidate["id"]),)
+        ).fetchone()
+    job = _row_to_feed_job(fresh) if fresh else None
+    if job:
+        try:
+            from feed_job_card import edit_feed_job_card_state
+
+            edit_feed_job_card_state(job, "running")
+        except Exception:
+            pass
+    return job
+
+
+def mark_feed_job(
+    job_id: int, status: str, *, db_path: str = DEFAULT_DB_PATH
+) -> None:
+    if status not in ("done", "failed", "queued", "running"):
+        raise ValueError(f"invalid feed job status: {status}")
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE feed_jobs SET status = ?, updated_at = datetime('now') WHERE id = ?",
+            (status, int(job_id)),
+        )
+        conn.commit()
+
+
+def reclaim_stale_jobs(
+    stale_hours: float, *, db_path: str = DEFAULT_DB_PATH
+) -> int:
+    """Mark long-running jobs failed so the dispatcher can continue."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            """
+            UPDATE feed_jobs
+            SET status = 'failed', updated_at = datetime('now')
+            WHERE status = 'running'
+              AND started_at IS NOT NULL
+              AND datetime(started_at) <= datetime('now', ?)
+            """,
+            (f"-{int(stale_hours * 3600)} seconds",),
+        )
+        conn.commit()
+        return int(cur.rowcount)
+
+
+def get_feed_job(job_id: int, *, db_path: str = DEFAULT_DB_PATH) -> FeedJob | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT * FROM feed_jobs WHERE id = ?", (int(job_id),)).fetchone()
+    return _row_to_feed_job(row) if row else None
+
+
 # ---------------------------------------------------------------------------
 # pipeline_state — key/value (group-level idle clock, daily counters)
 # ---------------------------------------------------------------------------
@@ -1151,6 +1544,60 @@ def get_state(project: str, key: str, *, db_path: str = DEFAULT_DB_PATH) -> str 
             (project, key),
         ).fetchone()
     return row["value"] if row else None
+
+
+# ---------------------------------------------------------------------------
+# feed drainer lease — one isolated worker per project
+# ---------------------------------------------------------------------------
+
+DRAINER_LEASE_KEY = "drainer_lease"
+DEFAULT_DRAINER_LEASE_STALE_MIN = 30.0
+
+
+def set_drainer_lease(
+    project: str, run_id: str = "active", *, db_path: str = DEFAULT_DB_PATH
+) -> None:
+    """Stamp/refresh the per-project feed drainer lease (updated_at = now)."""
+    set_state(project, DRAINER_LEASE_KEY, run_id, db_path=db_path)
+
+
+def drainer_active(
+    project: str,
+    *,
+    stale_minutes: float = DEFAULT_DRAINER_LEASE_STALE_MIN,
+    db_path: str = DEFAULT_DB_PATH,
+) -> bool:
+    """True when a drainer lease exists and was refreshed within ``stale_minutes``."""
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT value,
+                   (julianday('now') - julianday(updated_at)) * 24.0 * 60.0 AS age_min
+            FROM pipeline_state
+            WHERE project = ? AND key = ?
+            """,
+            (project, DRAINER_LEASE_KEY),
+        ).fetchone()
+    if not row or not row["value"]:
+        return False
+    age = row["age_min"]
+    if age is None:
+        return False
+    return float(age) <= float(stale_minutes)
+
+
+def clear_drainer_lease(project: str, *, db_path: str = DEFAULT_DB_PATH) -> None:
+    """Remove the drainer lease so a new worker may be kicked."""
+    project = _require_project(project)
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "DELETE FROM pipeline_state WHERE project = ? AND key = ?",
+            (project, DRAINER_LEASE_KEY),
+        )
+        conn.commit()
 
 
 def touch_last_contact(*, db_path: str = DEFAULT_DB_PATH) -> None:

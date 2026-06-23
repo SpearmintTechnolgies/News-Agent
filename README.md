@@ -11,9 +11,9 @@ Portable **8-agent** crypto news pipeline for [OpenClaw](https://github.com/open
 | `picker` | Sieve | WP category classification + N-story diversity selection |
 | `writer` | Quill | Article writing |
 | `chart-generator` | — | Article charts |
-| `creator` | Pixel | Feature image (Imagen) |
-| `publisher` | Press | Google Drive upload |
-| `wp-publisher` | Scribe | WordPress publish |
+| `creator` | Pixel | Feature image (Pollinations.ai) |
+| `publisher` | Press | Google Drive upload *(orchestrator-inlined; workspace kept as reference)* |
+| `wp-publisher` | Scribe | WordPress publish *(orchestrator-inlined; workspace kept as reference)* |
 
 See [AGENT_PIPELINE_REGISTRY.md](AGENT_PIPELINE_REGISTRY.md) for full pipeline reference.
 
@@ -51,6 +51,12 @@ The pipeline uses a **headline pool** (24/7 scanner, no LLM) and a daily **feed 
 - `check_auto_run.py` — auto-runs pipeline after 48h group silence (capped)
 
 See [PLANS/approve-title-first.md](PLANS/approve-title-first.md) for the full spec.
+
+## Feed-drain queue + zero-token card taps
+
+- **Feed drain:** Tap a headline on the feed card → `dispatch_feed_jobs.py` queues and runs the pipeline per project (`FEED_DRAIN` mode).
+- **Token cost on cards:** `aggregate_run_tokens.py` adds per-model token/cost footer to published Telegram cards.
+- **feed-tap-claimer plugin:** [`plugins/feed-tap-claimer/`](plugins/feed-tap-claimer/) handles `oc_go:` / refresh taps in-process (zero orchestrator tokens). Enable in `example.openclaw.json` → `plugins.entries.feed-tap-claimer`.
 
 ---
 
@@ -181,6 +187,7 @@ News-Agent/
 ├── AGENT_PIPELINE_REGISTRY.md
 ├── PIPELINE_ARCHITECTURE.md
 ├── PLANS/                         # Feature specs (approve-title-first, telegram cards)
+├── plugins/feed-tap-claimer/        # Zero-token inline button handler
 ├── PIPELINE_DOCS/
 ├── projects/                      # coinography.json, memecoinist.json
 ├── skills/chart-generator/

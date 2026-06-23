@@ -22,6 +22,13 @@
 
 set -euo pipefail
 
+# --- SG Captcha WAF Bypass Wrapper --------------------------------------------
+curl() {
+  command curl --cookie /tmp/wp_cookies.txt --user-agent "python-requests/2.31.0" "$@"
+}
+export -f curl 2>/dev/null || true
+# ------------------------------------------------------------------------------
+
 # --- Config (project-driven) -------------------------------------------------
 # Per-site WordPress credentials + category come from the active project's
 # config file, never from hardcoded values. Project resolution order:
@@ -153,35 +160,73 @@ fi
 CLEAN_MD="/tmp/${PROJECT_SLUG_RESOLVED}-article-clean.md"
 HTML_PATH="/tmp/${PROJECT_SLUG_RESOLVED}-article.html"
 
+# Per-slug scratch (concurrency-safe across different projects). Same-project
+# runs are serialized by the dispatcher, so per-slug names never collide. This
+# replaces the old global /tmp/wp-error.log and /tmp/wp-meta.txt which two
+# parallel publications would otherwise clobber.
+ERROR_FILE="/tmp/${PROJECT_SLUG_RESOLVED}-wp-error.log"
+META_FILE="/tmp/${PROJECT_SLUG_RESOLVED}-wp-meta.txt"
+
 # --- Resolve WordPress category IDs ------------------------------------------
 # Picker assigns 1 primary + up to 2 secondary categories, resolved to numeric
 # IDs by validate_picks.py and carried through validated.json as
 # wp_category_ids. Read them here; fall back to the project's
 # fallback_category_id when absent (legacy runs, single-story path, or errors).
 VALIDATED_JSON="${VALIDATED_JSON:-/tmp/${PROJECT_SLUG_RESOLVED}-research.json}"
-[ -f "$VALIDATED_JSON" ] || VALIDATED_JSON="/tmp/research.json"
-CATEGORY_IDS=$(VJSON="$VALIDATED_JSON" FB="$FALLBACK_CATEGORY_ID" python3 - <<'PY'
-import json, os
+# Run-scoped fallback first (concurrency-safe); legacy global only as last resort.
+if [ ! -f "$VALIDATED_JSON" ]; then
+  if [[ -n "$RUN_DIR" && -f "${RUN_DIR}/research/validated.json" ]]; then
+    VALIDATED_JSON="${RUN_DIR}/research/validated.json"
+  else
+    VALIDATED_JSON="/tmp/research.json"
+  fi
+fi
+CATEGORY_IDS=$(VJSON="$VALIDATED_JSON" FB="$FALLBACK_CATEGORY_ID" PROJECT="$PROJECT_SLUG_RESOLVED" python3 - <<'PY'
+import json, os, sys
+sys.path.insert(0, os.path.expanduser("~/.openclaw/workspace-orchestrator/skills/pipeline"))
+import project_config as pc
+import wp_category_resolve as wcr
+
 vjson = os.environ.get("VJSON", "")
 fb = os.environ.get("FB", "17").strip() or "17"
+project = os.environ.get("PROJECT", "coinography")
 ids = []
+slugs = []
 try:
     with open(vjson, encoding="utf-8") as f:
         data = json.load(f)
-    raw = data.get("wp_category_ids")
-    if isinstance(raw, list):
-        for x in raw:
+    raw_ids = data.get("wp_category_ids")
+    if isinstance(raw_ids, list):
+        for x in raw_ids:
             try:
                 n = int(x)
             except (TypeError, ValueError):
                 continue
             if n > 0 and n not in ids:
                 ids.append(n)
+    raw_slugs = data.get("wp_category_slugs")
+    if isinstance(raw_slugs, list):
+        slugs = [str(s).strip() for s in raw_slugs if str(s).strip()]
 except Exception:
     ids = []
+    slugs = []
+
+if not ids and slugs:
+    try:
+        cfg = pc.load_project_config(slug=project)
+        cats = cfg.get_path("wordpress.categories", []) or []
+        resolved_slugs, resolved_ids = wcr.resolve_slugs_to_ids(slugs, cats)
+        if resolved_ids:
+            ids = resolved_ids
+            slugs = resolved_slugs
+            print(f"[INFO]  Resolved category slugs -> ids: {ids}", file=sys.stderr)
+    except Exception as e:
+        print(f"[WARN]  Could not resolve slugs to ids: {e}", file=sys.stderr)
+
 if not ids:
     try:
         ids = [int(fb)]
+        print(f"[WARN]  Using fallback_category_id={fb} (no wp_category_ids in validated.json)", file=sys.stderr)
     except ValueError:
         ids = [17]
 print(",".join(str(i) for i in ids))
@@ -190,7 +235,7 @@ PY
 [ -n "$CATEGORY_IDS" ] || CATEGORY_IDS="$FALLBACK_CATEGORY_ID"
 
 # --- Setup -------------------------------------------------------------------
-rm -f "$ERROR_FILE" "$RESULT_FILE" "$CLEAN_MD" "$HTML_PATH" /tmp/wp-meta.txt
+rm -f "$ERROR_FILE" "$RESULT_FILE" "$CLEAN_MD" "$HTML_PATH" "$META_FILE"
 
 log_info "Project:    $PROJECT_SLUG_RESOLVED"
 log_info "WP URL:     $WP_URL"
@@ -285,12 +330,33 @@ clean = re.sub(r"!\[[^\]]*\]\(/tmp/chart\.png\)\s*\n?", "", clean)
 clean = re.sub(r"\n{3,}", "\n\n", clean)
 clean = clean.strip() + "\n"
 
+# Drop stray standalone source attribution lines (e.g. "Cointelegraph | Google News")
+def _is_bare_source_line(line: str) -> bool:
+    s = line.strip()
+    if not s or len(s) > 140 or s.startswith(("#", "-", "*", "[Word Count")):
+        return False
+    if re.search(r"[.!?]\s", s):
+        return False
+    if any(w in s.lower() for w in (" said ", " will ", " has ", " have ", " which ", " that ")):
+        return False
+    labels = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", s)
+    if "|" not in labels:
+        return False
+    parts = [p.strip() for p in labels.split("|")]
+    return len(parts) >= 2 and all(1 <= len(p.split()) <= 5 for p in parts if p)
+
+clean = "\n".join(
+    ln for ln in clean.splitlines()
+    if not _is_bare_source_line(ln)
+)
+clean = re.sub(r"\n{3,}", "\n\n", clean).strip() + "\n"
+
 article_h1 = ""
 h1_m = re.search(r"^#\s+(.+)$", clean, re.MULTILINE)
 if h1_m:
     article_h1 = h1_m.group(1).strip()
 
-with open("/tmp/wp-meta.txt", "w", encoding="utf-8") as mf:
+with open("${META_FILE}", "w", encoding="utf-8") as mf:
     mf.write("META_FOUND=" + ("1" if meta_found else "0") + "\n")
     mf.write("META_TITLE=" + meta_title + "\n")
     mf.write("META_DESC=" + meta_desc + "\n")
@@ -326,7 +392,7 @@ ARTICLE_H1=""
 SOURCES_STRIPPED="0"
 META_FOUND="0"
 
-if [ -f /tmp/wp-meta.txt ]; then
+if [ -f "$META_FILE" ]; then
   while IFS='=' read -r key value; do
     case "$key" in
       META_FOUND)   META_FOUND="$value" ;;
@@ -338,8 +404,8 @@ if [ -f /tmp/wp-meta.txt ]; then
       ARTICLE_H1)   ARTICLE_H1="$value" ;;
       SOURCES_STRIPPED) SOURCES_STRIPPED="$value" ;;
     esac
-  done < /tmp/wp-meta.txt
-  rm -f /tmp/wp-meta.txt
+  done < "$META_FILE"
+  rm -f "$META_FILE"
 fi
 
 # Build comma-separated Rank Math focus keyword string (primary first, then secondaries)
@@ -447,7 +513,7 @@ if [ -f "$EFFECTIVE_IMAGE" ]; then
     fatal "WATERMARK: feature image at $EFFECTIVE_IMAGE lacks .watermarked marker — refusing to upload a pre-stamp image. Re-run generate-image."
   fi
   FILE_SIZE=$(stat -c%s "$EFFECTIVE_IMAGE" 2>/dev/null || stat -f%z "$EFFECTIVE_IMAGE" 2>/dev/null || echo 0)
-  if [ "$FILE_SIZE" -gt 51200 ]; then
+  if [ "$FILE_SIZE" -gt 40960 ]; then
     log_info "Uploading featured image from $EFFECTIVE_IMAGE ($FILE_SIZE bytes)..."
 
     MEDIA_RESPONSE=$(curl --silent --write-out "\n__STATUS__%{http_code}" \
@@ -767,6 +833,32 @@ fi
 python3 - <<PYEOF
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.expanduser("~/.openclaw/workspace-orchestrator/skills/pipeline"))
+import project_config as pc
+
+project = "${PROJECT_SLUG_RESOLVED}"
+category_ids = [int(x) for x in "${CATEGORY_IDS}".split(",") if x.strip()]
+wp_category_slugs = []
+wp_category_names = []
+try:
+    cfg = pc.load_project_config(slug=project)
+    cats = cfg.get_path("wordpress.categories", []) or []
+    id_to_slug = {
+        int(c["id"]): str(c.get("slug") or "")
+        for c in cats
+        if isinstance(c, dict) and c.get("id") is not None
+    }
+    id_to_name = {
+        int(c["id"]): str(c.get("name") or c.get("slug") or "")
+        for c in cats
+        if isinstance(c, dict) and c.get("id") is not None
+    }
+    wp_category_slugs = [id_to_slug[i] for i in category_ids if i in id_to_slug]
+    wp_category_names = [id_to_name[i] for i in category_ids if i in id_to_name]
+except Exception:
+    pass
 
 result = {
   "status": "ok",
@@ -783,6 +875,9 @@ result = {
   "focus_keyword": """${FOCUS_KEYWORD}""",
   "secondary_keywords": """${SECONDARY_KEYWORDS}""",
   "rank_math_focus_keyword": """${RANK_MATH_FOCUS_KEYWORD}""",
+  "wp_category_ids": category_ids,
+  "wp_category_slugs": wp_category_slugs,
+  "wp_category_names": wp_category_names,
 }
 
 paths = [

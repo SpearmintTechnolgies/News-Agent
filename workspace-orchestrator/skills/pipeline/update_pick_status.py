@@ -6,6 +6,9 @@ Usage:
     python3 update_pick_status.py --pick-id 12 --status researching
     python3 update_pick_status.py --pick-id 12 --status published \
         --pipeline-run-id 20260603-120000
+    python3 update_pick_status.py --pick-id 12 --status published \
+        --tokens-total 43200 --tokens-in 41000 --tokens-out 2200 \
+        --cost-usd 0.12 --tokens-by-model '{"mistral.mistral-large-3-675b-instruct":{"tokens_total":43200}}'
     python3 update_pick_status.py --pick-id 12 --status failed \
         --failed-reason "writer length repair limit hit"
 
@@ -35,6 +38,11 @@ def main() -> int:
     )
     parser.add_argument("--failed-reason", default=None)
     parser.add_argument("--pipeline-run-id", default=None)
+    parser.add_argument("--tokens-in", type=int, default=None)
+    parser.add_argument("--tokens-out", type=int, default=None)
+    parser.add_argument("--tokens-total", type=int, default=None)
+    parser.add_argument("--tokens-by-model", default=None)
+    parser.add_argument("--cost-usd", type=float, default=None)
     parser.add_argument("--db-path", default=editorial_db.DEFAULT_DB_PATH)
     args = parser.parse_args()
 
@@ -49,6 +57,11 @@ def main() -> int:
             args.status,
             failed_reason=args.failed_reason,
             pipeline_run_id=args.pipeline_run_id,
+            tokens_in=args.tokens_in,
+            tokens_out=args.tokens_out,
+            tokens_total=args.tokens_total,
+            tokens_by_model=args.tokens_by_model,
+            cost_usd=args.cost_usd,
             db_path=args.db_path,
         )
     except (sqlite3.Error, ValueError) as e:
@@ -59,6 +72,8 @@ def main() -> int:
         f"PICK_STATUS_UPDATED: pick_id={args.pick_id} status={args.status}"
         + (f" failed_reason={args.failed_reason}" if args.failed_reason else "")
         + (f" pipeline_run_id={args.pipeline_run_id}" if args.pipeline_run_id else "")
+        + (f" tokens_total={args.tokens_total}" if args.tokens_total is not None else "")
+        + (f" cost_usd={args.cost_usd}" if args.cost_usd is not None else "")
     )
     return 0
 

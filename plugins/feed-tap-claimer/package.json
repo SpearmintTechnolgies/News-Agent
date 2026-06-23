@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/feed-tap-claimer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claim feed-card taps (oc_go / oc_feed_refresh) before orchestrator routing",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.mjs"
+    ]
+  }
+}

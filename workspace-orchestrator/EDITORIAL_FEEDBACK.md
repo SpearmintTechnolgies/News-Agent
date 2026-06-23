@@ -10,10 +10,10 @@ Handles Telegram feedback on news cards sent after pipeline Step 6. **Part of th
 |---------|---------|
 | Callback `oc_r:` / `oc_ri:` / `oc_ri_menu:` | Rate article or image |
 | Callback `oc_draft:` / `oc_draft_yes:` / `oc_draft_no:` | Unpublish flow |
-| Callback `oc_publish:` / `oc_pub_a:` / `oc_pub_y:` / `oc_pub_n:` | Publish flow (author picker) |
+| Callback `oc_publish:` / `oc_pub_a:` / `oc_pub_y:` / `oc_pub_n:` / `oc_noop:` | Publish flow (in-card author picker) |
 | Callback `oc_edit:` / `oc_edit_apply:` / `oc_edit_cancel:` | Edit flow |
-| Callback `oc_sel:` / `oc_feed_refresh:` | Feed card: toggle selection / refresh (handler does everything) |
-| Callback `oc_go:` | Feed card: publish selected — handler writes a selection file, THEN you start the pipeline (see below) |
+| Callback `oc_go:` | Feed card: run this single headline — handler enqueues a job; **do NOT** start the pipeline here |
+| Callback `oc_feed_refresh:` | Feed card: refresh headlines in place (legacy batch cards) |
 | Text | `RATE 8`, `IMAGE 7`, `DRAFT`, `PUBLISH`, `EDIT` |
 | Document reply | `.md` file replying to bot's edit prompt |
 
@@ -40,16 +40,28 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.
 ```
 
 4. **If the handler already sent a Telegram reply, do NOT repeat stdout in the group — end turn silently.**
-5. If handler failed before replying, show the stdout line to the user.
+5. **If stdout is exactly `NO_REPLY`, end turn silently** — do NOT send `NO_REPLY` via the `message` tool or as plain text (that causes "Message failed" errors).
+6. If handler failed before replying (and stdout is not `NO_REPLY`), show the stdout line to the user.
 
-### Feed-card selection (`oc_sel` / `oc_feed_refresh` / `oc_go`)
+### Feed-card single-click (`oc_go:` / `oc_feed_refresh:`)
 
-These come from the daily headline feed card (see `send_feed_card.py`). Run the same handler with `--payload`.
+These come from the hourly headline feed cards (see `send_feed_card.py`).
 
-- `oc_sel:` (toggle) and `oc_feed_refresh:` (refresh) are **fully handled** by `handle_card_feedback.py` (it edits the card in place). It prints `FEED_SELECTED` / `FEED_CARD_REFRESHED`. End your turn — do NOT start the pipeline.
-- `oc_go:` (Publish selected) is the **one exception that starts the pipeline**. Run the handler first; it marks the chosen pool stories `selected`, posts "Starting pipeline for N selected stories…" to the group, and prints one of:
-  - `FEED_GO_EMPTY: <feed_id>` → nothing selected; the handler already told the user. End turn.
-  - `FEED_GO: project=<slug> feed_id=<id> count=<N> selection_file=<path>` → now switch to **SOUL.md → Selected-stories entry**: set `PROJECT_SLUG`, `SELECTION_FILE`, `PICKER_MODE=classify-only`, `STEP25_GATE=ON`, `N=<count>`, and run the pipeline (Step 0 → Step 1 classify-only → Step 1c → Step 2 queue → Step 3).
+**Normal path (zero tokens):** The **`feed-tap-claimer`** OpenClaw plugin (`~/.openclaw/plugins/feed-tap-claimer/`) intercepts **all news-card and feed-card callback taps** (`oc_publish`, `oc_pub_a`, `oc_r`, `oc_draft`, `oc_edit`, `oc_go`, etc.) **before** they reach the orchestrator. It runs `handle_card_feedback.py` in-process via the `before_dispatch` hook and returns `{ handled: true }`, so **no LLM turn is started**. Restart the gateway after install/enable changes.
+
+**Fail-open fallback (this doc):** If the plugin is disabled, errors, or the tap is not a recognized card prefix, routing falls through to the orchestrator exactly as before. Run the handler immediately:
+
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.py \
+  --payload "<callback data>" \
+  --chat-id "<telegram chat id>" \
+  --user-id "<telegram user id>" \
+  --username "<telegram username if known>" \
+  --reply-to-message-id "<message id if known>"
+```
+
+- `oc_feed_refresh:` (legacy batch cards) is **fully handled** by `handle_card_feedback.py`. It prints `FEED_CARD_REFRESHED`. End your turn — do NOT start the pipeline.
+- `oc_go:{feed_id}:{index}` (Run this story) is **fully handled** by `handle_card_feedback.py`. It claims the card index, enqueues a `feed_jobs` row, edits the button to **Queued**, posts "Queued on …" to the group, and best-effort calls `dispatch_feed_jobs.py` (starts a drainer only if none is live). It prints `FEED_JOB_ENQUEUED: …` or `FEED_GO_DUPLICATE: …`. **End your turn — do NOT start the pipeline.** A separate isolated worker runs `FEED_DRAIN` (see SOUL.md → Feed drain entry).
 
 ---
 
@@ -58,10 +70,11 @@ These come from the daily headline feed card (see `send_feed_card.py`). Run the 
 | User says / incoming | Route |
 |-----------|-------|
 | `run pipeline`, `run crypto news pipeline` | SOUL.md pipeline (pool-backed) |
-| `oc_go:` feed-card publish | This doc → then SOUL.md Selected-stories entry |
+| `oc_go:` / `oc_feed_refresh:` feed-card tap | **`feed-tap-claimer` plugin** (normal); orchestrator + this doc (fail-open fallback) — pipeline starts on `FEED_DRAIN` cron |
+| Card callbacks (`oc_publish`, `oc_r`, `oc_draft`, `oc_edit`, …) | **`feed-tap-claimer` plugin** (normal); orchestrator + this doc (fail-open fallback) |
 | `AUTO_RUN ...` (idle watchdog cron) | SOUL.md Auto-run entry |
 | "fetch/latest/refresh news" | SOUL.md Refresh-feed entry (`send_feed_card.py`) |
-| RATE, IMAGE, DRAFT, PUBLISH, EDIT, `oc_sel`/`oc_feed_refresh` taps, edit `.md` upload | This doc |
+| RATE, IMAGE, DRAFT, PUBLISH, EDIT, `oc_go`/`oc_feed_refresh` taps, edit `.md` upload | This doc |
 
 Pipeline takes precedence only when the message explicitly requests the pipeline.
 
@@ -72,9 +85,10 @@ Pipeline takes precedence only when the message explicitly requests the pipeline
 ## PUBLISH flow notes
 
 - Tap **Publish** or reply `PUBLISH` to the card.
-- Bot shows **Toby** / **Ahmed** / **Golan** author buttons (`config/wp_authors.json`).
-- Pick author → confirm **Yes, publish as …** / **Cancel**.
-- WordPress receives `status: publish` + `author: 3|17` on **coinography.com** via `wp_post_actions.sh`.
+- The card keyboard swaps to **Toby** / **Ahmed** / **Golan** author buttons in place (plus **Back**).
+- Tap author → publishes **immediately** (no second confirm). Card action row becomes **Published**.
+- Before status flip, handler runs `--ensure-featured-image` so the live post keeps the feature image.
+- WordPress receives `status: publish` + `author: 3|17` on the project site via `wp_post_actions.sh`.
 - If already published → bot replies "already published".
 - Draft posts are created by the pipeline as author renu (API user); byline changes only at Telegram publish.
 
@@ -82,10 +96,11 @@ Pipeline takes precedence only when the message explicitly requests the pipeline
 
 | callback_data | Action |
 |---------------|--------|
-| `oc_publish:{run_id}` | Show author picker |
-| `oc_pub_a:{run_id}:{author_id}` | Confirm chosen author |
-| `oc_pub_y:{run_id}:{author_id}` | Publish live with author |
-| `oc_pub_n:{run_id}` | Cancel publish flow |
+| `oc_publish:{run_id}` | Show author picker on card |
+| `oc_pub_a:{run_id}:{author_id}` | Publish live with author (direct) |
+| `oc_pub_y:{run_id}:{author_id}` | Publish live (legacy alias) |
+| `oc_pub_n:{run_id}` | Back — restore card action row |
+| `oc_noop:{run_id}` | No-op (inert Published button) |
 
 ---
 

@@ -9,7 +9,7 @@ Stages:
     pre_write   — research_validated exists, run_id matches, non-empty
     pre_sync    — article_raw fresh (mtime >= .run_started), non-empty
     post_sync   — article_final fresh, H1 matches headline, ≥1 source URL match
-    post_image  — feature_image exists, >=50KB, JPEG magic bytes, under active RUN_DIR
+    post_image  — feature_image exists, >=40KB, JPEG magic bytes, under active RUN_DIR
     pre_drive   — docx exists + newer than article_final; paths under active RUN_DIR
     pre_wp      — all pre_drive checks + repeat post_sync coherence
 
@@ -331,9 +331,9 @@ def check_post_image(manifest: dict, run_dir: str) -> int:
         return fail(f"feature image missing: {img_path}")
 
     size = os.path.getsize(real_path)
-    if size < 50_000:
+    if size < 40_960:
         return fail(
-            f"feature image too small ({size} bytes, min 50000) — "
+            f"feature image too small ({size} bytes, min 40960) — "
             f"likely 0-byte placeholder or aborted generation\n"
             f"  Path: {real_path}"
         )

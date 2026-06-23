@@ -20,6 +20,7 @@ _ARTICLE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _ARTICLE_DIR not in sys.path:
     sys.path.insert(0, _ARTICLE_DIR)
 
+import article_hygiene as hyg  # noqa: E402
 import validate_article_structure as vas  # noqa: E402
 import validate_anchor_links as val  # noqa: E402
 
@@ -263,8 +264,42 @@ def run_checks(
                 f"include Primary Keyword '{primary_kw}' verbatim in Meta Description",
             )
 
+        if primary_kw and seo and primary_kw.lower() in seo.lower():
+            record("meta_keyword_in_seo_title", True, "Primary Keyword in SEO Title")
+        elif primary_kw and seo:
+            record(
+                "meta_keyword_in_seo_title",
+                False,
+                f"include Primary Keyword '{primary_kw}' in SEO Title (within first 3 words)",
+            )
+        elif primary_kw:
+            record("meta_keyword_in_seo_title", False, "add SEO Title containing Primary Keyword")
+
+        if primary_kw and slug and hyg.slug_contains_keyword(slug, primary_kw):
+            record("meta_keyword_in_slug", True, "Primary Keyword tokens in URL Slug")
+        elif primary_kw and slug:
+            record(
+                "meta_keyword_in_slug",
+                False,
+                f"URL Slug must include tokens from Primary Keyword '{primary_kw}'",
+            )
+        elif primary_kw:
+            record("meta_keyword_in_slug", False, "add URL Slug containing Primary Keyword tokens")
+
     # ── hook / keyword ─────────────────────────────────────────────────────
     if primary_kw:
+        h1_text = sync.extract_h1(content)
+        if h1_text and primary_kw.lower() in h1_text.lower():
+            record("h1_keyword", True, "Primary Keyword in H1")
+        elif h1_text:
+            record(
+                "h1_keyword",
+                False,
+                f"H1 must contain Primary Keyword '{primary_kw}' (within first 5 words)",
+            )
+        else:
+            record("h1_keyword", False, "add H1 containing Primary Keyword")
+
         hook = body_after_h1_before_h2(content)
         first = first_sentence(hook)
         if primary_kw.lower() in first.lower():
@@ -335,6 +370,27 @@ def run_checks(
                 False,
                 "use source URLs from validated.json source_urls only",
             )
+
+    # ── output hygiene ───────────────────────────────────────────────────
+    bad_headings = hyg.find_heading_inline_hash_lines(content)
+    if bad_headings:
+        record(
+            "heading_no_inline_hash",
+            False,
+            "remove inline # markers inside heading text (use one clean heading line)",
+        )
+    else:
+        record("heading_no_inline_hash", True, "headings have no inline hash runs")
+
+    bare_sources = hyg.find_bare_source_lines(content, vas.SOURCES_SPLIT_RE)
+    if bare_sources:
+        record(
+            "no_bare_source_line",
+            False,
+            "remove standalone source attribution lines; use inline anchor links in hook/first H2 only",
+        )
+    else:
+        record("no_bare_source_line", True, "no bare source-only lines in body")
 
     # ── style ──────────────────────────────────────────────────────────────
     if "\u2014" in content or "—" in content:

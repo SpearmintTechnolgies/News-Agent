@@ -25,9 +25,9 @@ python3 ~/.openclaw/workspace-researcher/skills/research-check/check_research.py
 3. If **`RESEARCH_CHECK: FAIL`**: fix **ONLY** the rules listed as `FAIL:`.
    - `not_a_log` / `not_raw_html` / `size_sane`: you dumped garbage. Replace the file with the real research JSON, or a clean error JSON (`{"status":"error","reason":"..."}`).
    - `source_urls_resolved` / `candidate_urls_resolved`: run `resolve_url.py` and store the publisher URL.
-   - `prose_quality`: re-scrape the article body (not page HTML); enrich with corroborating sources.
+   - `prose_quality` / `multi_source` / `not_partial` / `no_premature_error`: re-run `run_deep_research.py --discover-aggressive`. Never emit clean error JSON when any source extracted content.
 4. Re-run the validator. Repeat at most **3** self-check iterations per spawn.
-5. If you still cannot produce valid research after 3 tries, write the clean error JSON and yield `SUCCESS` — never dump logs or HTML.
+5. If you still cannot produce valid research after 3 tries, write the clean error JSON **only when zero words were extracted** and yield `SUCCESS` — never dump logs or HTML.
 
 ## resolve_url.py (Google News / aggregator resolver)
 
@@ -55,9 +55,12 @@ Exit `0` when all rules pass; exit `1` on any failure. A valid clean error JSON 
 |------|---------------|---------------|
 | Garbage guards (log dump / raw HTML / absurd size) | yes | yes |
 | Parseable single JSON object | yes | yes |
+| Not partial (`status:partial`) | yes | n/a |
+| No premature error when partial_words > 0 | yes | n/a |
 | Clean error-json accepted | yes | yes |
 | Required fields present | yes | per-candidate (headline/url/source) |
 | >= 2 combined_key_facts | yes | n/a |
+| >= 2 source_urls (multi_source) | yes | n/a |
 | Non-empty source_urls | yes | candidates non-empty |
 | No unresolved aggregator wrappers | yes | yes |
 | aggregated_raw_content >= 600 words, low markup | yes | n/a |

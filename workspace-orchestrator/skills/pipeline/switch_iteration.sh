@@ -95,6 +95,10 @@ _truncate_canonical() {
       : > "$f" 2>/dev/null || true
     fi
   done
+  rm -f \
+    "${RUN_DIR}/media/feature.jpg.watermarked" \
+    "${RUN_DIR}/media/chart.png.watermarked" \
+    2>/dev/null || true
 }
 
 _touch_started() {

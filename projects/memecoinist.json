@@ -311,11 +311,39 @@
   "telegram": {
     "account": "news",
     "group_id": "YOUR_TELEGRAM_NEWS_GROUP_ID",
-    "group_name": "news-agent",
+    "group_name": "memecoinist-news_agent",
     "card_prefix": "[MemeCoinist]"
   },
   "research": {
     "rss_feeds": [
+      {
+        "source": "GN-Memecoin-Broad",
+        "url": "https://news.google.com/rss/search?q=memecoin+OR+%22meme+coin%22+OR+%22meme+token%22&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "GN-Memecoin-Platform",
+        "url": "https://news.google.com/rss/search?q=%22pump.fun%22+OR+%22Solana+memecoin%22+OR+%22Base+memecoin%22+OR+%22memecoin+launch%22&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "GN-Memecoin-Launch",
+        "url": "https://news.google.com/rss/search?q=%22new+memecoin%22+OR+%22memecoin+presale%22+OR+%22memecoin+listing%22+OR+%22memecoin+pump%22&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "GN-Memecoin-Tickers",
+        "url": "https://news.google.com/rss/search?q=dogecoin+OR+shiba+OR+pepe+OR+floki+OR+bonk+OR+dogwifhat+OR+spx6900&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "GN-Memecoin-Tickers2",
+        "url": "https://news.google.com/rss/search?q=BONK+OR+POPCAT+OR+FARTCOIN+OR+PNUT+OR+moodeng+OR+gigachad+OR+neiro&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "GN-Memecoin-PolitiFi",
+        "url": "https://news.google.com/rss/search?q=%22Trump+coin%22+OR+%22MAGA+memecoin%22+OR+politifi+OR+%22celebrity+memecoin%22&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "Bitcoinist-Memecoins",
+        "url": "https://bitcoinist.com/category/memecoins/feed/"
+      },
       {
         "source": "CoinDesk",
         "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"
@@ -329,10 +357,6 @@
         "url": "https://decrypt.co/feed"
       },
       {
-        "source": "Google News",
-        "url": "https://news.google.com/rss/search?q=memecoin+OR+%22meme+coin%22+OR+dogecoin+OR+shiba+OR+pepe+OR+floki+OR+bonk+OR+wif+OR+dogwifhat&hl=en-US&gl=US&ceid=US:en"
-      },
-      {
         "source": "BeInCrypto",
         "url": "https://beincrypto.com/feed/"
       },
@@ -343,25 +367,22 @@
       {
         "source": "CryptoSlate",
         "url": "https://cryptoslate.com/feed/"
-      },
-      {
-        "source": "CryptoFox",
-        "url": "https://cryptofox.news/rss/markets/"
-      },
-      {
-        "source": "CryptoFox",
-        "url": "https://cryptofox.news/rss/regulation/"
       }
     ],
     "source_priority_order": [
+      "GN-Memecoin-Broad",
+      "GN-Memecoin-Platform",
+      "GN-Memecoin-Launch",
+      "GN-Memecoin-Tickers",
+      "GN-Memecoin-Tickers2",
+      "GN-Memecoin-PolitiFi",
+      "Bitcoinist-Memecoins",
       "CoinDesk",
       "CoinTelegraph",
       "Decrypt",
       "The Block",
       "BeInCrypto",
-      "CryptoSlate",
-      "CryptoFox",
-      "Google News"
+      "CryptoSlate"
     ],
     "exclude_keywords": [
       "bitcoin etf",
@@ -375,9 +396,93 @@
       "layer 2 protocol",
       "ethereum upgrade",
       "layer-2",
-      "restaking"
+      "restaking",
+      "fc porto",
+      "football",
+      "soccer",
+      "real madrid",
+      "hockey",
+      "baseball",
+      "obituary",
+      "mortuary",
+      "puppy",
+      "spaghetti",
+      "flamenco",
+      "commemorative",
+      "gold coin",
+      "us mint",
+      "u.s. mint",
+      "24-karat",
+      "250th anniversary",
+      "country star"
     ],
-    "exclude_keywords_note": "Deprioritize/skip macro-crypto and ETF stories unless they directly involve a memecoin angle.",
+    "exclude_keywords_note": "Hard-drop macro-crypto/ETF stories and non-crypto false positives (sports/animal/commemorative-coin) before the inclusion gate.",
+    "require_keywords": [
+      "memecoins?",
+      "meme coins?",
+      "meme tokens?",
+      "meme-coins?",
+      "pump\\.fun",
+      "pumpfun",
+      "dogecoin",
+      "dogwifhat",
+      "fartcoin",
+      "spx6900",
+      "politifi",
+      "gigachad",
+      "moodeng",
+      "\\bwojak\\b",
+      "trump meme",
+      "maga coin",
+      "solana meme",
+      "base meme",
+      "bnb meme",
+      "ai meme",
+      "\\bslerf\\b",
+      "\\bponke\\b",
+      "\\bmichi\\b",
+      "chill guy",
+      "popcat",
+      "\\bneiro\\b"
+    ],
+    "require_weak_keywords": [
+      "\\bpepe\\b",
+      "\\bdoge\\b",
+      "\\bshiba\\b",
+      "\\bshib\\b",
+      "\\bfloki\\b",
+      "\\bbonk\\b",
+      "\\$wif\\b",
+      "\\bbome\\b",
+      "\\bmog\\b"
+    ],
+    "require_context_keywords": [
+      "\\bcoin",
+      "token",
+      "crypto",
+      "memecoin",
+      "\\bprice\\b",
+      "rally",
+      "surge",
+      "\\bpump",
+      "whale",
+      "solana",
+      "\\$",
+      "listing",
+      "presale",
+      "market cap",
+      "trading",
+      "defi",
+      "altcoin",
+      "holders",
+      "blockchain",
+      "\\bbtc\\b",
+      "\\beth\\b",
+      "\\bsol\\b",
+      "binance",
+      "coinbase"
+    ],
+    "require_keywords_note": "Inclusion gate. require_keywords (strong) match anywhere; require_weak_keywords (ambiguous tickers like pepe/doge/bonk) only count when a require_context_keywords term is also present, so non-crypto homonyms (footballer Pepe, hockey player Bonk) are excluded. Tuned empirically against live feeds.",
     "headline_scan_target_count": 10,
     "max_age_hours": 24
   },

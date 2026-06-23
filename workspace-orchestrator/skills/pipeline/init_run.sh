@@ -49,7 +49,11 @@ fi
 
 PROJECT_SLUG="$(python3 "${SCRIPT_DIR}/project_config.py" --slug "$PROJECT_SLUG_INPUT" --field slug)"
 
-RUN_ID="$(date +%Y%m%d-%H%M%S)"
+# RUN_ID must be globally unique so two runs started in the same second (or two
+# projects running concurrently) never share a RUN_DIR. Timestamp + PID + random
+# suffix. Nothing parses RUN_ID as a strict timestamp; it is only used in paths
+# and labels.
+RUN_ID="$(date +%Y%m%d-%H%M%S)-$$-${RANDOM}"
 RUN_DIR="/tmp/${PROJECT_SLUG}-run-${RUN_ID}"
 
 # --------------------------------------------------------------------------
@@ -193,6 +197,50 @@ export PROJECT_CONFIG="${PROJECT_CONFIG_PATH}"
 export ENABLE_ARTICLE_CHARTS="\${ENABLE_ARTICLE_CHARTS:-0}"
 ENVEOF
 
+# --------------------------------------------------------------------------
+# 5b. Resolve frequently-used project fields ONCE and bake them into the env
+#     file. Previously Step 0 / 2.2 / 2.4 each shelled out to project_config.py
+#     (8-10 subprocesses per story) for the same values; now they are env vars.
+#     Best-effort: never abort the run if an optional field is missing.
+# --------------------------------------------------------------------------
+python3 - "$SCRIPT_DIR" "$PROJECT_CONFIG_PATH" >> "$ENV_FILE_PROJECT" <<'PYEOF' || true
+import os, shlex, sys
+script_dir, cfg_path = sys.argv[1], sys.argv[2]
+sys.path.insert(0, script_dir)
+try:
+    import project_config as pc
+    cfg = pc.load_project_config(path=cfg_path)
+except Exception as e:  # noqa: BLE001 - best effort; Step 0 has fallbacks
+    print(f"# project field resolution skipped: {e}", flush=True)
+    sys.exit(0)
+
+def emit(var, dotted, *, absolute=False):
+    val = cfg.get_path(dotted)
+    if val is None or not isinstance(val, (str, int, float)):
+        return
+    val = str(val)
+    if absolute and val:
+        resolved = pc.resolve_openclaw_path(val)
+        if os.path.exists(resolved):
+            val = resolved
+    print(f"export {var}={shlex.quote(val)}")
+
+emit("GROUP_CHAT_ID", "telegram.group_id")
+emit("PROJECT_NAME", "name")
+emit("TEMPLATE_PATH", "writer.template_path", absolute=True)
+emit("DRIVE_PREFIX", "publisher.drive_doc_prefix")
+emit("DRIVE_PARENT", "publisher.drive_parent_id")
+emit("DRIVE_ACCT", "publisher.drive_account")
+PYEOF
+
+# Run-unique env file (concurrency-safe handle). The per-slug and legacy env
+# files above are overwritten by the next run of the same/any project, so a
+# concurrent run must source THIS file instead. Its path is also written into
+# the run bundle so the dispatcher can hand it to an isolated session.
+ENV_FILE_RUN="/tmp/${PROJECT_SLUG}-run-env-${RUN_ID}.sh"
+cp -f "$ENV_FILE_PROJECT" "$ENV_FILE_RUN"
+echo "$ENV_FILE_RUN" > "${RUN_DIR}/.run_env_path"
+
 # Backward-compat env file path
 cp -f "$ENV_FILE_PROJECT" "/tmp/crypto-run-env.sh"
 
@@ -201,6 +249,8 @@ cp -f "$ENV_FILE_PROJECT" "/tmp/crypto-run-env.sh"
 # --------------------------------------------------------------------------
 find /tmp -maxdepth 1 -name "${PROJECT_SLUG}-run-*" -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 find /tmp -maxdepth 1 -name 'crypto-run-*'          -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+# Prune stale run-unique env files (left behind by old runs).
+find /tmp -maxdepth 1 -name "${PROJECT_SLUG}-run-env-*.sh" -type f -mtime +7 -delete 2>/dev/null || true
 
 echo "[INIT] Project:   ${PROJECT_SLUG}"
 echo "[INIT] Config:    ${PROJECT_CONFIG_PATH}"

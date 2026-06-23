@@ -47,6 +47,7 @@ FEED_TIMEOUT = 12
 FEED_RETRIES = 2
 MAX_WORKERS = 8
 SUMMARY_MAX = 280
+CORROBORATING_MAX = 5
 STOP_WORDS = frozenset(
     {
         "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
@@ -219,6 +220,40 @@ def matches_exclude(text: str, keywords: list[str]) -> bool:
     return any(kw.lower() in lower for kw in keywords if kw)
 
 
+def compile_patterns(patterns: list[str]) -> list[re.Pattern]:
+    """Compile config keyword patterns as case-insensitive regexes; fall back to
+    a literal match if a pattern is not valid regex."""
+    out: list[re.Pattern] = []
+    for p in patterns:
+        if not p:
+            continue
+        try:
+            out.append(re.compile(p, re.IGNORECASE))
+        except re.error:
+            out.append(re.compile(re.escape(p), re.IGNORECASE))
+    return out
+
+
+def passes_require(
+    text: str,
+    strong_re: list[re.Pattern],
+    weak_re: list[re.Pattern],
+    ctx_re: list[re.Pattern],
+) -> bool:
+    """Two-tier inclusion gate. Keep an item if a STRONG (unambiguous) term
+    matches anywhere, OR a WEAK ticker (e.g. doge/pepe/bonk) matches AND a
+    crypto-context term is also present (so 'hockey player Bonk' is dropped but
+    'Bonk (BONK) price surge' is kept). No filter configured -> keep all."""
+    if not strong_re and not weak_re:
+        return True
+    if any(r.search(text) for r in strong_re):
+        return True
+    if weak_re and any(r.search(text) for r in weak_re):
+        if not ctx_re or any(r.search(text) for r in ctx_re):
+            return True
+    return False
+
+
 def source_priority(name: str, order: list[str]) -> int:
     try:
         return order.index(name)
@@ -252,7 +287,7 @@ def dedupe_items(items: list[RawItem], priority_order: list[str]) -> list[RawIte
                 item.corroborating_sources.append({"source": existing.source, "url": existing.url})
             by_url[item.url] = item
         elif existing.source != item.source:
-            if len(existing.corroborating_sources) < 2:
+            if len(existing.corroborating_sources) < CORROBORATING_MAX:
                 existing.corroborating_sources.append({"source": item.source, "url": item.url})
 
     url_deduped = list(by_url.values())
@@ -261,7 +296,7 @@ def dedupe_items(items: list[RawItem], priority_order: list[str]) -> list[RawIte
         merged = False
         for existing in result:
             if is_near_duplicate(item.headline, existing.headline):
-                if len(existing.corroborating_sources) < 2:
+                if len(existing.corroborating_sources) < CORROBORATING_MAX:
                     existing.corroborating_sources.append({"source": item.source, "url": item.url})
                 if source_priority(item.source, priority_order) < source_priority(existing.source, priority_order):
                     old_src, old_url = existing.source, existing.url
@@ -270,14 +305,14 @@ def dedupe_items(items: list[RawItem], priority_order: list[str]) -> list[RawIte
                     existing.pub_date = item.pub_date
                     existing.source = item.source
                     existing.summary = item.summary or existing.summary
-                    if old_src != existing.source and len(existing.corroborating_sources) < 2:
+                    if old_src != existing.source and len(existing.corroborating_sources) < CORROBORATING_MAX:
                         existing.corroborating_sources.append({"source": old_src, "url": old_url})
                 merged = True
                 break
         if not merged:
             result.append(item)
     for item in result:
-        item.corroborating_sources = item.corroborating_sources[:2]
+        item.corroborating_sources = item.corroborating_sources[:CORROBORATING_MAX]
     return result
 
 
@@ -306,6 +341,9 @@ def run_scan(
     slug = cfg.slug
     feeds = cfg.get_path("research.rss_feeds", []) or []
     exclude_kw = [str(k) for k in (cfg.get_path("research.exclude_keywords", []) or [])]
+    require_kw = [str(k) for k in (cfg.get_path("research.require_keywords", []) or [])]
+    require_weak_kw = [str(k) for k in (cfg.get_path("research.require_weak_keywords", []) or [])]
+    require_ctx_kw = [str(k) for k in (cfg.get_path("research.require_context_keywords", []) or [])]
     priority = [str(s) for s in (cfg.get_path("research.source_priority_order", []) or [])]
     max_age = int(cfg.get_path("research.max_age_hours", 24) or 24)
 
@@ -341,13 +379,30 @@ def run_scan(
         item.url = resolved
         resolved_items.append(item)
 
-    # Exclude keywords
+    # Exclude keywords (hard drop)
     filtered: list[RawItem] = []
     for item in resolved_items:
         blob = f"{item.headline} {item.summary}"
         if matches_exclude(blob, exclude_kw):
             continue
         filtered.append(item)
+
+    # Inclusion gate (two-tier): only when require_keywords are configured.
+    # Strong terms match anywhere; weak tickers must co-occur with crypto context.
+    strong_re = compile_patterns(require_kw)
+    weak_re = compile_patterns(require_weak_kw)
+    ctx_re = compile_patterns(require_ctx_kw)
+    if strong_re or weak_re:
+        before = len(filtered)
+        filtered = [
+            it
+            for it in filtered
+            if passes_require(f"{it.headline} {it.summary}", strong_re, weak_re, ctx_re)
+        ]
+        print(
+            f"[INFO] require-filter kept {len(filtered)}/{before} project={slug}",
+            file=sys.stderr,
+        )
 
     deduped = dedupe_items(filtered, priority)
 
@@ -356,33 +411,9 @@ def run_scan(
     exists = history_batch.existing_urls(urls, slug)
     surviving = [it for it in deduped if it.url not in exists]
 
-    # Prioritize project-specific topics (e.g., memecoins for memecoinist)
-    if slug == "memecoinist":
-        import re
-        meme_patterns = [
-            r"\bmemecoins?\b", r"\bmeme coin\b", r"\bdoge\b", r"\bdogecoin\b",
-            r"\bshib\b", r"\bshiba\b", r"\bpepe\b", r"\bfloki\b", r"\bbonk\b",
-            r"\bwif\b", r"\bdogwifhat\b", r"\bpump\.fun\b", r"\btrump meme\b",
-            r"\bpolitifi\b", r"\broaring kitty\b", r"\bgme\b", r"\bmog\b",
-            r"\bbrett\b", r"\bpopcat\b", r"\bbome\b", r"\bneiro\b", r"\bsundog\b",
-            r"\bdegen\b", r"\bmemetoro\b", r"\balphapepe\b", r"\blilpepe\b"
-        ]
-        negative_patterns = [
-            r"\bfc porto\b", r"\bfootball\b", r"\bsoccer\b", r"\bpizza\b",
-            r"\bfrank pepe\b", r"\bduncan pepe\b", r"\bmaria pepe\b", r"\bpension\b"
-        ]
-        def score_item(x):
-            score = x.pub_date.timestamp()
-            text = f"{x.headline} {x.summary}".lower()
-            if any(re.search(pat, text) for pat in negative_patterns):
-                return score - 48 * 3600 # Heavy penalty for non-crypto false positives
-            if any(re.search(pat, text) for pat in meme_patterns):
-                # Boost memecoin-related stories by 36 hours to bubble them up
-                score += 36 * 3600
-            return score
-        surviving.sort(key=score_item, reverse=True)
-    else:
-        surviving.sort(key=lambda x: x.pub_date, reverse=True)
+    # Relevance is enforced up front by the inclusion gate (require_keywords);
+    # here we simply order by recency for every project.
+    surviving.sort(key=lambda x: x.pub_date, reverse=True)
 
     final = surviving[:target_count]
 

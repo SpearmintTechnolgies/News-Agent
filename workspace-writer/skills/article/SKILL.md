@@ -21,11 +21,19 @@ python3 ~/.openclaw/workspace-writer/skills/article/check_article.py \
 
 ## Self-check loop (mandatory before SUCCESS)
 
-1. Run the writer command above.
+1. **Auto-fix mechanical issues first (zero-cost, no rewrite).** Run the deterministic fixer, THEN the validator:
+   ```bash
+   python3 ~/.openclaw/workspace-writer/skills/article/autofix_article.py --article "$RUN_DIR/article/raw.md"
+   python3 ~/.openclaw/workspace-writer/skills/article/check_article.py \
+     --article "$RUN_DIR/article/raw.md" \
+     --research "$RUN_DIR/research/validated.json"
+   ```
+   `autofix_article.py` silently repairs em-dashes, the `[Word Count: N]` footer, and stray
+   `x.com`/`twitter.com` body links — so those never cost you a rewrite. Never undo its edits.
 2. If the last line is **`ARTICLE_CHECK: PASS`**, yield `SUCCESS`.
-3. If **`ARTICLE_CHECK: FAIL`**: fix **ONLY** rules listed as `FAIL:` — do not rewrite sections that already passed.
+3. If **`ARTICLE_CHECK: FAIL`**: fix **ONLY** rules still listed as `FAIL:` — do not rewrite sections that already passed.
 4. **Preserve unchanged:** exact H1 text, **Sources:** block, existing valid links, Conclusion, FAQs, and every section not mentioned in FAIL lines.
-5. Re-run the validator. Repeat at most **3** self-check iterations per spawn.
+5. Re-run step 1 (autofix + validator). Repeat at most **3** self-check iterations per spawn.
 6. If still failing after 3 iterations, yield the full validator output verbatim (not `SUCCESS`).
 
 ## Interpreting output
@@ -46,10 +54,13 @@ Exit `0` when all rules pass; exit `1` on any failure.
 | Rule | Raw | Post-sync |
 |------|-----|-----------|
 | H2/H3/FAQ counts and section order | yes | yes |
-| Body word band 1000–1200 | yes | yes |
+| Body word band 950–1250 | yes | yes |
 | Sources footer | yes | no |
 | Word Count footer matches body | yes | no |
 | META char limits | yes | no |
+| Primary Keyword in SEO Title / slug / H1 | yes | no |
 | H1 topic vs research | yes | yes |
+| Clean headings (no inline `#`) | yes | yes |
+| No bare source-only lines in body | yes | yes |
 | Anchor links (max 2, no tweets, match research) | yes | yes |
 | No em-dashes / banned phrases | yes | yes |

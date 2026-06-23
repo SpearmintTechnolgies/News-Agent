@@ -42,6 +42,7 @@ KNOWN_ERROR_REASONS = {
 }
 
 PROSE_MIN_WORDS = 600
+MIN_SOURCES = 2
 
 # Markers that mean "this is an internal trajectory/system log, not research".
 _LOG_MARKERS = (
@@ -149,9 +150,28 @@ def run_deep_research_checks(
         return [("parseable_json", False, "no parseable JSON object found in output")]
     results.append(("parseable_json", True, "single JSON object"))
 
+    if data.get("status") == "partial":
+        partial_words = int(data.get("partial_words") or 0)
+        results.append((
+            "not_partial",
+            False,
+            f"research is partial ({partial_words} words) — re-run run_deep_research.py "
+            "with --discover-aggressive before yielding SUCCESS",
+        ))
+        return results
+
     # Clean error path is a valid, accepted outcome.
     if data.get("status") == "error":
         reason = str(data.get("reason") or "").strip()
+        partial_words = int(data.get("partial_words") or 0)
+        if partial_words > 0:
+            results.append((
+                "no_premature_error",
+                False,
+                f"partial extraction ({partial_words} words) — re-run run_deep_research.py "
+                "with --discover-aggressive; do not emit clean error JSON while content exists",
+            ))
+            return results
         if reason in KNOWN_ERROR_REASONS:
             results.append((
                 "clean_error_json",
@@ -192,6 +212,17 @@ def run_deep_research_checks(
             "source_urls must be a non-empty list",
         ))
         urls = []
+
+    source_count = len(urls) if isinstance(urls, list) else 0
+    if source_count >= MIN_SOURCES:
+        results.append(("multi_source", True, f"{source_count} distinct source URLs"))
+    else:
+        results.append((
+            "multi_source",
+            False,
+            f"source_urls needs >= {MIN_SOURCES} entries (got {source_count}) — "
+            "re-run run_deep_research.py with --discover-aggressive",
+        ))
 
     aggregator_hits = [u for u in urls if isinstance(u, str) and is_aggregator_url(u)]
     if aggregator_hits:

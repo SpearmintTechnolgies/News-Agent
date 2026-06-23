@@ -16,7 +16,7 @@ Write premium, SEO-optimized crypto news articles from `validated.json` provided
 | Normal write | [`skills/write-article/SKILL.md`](skills/write-article/SKILL.md) — read this file at the start of every initial write |
 | Contains `REVISION MODE` | [`skills/revise-article/SKILL.md`](skills/revise-article/SKILL.md) — read this file instead |
 
-The orchestrator includes `PROJECT_CONFIG` pointing at `projects/<slug>.json`. Editorial rules live in the project template (`writer.template_path`), not in this file.
+The orchestrator includes `PROJECT_CONFIG` pointing at `projects/<slug>.json`. Editorial rules live in the project template (`writer.template_path`), not in this file. If the spawn message includes `TEMPLATE_PATH`, read that absolute path — never treat `writer.template_path` as relative to this workspace (config paths are relative to `~/.openclaw`).
 
 ## Output contract
 

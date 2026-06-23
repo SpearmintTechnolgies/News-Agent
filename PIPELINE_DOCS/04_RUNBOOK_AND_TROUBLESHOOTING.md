@@ -41,6 +41,56 @@ Then restart it normally.
 
 ---
 
+## Pool scheduler (scanner + daily feed)
+
+The approve-title-first flow runs `pool_scheduler.py` as a long-lived Python process (scanner every 30m, daily feed card, 48h idle watchdog). It uses **zero LLM tokens**.
+
+**Start or ensure it is running (WSL / dev):**
+```bash
+chmod +x ~/.openclaw/workspace-orchestrator/skills/pipeline/ensure_scheduler.sh
+~/.openclaw/workspace-orchestrator/skills/pipeline/ensure_scheduler.sh
+```
+
+**Watchdog:** The `news-scanner` agent has a 30m heartbeat that runs `ensure_scheduler.sh` if the gateway is up. It only starts the scheduler when it is not already running.
+
+**Check status:**
+```bash
+pgrep -af pool_scheduler.py
+tail -20 ~/.openclaw/logs/pool-scheduler.log
+```
+
+**Feed time:** Set via env in `ensure_scheduler.sh` (defaults `FEED_HOUR=11`, `FEED_MIN=30` for testing). For production use `FEED_HOUR=10` `FEED_MIN=0`.
+
+---
+
+## Deploy to VPS (GCloud / Linux with systemd)
+
+On a VPS, use **systemd** as the primary supervisor (zero tokens, auto-start on boot, auto-restart on crash).
+
+**1. OpenClaw gateway**
+```bash
+openclaw gateway install
+sudo systemctl enable --now openclaw-gateway
+```
+
+**2. Pool scheduler**
+```bash
+sudo cp ~/.openclaw/workspace-orchestrator/config/openclaw-pool-scheduler.service /etc/systemd/system/
+# Edit Environment=FEED_HOUR=10 (and FEED_MIN=0) in the unit if needed
+sudo systemctl daemon-reload
+sudo systemctl enable --now openclaw-pool-scheduler
+```
+
+**3. Optional:** Keep the `news-scanner` heartbeat in `openclaw.json` as a secondary safety net.
+
+**Verify on VPS:**
+```bash
+systemctl status openclaw-gateway openclaw-pool-scheduler
+pgrep -af pool_scheduler.py
+```
+
+---
+
 ## ⚠️ Common Errors
 
 ### 1. `HTTP 401: User not found`

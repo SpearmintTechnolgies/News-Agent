@@ -7,8 +7,10 @@
 This project implements a multi-agent pipeline that produces a daily crypto news article and optionally publishes it to WordPress. The system is orchestrated by a single controller agent that sequences four worker agents in strict order, plus an optional fifth agent for WordPress publishing.
 
 Primary flow:
-Orchestrator -> Researcher -> Writer -> Image Creator -> Google Drive Publisher
-Optional: WordPress Publisher
+Orchestrator -> Researcher -> Writer -> Image Creator -> (Drive upload, run in orchestrator bash)
+Optional: WordPress publish (run in orchestrator bash)
+
+> **Note (2026-06-19):** Google Drive upload and WordPress publishing are no longer separate LLM agents. They are deterministic shell scripts (`gog drive upload`, `publish.sh`) that the Orchestrator now runs directly in `bash` to save tokens. The `publisher`/`wp-publisher` workspaces remain as command references only. See `AGENT_PIPELINE_REGISTRY.md` for current details.
 
 Goal:
 Produce a structured, SEO-optimized crypto article, generate a Reuters-style feature image, upload a .docx to Google Drive, and optionally publish a live WordPress post.
@@ -81,13 +83,13 @@ Output:
 - Success: /tmp/crypto-feature.jpg
 - Failure: IMAGE_FAILED: <reason>
 
-### 2.5 Google Drive Publisher: Press
+### 2.5 Google Drive upload (INLINED — orchestrator bash, formerly "Press")
 Defined in:
-- workspace-publisher/IDENTITY.md
-- workspace-publisher/SOUL.md
+- workspace-orchestrator/SOUL.md (Step 2.4)
+- workspace-publisher/SOUL.md (reference only — agent no longer spawned)
 - workspace-publisher/skills/gog/SKILL.md
 
-Role: Uploads the article to Google Drive as .docx.
+Role: Uploads the article to Google Drive as .docx. Run directly by the orchestrator (no LLM subagent).
 Key responsibilities:
 - Embed image at top of markdown (if available).
 - Convert to docx using pandoc.
@@ -96,13 +98,13 @@ Key responsibilities:
 Output:
 - Google Drive webViewLink from JSON response.
 
-### 2.6 WordPress Publisher: Scribe (Optional)
+### 2.6 WordPress publish (INLINED — orchestrator bash, formerly "Scribe", Optional)
 Defined in:
-- workspace-wp-publisher/IDENTITY.md
-- workspace-wp-publisher/SOUL.md
+- workspace-orchestrator/SOUL.md (Step 2.6)
+- workspace-wp-publisher/SOUL.md (reference only — agent no longer spawned)
 - workspace-wp-publisher/skills/wordpress/SKILL.md
 
-Role: Publishes the article to WordPress (live by default).
+Role: Publishes the article to WordPress as a draft (run directly by the orchestrator via `publish.sh`; no LLM subagent). Telegram card Publish button promotes a draft to live.
 Key responsibilities:
 - Run a bash script to upload image, convert markdown to HTML, and create a post (`status: publish`).
 - Return the live post URL from the output file.

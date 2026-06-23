@@ -2,6 +2,23 @@
 
 Follow these rules for every article. Interior structure (how many sections, headings, hook style) is your editorial decision within the borders below.
 
+<constraints>
+  <!-- Hard schema. Validate every number against this BEFORE writing. The article
+       itself is plain Markdown — NEVER emit these XML tags in your output. -->
+  <h1 count="1" max_words="15"/>
+  <h2_body min="2" max="4"/>            <!-- excludes ## Conclusion and ## FAQs -->
+  <h3 min="3" max="6"/>                 <!-- ### only, nested inside an H2 -->
+  <faqs min="3" max="6" format="**N. Question?**"/>
+  <body_words aim="1100" min="950" max="1250"/>  <!-- hook+H2s+Conclusion+FAQs -->
+  <anchor_links count="2" placement="hook_or_first_H2" no_tweets="true" distinct="true"
+                source="research.source_urls"/>
+  <meta seo_title_max="55" meta_description_max="155" url_slug_max="50"
+        keyword_in_description="verbatim"/>
+  <order>META -> H1(hook) -> H2 body -> ## Conclusion -> ## FAQs -> **Sources:** -> [Word Count: N]</order>
+  <style no_em_dash="true" no_banned_phrases="true"/>
+  <output>Clean Markdown only. Do NOT print XML tags, schema, or your plan in the article file.</output>
+</constraints>
+
 ---
 
 ## Hard rules (never break)
@@ -14,11 +31,12 @@ Follow these rules for every article. Interior structure (how many sections, hea
 - **BULLET LISTS:** 3–4 items only, inside H3 sections if you use them. Never in Conclusion or opening hook.
 
 **SEO and links**
-- **ANCHOR LINKS:** Exactly **2** markdown links to URLs from `RESEARCH_JSON.source_urls` (distinct URLs, no repeats). Both in the **opening hook or first H2 only**. No x.com or twitter.com links in the body.
+- **ANCHOR LINKS:** Exactly **2** markdown links to URLs from `RESEARCH_JSON.source_urls` (distinct URLs, no repeats). Both in the **opening hook or first H2 only** — woven into sentences, never a standalone `Publication | Publication` line. No x.com or twitter.com links in the body.
+- **HEADINGS:** One clean `#` / `##` / `###` marker per line — never put `#` characters inside heading text.
 - **KEYWORDS:** Primary keyword in H1 (first 5 words); in the **first sentence of the hook** (the very first line of body text under H1); in at least one H2 and in Conclusion. Use secondary keywords in H2/H3 where natural.
 
 **Length**
-- **Word count:** Body **1000–1200** words (aim **1100**). Count body only; META, Sources, and `[Word Count:]` line are not counted. Body includes hook, H2 sections, Conclusion, and FAQs.
+- **Word count:** Aim for **~1100** body words. Accepted band is **950–1250** (validator). Count body only; META, Sources, and `[Word Count:]` line are not counted. Body includes hook, H2 sections, Conclusion, and FAQs.
 - **Verify before footer:** Run the combined validator (writer self-check):
   ```bash
   python3 ~/.openclaw/workspace-writer/skills/article/check_article.py \
@@ -73,7 +91,7 @@ Count characters in `<thinking>` before writing:
 META
 - SEO Title: [Primary Keyword first (within first 3 words); include one number/figure when factual; ≤55 chars]
 - Meta Description: [Must contain the Primary Keyword verbatim; hook + detail; ≤155 chars]
-- URL Slug: [lowercase hyphens; 3–5 words; ≤50 chars]
+- URL Slug: [lowercase hyphens; 3–5 words; must include Primary Keyword tokens; ≤50 chars]
 - Categories: [e.g. Regulation, Latest News]
 - Primary Keyword: [...]
 - Secondary Keywords: [...]
@@ -137,18 +155,18 @@ Final line: `[Word Count: NNNN]` with digits only.
 - [ ] META char counts within limits
 - [ ] Meta Description contains Primary Keyword verbatim
 - [ ] SEO Title starts with Primary Keyword (within first 3 words) and has a number/figure
-- [ ] URL Slug ≤50 chars
+- [ ] URL Slug includes Primary Keyword tokens and is ≤50 chars
 - [ ] First body sentence (under H1) contains Primary Keyword
 - [ ] 2 source URLs planned for hook/first H2
 - [ ] Structure choices within H2/H3/FAQ borders
-- [ ] Body word budget 1000–1200
+- [ ] Body word budget ~1100 (accepted 950–1250)
 - [ ] Order: Conclusion then FAQs then Sources
 
 ## Post-output check
 
 - [ ] 1 H1; H2/H3/FAQ counts within borders
 - [ ] Conclusion before FAQs; FAQs before Sources
-- [ ] 1000–1200 body words
+- [ ] ~1100 body words (accepted 950–1250)
 - [ ] Exactly 2 source links in hook/first H2
 - [ ] No em-dashes or banned phrases
 - [ ] Meta Description contains Primary Keyword

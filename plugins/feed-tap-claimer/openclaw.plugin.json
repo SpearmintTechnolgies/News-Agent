@@ -1,0 +1,10 @@
+{
+  "id": "feed-tap-claimer",
+  "name": "Feed Tap Claimer",
+  "description": "Handles oc_go and oc_feed_refresh feed-card taps without waking the orchestrator.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

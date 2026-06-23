@@ -66,7 +66,7 @@ Use the printed publisher URL. If it prints `RESOLVE_FAILED`, drop that candidat
 ### 2c — Deduplicate
 
 - **URL dedupe:** same URL -> keep the first.
-- **Same-story dedupe:** near-identical headlines (>=80% significant-token overlap) -> keep the higher-priority source per `research.source_priority_order`. Record up to 2 dropped duplicates as `corroborating_sources` (`{source, url}`).
+- **Same-story dedupe:** near-identical headlines (>=80% significant-token overlap) -> keep the higher-priority source per `research.source_priority_order`. Record up to 5 dropped duplicates as `corroborating_sources` (`{source, url}`).
 
 ### 2d — History gate
 

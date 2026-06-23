@@ -37,6 +37,8 @@ if _RESEARCH_CHECK_DIR not in sys.path:
     sys.path.insert(0, _RESEARCH_CHECK_DIR)
 
 import check_research as cr  # noqa: E402
+import project_config as pc  # noqa: E402
+import wp_category_resolve as wcr  # noqa: E402
 
 REQUIRED_FIELDS = cr.RESEARCH_REQUIRED_FIELDS
 
@@ -161,6 +163,37 @@ def main() -> int:
         data["wp_category_slugs"] = wp_category_slugs
     if isinstance(wp_category_ids, list):
         data["wp_category_ids"] = wp_category_ids
+
+    # Resolve slug -> numeric ids from project config when ids are missing.
+    project_slug = manifest.get("project") or "coinography"
+    wp_categories: list[dict] = []
+    try:
+        cfg = pc.load_project_config(slug=project_slug)
+        raw_cats = cfg.get_path("wordpress.categories", []) or []
+        wp_categories = [c for c in raw_cats if isinstance(c, dict)]
+    except (FileNotFoundError, ValueError):
+        pass
+
+    slugs = data.get("wp_category_slugs")
+    ids = data.get("wp_category_ids")
+    if wp_categories and isinstance(slugs, list) and slugs and not ids:
+        resolved_slugs, resolved_ids = wcr.resolve_slugs_to_ids(slugs, wp_categories)
+        if resolved_ids:
+            data["wp_category_slugs"] = resolved_slugs
+            data["wp_category_ids"] = resolved_ids
+
+    # Coin-aware guard: force lead-coin category when distinctive tokens match.
+    if wp_categories:
+        new_slugs, new_ids, note = wcr.apply_coin_category_guard(
+            data,
+            wp_categories,
+            wp_category_slugs=data.get("wp_category_slugs"),
+            wp_category_ids=data.get("wp_category_ids"),
+        )
+        if note:
+            data["wp_category_slugs"] = new_slugs
+            data["wp_category_ids"] = new_ids
+            print(f"[INFO] {note}", file=sys.stderr)
 
     # Atomically write validated.json
     if not validated_path:

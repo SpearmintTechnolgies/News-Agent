@@ -51,6 +51,21 @@ def project_path_for_slug(slug: str) -> str:
     return os.path.join(projects_dir(), f"{slug}.json")
 
 
+def resolve_openclaw_path(rel: str) -> str:
+    """Resolve a config-relative path to an absolute filesystem path.
+
+    Paths stored in project configs (e.g. writer.template_path,
+    wordpress.app_password_ref) are relative to ~/.openclaw. Sub-agents run
+    with their own cwd (e.g. ~/.openclaw/workspace-writer), so resolving such a
+    path relative to cwd doubles the prefix and fails. Always resolve via this
+    helper. Absolute inputs are returned unchanged.
+    """
+    rel = os.path.expanduser(rel)
+    if os.path.isabs(rel):
+        return rel
+    return os.path.join(openclaw_root(), rel)
+
+
 class ProjectConfig(dict):
     """dict subclass that knows where it came from + how to read its password file."""
 
@@ -182,6 +197,34 @@ def list_available_projects() -> list[str]:
     return out
 
 
+def _normalize_chat_id(chat_id: str) -> str:
+    """Normalize Telegram chat ids for lookup (strip channel prefix)."""
+    cid = str(chat_id or "").strip()
+    if cid.startswith("telegram:"):
+        cid = cid.split(":", 1)[1]
+    return cid
+
+
+def resolve_project_for_chat(chat_id: str) -> Optional[str]:
+    """Return the project slug bound to a Telegram group chat id, if any.
+
+    Inverts ``telegram.group_id`` from each project config. Returns ``None``
+    when the chat is not bound (e.g. DMs or unknown groups).
+    """
+    cid = _normalize_chat_id(chat_id)
+    if not cid:
+        return None
+    for slug in list_available_projects():
+        try:
+            cfg = load_project_config(slug=slug)
+        except (FileNotFoundError, ValueError):
+            continue
+        group_id = str(cfg.get_path("telegram.group_id") or "").strip()
+        if group_id and _normalize_chat_id(group_id) == cid:
+            return slug
+    return None
+
+
 def assert_project_matches_manifest(cfg: ProjectConfig, manifest_path: str) -> None:
     """Reliability gate: env-loaded project must match the manifest's project.
 
@@ -211,9 +254,29 @@ def main() -> int:
     p.add_argument("--slug", help="Project slug (defaults to env / manifest / coinography)")
     p.add_argument("--path", help="Explicit project config path (overrides --slug)")
     p.add_argument("--field", help="Dotted key to print (e.g. wordpress.url). If omitted, prints full JSON.")
+    p.add_argument(
+        "--absolute",
+        action="store_true",
+        help="With --field: resolve string value relative to ~/.openclaw and verify the path exists",
+    )
     p.add_argument("--password", action="store_true", help="Print resolved WP password to stdout (use with care)")
     p.add_argument("--list", action="store_true", help="List available project slugs")
+    p.add_argument(
+        "--chat-id",
+        help="Telegram chat id; prints the bound project slug (exit 1 if unbound)",
+    )
     args = p.parse_args()
+
+    if args.chat_id:
+        slug = resolve_project_for_chat(args.chat_id)
+        if not slug:
+            print(
+                f"PROJECT_CONFIG_ERROR: no project bound to chat_id={args.chat_id}",
+                file=sys.stderr,
+            )
+            return 1
+        print(slug)
+        return 0
 
     if args.list:
         for s in list_available_projects():
@@ -239,6 +302,23 @@ def main() -> int:
         if val is None:
             print(f"PROJECT_CONFIG_ERROR: field '{args.field}' not found in {cfg.source_path}", file=sys.stderr)
             return 1
+        if args.absolute:
+            if not isinstance(val, str):
+                print(
+                    f"PROJECT_CONFIG_ERROR: field '{args.field}' is not a string path "
+                    f"(got {type(val).__name__})",
+                    file=sys.stderr,
+                )
+                return 1
+            resolved = resolve_openclaw_path(val)
+            if not os.path.exists(resolved):
+                print(
+                    f"PROJECT_CONFIG_ERROR: resolved path does not exist: {resolved}",
+                    file=sys.stderr,
+                )
+                return 1
+            print(resolved)
+            return 0
         if isinstance(val, (dict, list)):
             print(json.dumps(val, indent=2))
         else:

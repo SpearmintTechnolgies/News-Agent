@@ -15,9 +15,6 @@ import mimetypes
 import os
 import sys
 import tempfile
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from html import escape as html_escape
 from typing import Any
@@ -28,6 +25,7 @@ if _SCRIPT_DIR not in sys.path:
 
 from editorial_db import init_db, insert_article, save_article_version  # noqa: E402
 import project_config as pc  # noqa: E402
+from telegram_api import telegram_request  # noqa: E402
 
 OPENCLAW_JSON = os.path.expanduser("~/.openclaw/openclaw.json")
 TELEGRAM_CONFIG = os.path.expanduser(
@@ -61,6 +59,25 @@ def load_bot_token() -> str:
     if token:
         return token
     return str(telegram.get("botToken") or "").strip()
+
+
+def resolve_chat_id(project: str | None, fallback: str = "") -> str:
+    """Per-publication Telegram group id.
+
+    Reads ``telegram.group_id`` from the project config so each publication
+    routes to its own group. Falls back to the given default (the global
+    ``telegram_card_config.json`` group) when the project has no value, so a
+    missing/typo'd field can never silently drop a send.
+    """
+    if project:
+        try:
+            cfg = pc.load_project_config(slug=project)
+            gid = str(cfg.get_path("telegram.group_id", "") or "").strip()
+            if gid:
+                return gid
+        except (FileNotFoundError, ValueError):
+            pass
+    return str(fallback or "").strip()
 
 
 def atomic_write_json(path: str, data: dict) -> None:
@@ -112,6 +129,131 @@ def truncate(text: str, max_len: int) -> str:
     return text[: max_len - 1].rstrip() + "…"
 
 
+def format_run_tokens(total: int | None) -> str:
+    n = int(total or 0)
+    if n <= 0:
+        return ""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}k"
+    return str(n)
+
+
+def short_model_label(name: str) -> str:
+    label = str(name or "").strip()
+    if not label:
+        return "Unknown"
+    if " (Bedrock)" in label:
+        label = label.replace(" (Bedrock)", "")
+    for suffix in (" 675B", " 80B", " 30B", " 120B"):
+        if label.endswith(suffix):
+            label = label[: -len(suffix)]
+    return label.strip() or "Unknown"
+
+
+def format_cost_usd(cost_usd: float | None) -> str:
+    value = float(cost_usd or 0)
+    if value <= 0:
+        return ""
+    if value >= 1:
+        return f"~${value:.2f}"
+    if value >= 0.01:
+        return f"~${value:.2f}"
+    return f"~${value:.3f}"
+
+
+def build_per_model_breakdown(by_model: dict, max_len: int = 220) -> str:
+    if not isinstance(by_model, dict) or not by_model:
+        return ""
+    items = sorted(
+        by_model.items(),
+        key=lambda kv: int((kv[1] or {}).get("tokens_total") or 0),
+        reverse=True,
+    )
+    parts: list[str] = []
+    for _model_id, usage in items:
+        if not isinstance(usage, dict):
+            continue
+        total = int(usage.get("tokens_total") or 0)
+        if total <= 0:
+            continue
+        label = short_model_label(str(usage.get("name") or _model_id))
+        token_label = format_run_tokens(total)
+        if not token_label:
+            continue
+        candidate = " | ".join(parts + [f"{label} {token_label}"])
+        if len(candidate) > max_len and parts:
+            break
+        parts.append(f"{label} {token_label}")
+    return " | ".join(parts)
+
+
+def load_tokens_for_run(run_dir: str) -> dict[str, Any]:
+    tokens_path = os.path.join(run_dir, "publish", "tokens.json")
+    data = load_json(tokens_path)
+    if not data:
+        return {
+            "tokens_in": None,
+            "tokens_out": None,
+            "tokens_total": None,
+            "by_model": {},
+            "cost_usd": None,
+            "pricing_available": False,
+        }
+    by_model = data.get("by_model") if isinstance(data.get("by_model"), dict) else {}
+    return {
+        "tokens_in": int(data["tokens_in"]) if data.get("tokens_in") is not None else None,
+        "tokens_out": int(data["tokens_out"]) if data.get("tokens_out") is not None else None,
+        "tokens_total": int(data["tokens_total"]) if data.get("tokens_total") is not None else None,
+        "by_model": by_model,
+        "cost_usd": float(data["cost_usd"]) if data.get("cost_usd") is not None else None,
+        "pricing_available": bool(data.get("pricing_available")),
+    }
+
+
+def resolve_attached_category_fields(
+    wp: dict,
+    research: dict,
+    wp_categories: list[dict] | None,
+) -> tuple[list[str], str | None, str | None]:
+    """Prefer categories actually attached at publish time (wordpress.json)."""
+    attached_names = wp.get("wp_category_names")
+    attached_slugs = wp.get("wp_category_slugs")
+    if isinstance(attached_names, list) and attached_names:
+        slugs = (
+            [str(s) for s in attached_slugs]
+            if isinstance(attached_slugs, list)
+            else []
+        )
+        labels = [str(n) for n in attached_names if str(n).strip()]
+        return slugs, (labels[0] if labels else None), ", ".join(labels)
+    return resolve_category_fields(research, wp_categories)
+
+
+def resolve_category_fields(
+    research: dict,
+    wp_categories: list[dict] | None,
+) -> tuple[list[str], str | None, str | None]:
+    """Map publish slugs from validated.json to display names for the card."""
+    raw_slugs = research.get("wp_category_slugs")
+    if isinstance(raw_slugs, list):
+        slugs = [str(s).strip() for s in raw_slugs if str(s).strip()]
+    else:
+        primary = str(research.get("category") or "").strip()
+        slugs = [primary] if primary else []
+
+    by_slug = {
+        str(c.get("slug")): str(c.get("name") or c.get("slug"))
+        for c in (wp_categories or [])
+        if isinstance(c, dict) and c.get("slug")
+    }
+    labels = [by_slug.get(s, s) for s in slugs]
+    category_display = ", ".join(labels) if labels else None
+    primary_name = labels[0] if labels else None
+    return slugs, primary_name, category_display
+
+
 def build_inline_keyboard(card: dict) -> dict:
     rows: list[list[dict[str, str]]] = []
     if card.get("wp_url"):
@@ -137,6 +279,57 @@ def build_inline_keyboard(card: dict) -> dict:
         )
 
     return {"inline_keyboard": rows} if rows else {}
+
+
+def _is_action_row(row: list[dict]) -> bool:
+    for btn in row:
+        cb = str(btn.get("callback_data") or "")
+        if cb.startswith(("oc_draft:", "oc_publish:", "oc_edit:")):
+            return True
+    return False
+
+
+def build_author_picker_card_keyboard(card: dict, authors: list[dict]) -> dict:
+    """Full card keyboard with the action row replaced by author buttons + Back."""
+    run_id = str(card.get("run_id") or "").strip()
+    base = build_inline_keyboard(card)
+    rows = list(base.get("inline_keyboard") or [])
+    if rows and _is_action_row(rows[-1]):
+        rows = rows[:-1]
+
+    author_buttons: list[dict] = []
+    for author in authors:
+        author_id = int(author["id"])
+        author_buttons.append(
+            {
+                "text": str(author.get("label") or author.get("name") or author_id),
+                "callback_data": f"oc_pub_a:{run_id}:{author_id}",
+            }
+        )
+    for i in range(0, len(author_buttons), 2):
+        rows.append(author_buttons[i : i + 2])
+    if run_id:
+        rows.append([{"text": "Back", "callback_data": f"oc_pub_n:{run_id}"}])
+    return {"inline_keyboard": rows}
+
+
+def build_published_card_keyboard(card: dict, live_url: str | None = None) -> dict:
+    """Card keyboard after live publish — swap Publish for inert Published; keep Unpublish + Edit."""
+    card2 = dict(card)
+    if live_url:
+        card2["wp_url"] = live_url
+    card2["wp_status"] = "publish"
+    run_id = str(card2.get("run_id") or "").strip()
+    base = build_inline_keyboard(card2)
+    rows = list(base.get("inline_keyboard") or [])
+    if rows and run_id and _is_action_row(rows[-1]):
+        rows[-1] = [
+            {"text": "Published", "callback_data": f"oc_noop:{run_id}"}
+            if str(b.get("callback_data") or "").startswith("oc_publish:")
+            else b
+            for b in rows[-1]
+        ]
+    return {"inline_keyboard": rows}
 
 
 def build_caption(card: dict) -> str:
@@ -175,6 +368,13 @@ def build_caption(card: dict) -> str:
         lines.append(truncate(detail, 300))
         lines.append("")
 
+    category_display = html_escape(
+        str(card.get("category_display") or card.get("category") or "").strip()
+    )
+    if category_display:
+        lines.append(f"<b>Category:</b> {category_display}")
+        lines.append("")
+
     meta = []
     if asset:
         meta.append(f"<b>Asset:</b> {asset}")
@@ -186,6 +386,20 @@ def build_caption(card: dict) -> str:
         f"<b>Sources:</b> {sources} | <b>WP:</b> {status_label} | <b>Card sent:</b> {card_sent}"
     )
 
+    tokens_total = card.get("tokens_total")
+    if tokens_total:
+        token_label = format_run_tokens(int(tokens_total))
+        if token_label:
+            cost_line = f"<b>Run cost:</b> {token_label} tokens"
+            if card.get("pricing_available") and card.get("cost_usd"):
+                cost_suffix = format_cost_usd(float(card.get("cost_usd") or 0))
+                if cost_suffix:
+                    cost_line += f" ({cost_suffix})"
+            lines.append(cost_line)
+            breakdown = build_per_model_breakdown(card.get("by_model") or {})
+            if breakdown:
+                lines.append(html_escape(breakdown))
+
     lines.append("")
     lines.append("Reply: <code>RATE 1-10</code> | <code>IMAGE 1-10</code> | <code>DRAFT</code> | <code>PUBLISH</code> | <code>EDIT</code> (.md file)")
 
@@ -193,49 +407,6 @@ def build_caption(card: dict) -> str:
     if len(caption) > TELEGRAM_CAPTION_MAX:
         caption = caption[: TELEGRAM_CAPTION_MAX - 1] + "…"
     return caption
-
-
-def telegram_request(
-    token: str, method: str, data: dict | None = None, files: dict | None = None
-) -> dict:
-    url = f"https://api.telegram.org/bot{token}/{method}"
-    if files:
-        boundary = "----OpenClawBoundary"
-        body_parts: list[bytes] = []
-        for name, (filename, content, mime) in files.items():
-            body_parts.append(f"--{boundary}\r\n".encode())
-            body_parts.append(
-                f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'.encode()
-            )
-            body_parts.append(f"Content-Type: {mime}\r\n\r\n".encode())
-            body_parts.append(content)
-            body_parts.append(b"\r\n")
-        if data:
-            for key, val in data.items():
-                body_parts.append(f"--{boundary}\r\n".encode())
-                body_parts.append(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode())
-                body_parts.append(str(val).encode("utf-8"))
-                body_parts.append(b"\r\n")
-        body_parts.append(f"--{boundary}--\r\n".encode())
-        body = b"".join(body_parts)
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-            method="POST",
-        )
-    else:
-        encoded = urllib.parse.urlencode(data or {}).encode("utf-8")
-        req = urllib.request.Request(
-            url, data=encoded, headers={"Content-Type": "application/x-www-form-urlencoded"}, method="POST"
-        )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        raw = resp.read().decode("utf-8")
-    result = json.loads(raw)
-    if not result.get("ok"):
-        desc = result.get("description", "unknown Telegram error")
-        raise RuntimeError(desc)
-    return result
 
 
 def send_telegram_card(
@@ -320,10 +491,13 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
     project_slug = str(manifest.get("project") or "coinography")
     project_name = project_slug.title()
     project_card_prefix = ""
+    wp_categories: list[dict] = []
     try:
         cfg = pc.load_project_config(slug=project_slug)
         project_name = cfg.get("name") or project_slug.title()
         project_card_prefix = str(cfg.get_path("telegram.card_prefix", "") or "")
+        raw_cats = cfg.get_path("wordpress.categories", []) or []
+        wp_categories = [c for c in raw_cats if isinstance(c, dict)]
     except (FileNotFoundError, ValueError):
         pass
     artifacts = manifest.get("artifacts") or {}
@@ -351,6 +525,10 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
     sources_used = research.get("sources_used") or research.get("source_urls") or []
     sources_count = len(sources_used) if isinstance(sources_used, list) else 0
 
+    wp_category_slugs, category_name, category_display = resolve_attached_category_fields(
+        wp, research, wp_categories
+    )
+
     card: dict[str, Any] = {
         "run_id": run_id,
         "run_dir": run_dir,
@@ -365,7 +543,9 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
         "why_now": first_key_fact(research.get("combined_key_facts")),
         "primary_asset": research.get("primary_asset") or "",
         "primary_keyword": research.get("primary_keyword") or "",
-        "category": str(research.get("category") or "").strip() or None,
+        "category": category_name,
+        "wp_category_slugs": wp_category_slugs or None,
+        "category_display": category_display,
         "sources_count": sources_count,
         "wp_url": wp_url,
         "wp_post_id": str(wp.get("post_id") or ""),
@@ -375,6 +555,7 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
         "card_sent_at": datetime.now(timezone.utc).isoformat(),
         "telegram_group": "",
         "telegram_message_id": None,
+        **load_tokens_for_run(run_dir),
     }
 
     news_card_path = os.path.join(run_dir, "publish", "news-card.json")
@@ -396,9 +577,14 @@ def main() -> int:
             raise ValueError("Telegram botToken not found in openclaw.json")
 
         tg_cfg = load_json(TELEGRAM_CONFIG)
-        chat_id = str(tg_cfg.get("group_id") or "").strip()
+        fallback_chat_id = str(tg_cfg.get("group_id") or "").strip()
+        project_slug = pc.resolve_project_slug(manifest_path=manifest_path)
+        chat_id = resolve_chat_id(project_slug, fallback=fallback_chat_id)
         if not chat_id:
-            raise ValueError("group_id missing in telegram_card_config.json")
+            raise ValueError(
+                "no telegram group id: set telegram.group_id in the project "
+                "config or group_id in telegram_card_config.json"
+            )
 
         card["telegram_group"] = chat_id
         caption = build_caption(card)

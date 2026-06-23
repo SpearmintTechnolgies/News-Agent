@@ -15,6 +15,7 @@ Before any output, use a `<thinking>` block to:
 3. For each candidate, write one line: `idx | primary_slug | secondary_slugs | category_score | reason`.
 4. Compute the diversity-aware selection (see algorithm below) and list the chosen `pick_index → candidate_index` mapping, plus each pick's primary slug.
 5. State which `target_count` you are honoring, and whether you had to set `diversity_relaxed`.
+6. For each pick, confirm the primary slug names the **same coin** as the headline (never a sibling coin's category).
 
 ---
 
@@ -70,6 +71,7 @@ There is **no fixed taxonomy**. The allowed categories come entirely from the `w
 - Assign each candidate **exactly one `primary` slug** — the single best-fit category. This is the slug used for diversity and is the lead WordPress category.
 - Optionally assign **up to 2 `secondary` slugs** — other categories that also genuinely apply (e.g. an XRP ETF story → primary `etf`, secondary `xrp`). Secondary slugs are NOT constrained by diversity rules.
 - Match on meaning: a story about an XRP price catalyst → `xrp`; a Bitcoin ETF inflow → `etf` (primary) + `bitcoin` (secondary); an SEC lawsuit → `policy-and-regulations` or `sec`; a bridge hack → `exploits`; a chain upgrade → `blockchain` or the chain's coin slug if present.
+- **Named coin rule (hard):** When the headline/summary is clearly about a specific coin or token and that coin has its own category in `wp_categories`, the **primary** MUST be that coin's category — never a different coin's category. Examples: Shiba Inu / SHIB / Asteroid Shiba → `shiba-inu-coin`, not `dogecoin`; Dogecoin / DOGE → `dogecoin`, not `shiba-inu-coin`; Pepe token → `pepe` or `pepe-frog-memecoins`, not another meme coin slug.
 - If no slug fits well, choose the closest available slug and score it low (≤0.5). Do NOT use the fallback category — the Publisher handles fallback automatically when no pick is produced.
 
 **Pick the dominant angle for `primary`.** Examples:
