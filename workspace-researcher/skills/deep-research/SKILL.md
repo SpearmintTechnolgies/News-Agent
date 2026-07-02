@@ -2,6 +2,8 @@
 
 Use when the spawn message starts with `MODE: DEEP_RESEARCH` (also the default if no `MODE:` line is present). Do a full deep dive on ONE story the Picker already chose. You do **not** re-pick.
 
+**Primary path:** run `run_research.py --self-check` first — one exec does search, read, build, and validate. Do **not** use any other tool or skill before Step 1 completes.
+
 ## Spawn message
 
 ```
@@ -11,53 +13,84 @@ PICK_INDEX: <integer, 1-based>
 OUTPUT_FILE: <absolute path to write raw.json for this iteration>
 ```
 
-## Step 1 — Run deterministic extractor (REQUIRED FIRST)
+## Target (stop the moment both are true)
 
-Do **not** manually orchestrate resolve/curl/extract until Step 3 fallback.
+- **>= 600 words** of clean article prose, AND
+- **>= 2 distinct-domain sources**.
 
-```bash
-python3 ~/.openclaw/workspace-researcher/skills/deep-research/run_deep_research.py \
-  --input "$INPUT_FILE" \
-  --pick-index $PICK_INDEX \
-  --output "$OUTPUT_FILE"
-```
+Hard caps (enforced by `run_research.py`): **max 6 Jina attempts**, **max 10 URL tries**, **~90s wall-clock budget**.
 
-The script resolves URLs, parallel-extracts, discovers corroborating sources from the headline pool and RSS when content is thin, and assembles `raw.json`. Zero LLM tokens.
+## Step 0 — Thinking block (REQUIRED)
 
-- Exit **0** → proceed to Step 2.
-- Exit **1** with `DEEP_RESEARCH_PARTIAL` on stderr → proceed to Step 3 (do not write clean error JSON yet).
+Before any exec, a **short** `<thinking>` block: confirm mode + spawn paths + headline only. No journey narrative. Never write thinking into `OUTPUT_FILE`.
 
-## Step 2 — Self-check then yield
+## Step 1 — Run primary research (REQUIRED FIRST AND ONLY EXEC on happy path)
 
-Run the self-check loop in [`../research-check/SKILL.md`](../research-check/SKILL.md):
+**This must be your first exec command.** Do not read RSS, browse manually, call `web-reader-pro`, `extract_article.py`, or `run_deep_research.py` before this completes.
 
 ```bash
-python3 ~/.openclaw/workspace-researcher/skills/research-check/check_research.py \
-  --file "$OUTPUT_FILE" --mode deep_research
+DEEP=~/.openclaw/workspace-researcher/skills/deep-research
+python3 "$DEEP/run_research.py" \
+  --input "$INPUT_FILE" --pick-index $PICK_INDEX --output "$OUTPUT_FILE" \
+  --self-check
 ```
 
-If **`RESEARCH_CHECK: PASS`**, yield `SUCCESS`.
+Watch stderr:
+- `RESEARCH_OK` + `RESEARCH_CHECK: PASS` → yield `SUCCESS` immediately (Step 2). **Do not run `check_research.py` again.**
+- `RESEARCH_PARTIAL` or `RESEARCH_CHECK: FAIL` → Step 2.
 
-## Step 3 — Fallback (only if Step 1 exit 1 OR Step 2 FAIL)
+## Step 2 — Retry or yield
 
-Re-run the extractor with aggressive discovery (max **2** re-runs per spawn):
+**If `RESEARCH_PARTIAL`** (at most once):
 
 ```bash
-python3 ~/.openclaw/workspace-researcher/skills/deep-research/run_deep_research.py \
-  --input "$INPUT_FILE" \
-  --pick-index $PICK_INDEX \
-  --output "$OUTPUT_FILE" \
-  --discover-aggressive
+python3 "$DEEP/run_research.py" \
+  --input "$INPUT_FILE" --pick-index $PICK_INDEX --output "$OUTPUT_FILE" \
+  --extra-search --self-check
 ```
 
-Then re-run Step 2 self-check.
+- If stderr ends with `RESEARCH_CHECK: PASS` → yield `SUCCESS`.
+- If still FAIL → fallback ladder (below), then yield only when check passes.
+
+## Fallback ladder (ONLY after Step 1 + Step 2 still FAIL)
+
+Use these **in order**, only when primary path did not pass the check:
+
+1. **Manual search/read loop** — max 6 total reads, sequential:
+   ```bash
+   SRC_DIR="$(dirname "$OUTPUT_FILE")/sources"
+   mkdir -p "$SRC_DIR"
+   python3 "$DEEP/search_tool.py" --query "<headline keywords>" --max 8
+   python3 "$DEEP/read_tool.py" --url "<url>" --out-dir "$SRC_DIR" --source "<domain>"
+   python3 "$DEEP/build_research_json.py" \
+     --input "$INPUT_FILE" --pick-index $PICK_INDEX \
+     --out-dir "$SRC_DIR" --output "$OUTPUT_FILE"
+   python3 ~/.openclaw/workspace-researcher/skills/research-check/check_research.py \
+     --file "$OUTPUT_FILE" --mode deep_research
+   ```
+
+2. **Pick corroborating_sources** — read listed URLs with `read_tool.py`, rebuild, self-check.
+
+3. **Last resort per URL only** — `skills/fallback/web-reader-pro/` or `extract_article.py`.
+
+Never use fallbacks as the first move. Never fabricate a second source.
+
+## Forbidden before Step 1 completes
+
+- `extract_article.py`, `run_deep_research.py` (deprecated)
+- `web-reader-pro` skill
+- RSS fetches, `web_fetch`, manual browsing, separate `check_research.py` before Step 1 finishes
+
+## Failure handling
+
+- **A link fails** → `read_tool` already tried Jina then trafilatura; read the next result.
+- **Still short after caps** → clean error JSON when zero content → yield `SUCCESS`.
 
 **Hard rules:**
-- If `partial_words > 0` in the output file, **never** write clean error JSON — keep re-running with `--discover-aggressive`.
-- Only write clean error JSON (`pick_index_not_found`, `url_unresolvable`, `all_urls_dead`) when **zero** words were extracted across all URLs.
-- Never fabricate data, quotes, or URLs.
+- Never fabricate data, quotes, URLs, or a second source.
+- Never write logs, raw HTML, or scrape dumps into `OUTPUT_FILE`.
 
-## Expected output shape (written by the script)
+## Output shape (written by build_research_json.py)
 
 ```json
 {
@@ -78,34 +111,3 @@ Then re-run Step 2 self-check.
   "aggregated_raw_content": "Combined clean article text. 600+ words."
 }
 ```
-
-- `category`, `wp_category_slugs`, `wp_category_ids` — copy through from `picks.json` exactly (script does this).
-- `source_urls` must list **≥2** resolved publisher URLs when discovery succeeded.
-- `combined_key_facts` must have **≥2** entries.
-
-## Manual fallback (last resort only)
-
-If the script fails after 2 aggressive re-runs and self-check still FAILs with zero extracted content, you may manually:
-
-1. Resolve with `resolve_url.py`
-2. Extract with `extract_article.py` per URL (parallel)
-3. Assemble JSON per the shape above
-
-Do **not** use the internal `web_fetch` tool on publisher URLs (Cloudflare blocks it).
-
-## Step 4 — Final verification thinking block
-
-Before yielding SUCCESS, use a short `<thinking>` block:
-
-- Script ran first (or manual fallback documented).
-- `source_urls` has no aggregator wrappers and **≥2** entries.
-- `aggregated_raw_content` is clean prose, not HTML/logs.
-- `combined_key_facts` has ≥2 items.
-
-Do not write thinking into `OUTPUT_FILE`.
-
-## Step 5 — Yield
-
-Yield `SUCCESS` only on `RESEARCH_CHECK: PASS` (max 3 self-check iterations total). A clean error JSON with a known reason passes the check — yield `SUCCESS` so the orchestrator skips the story cleanly.
-
-**Hard rule:** never write logs, raw HTML, or scrape dumps into `OUTPUT_FILE`.

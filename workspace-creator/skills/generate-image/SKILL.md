@@ -42,6 +42,7 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Photoreali
 - Symlink-safe write via `OUTPUT_PATH` (default `/tmp/crypto-feature.jpg`)
 - Per-project logo stamp from `PROJECT_CONFIG` → `creator.logo_path` (100px, bottom-right)
 - Writes `${OUTPUT_PATH}.watermarked` marker (required by `publish.sh`)
+- **Post-stamp validation:** final JPEG must be ≥40 KB with valid JPEG magic bytes (same gate as WordPress upload); optional quality re-encode if logo stamp shrinks the file slightly
 - Expect **~3–10 seconds** per successful generation
 
 ## What YOU Must Do (Your Only Job)

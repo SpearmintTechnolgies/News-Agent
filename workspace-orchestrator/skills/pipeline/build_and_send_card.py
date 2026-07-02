@@ -163,6 +163,94 @@ def format_cost_usd(cost_usd: float | None) -> str:
     return f"~${value:.3f}"
 
 
+def format_duration(seconds: int | None) -> str:
+    s = int(seconds or 0)
+    if s <= 0:
+        return ""
+    if s >= 3600:
+        hours = s // 3600
+        minutes = (s % 3600) // 60
+        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+    if s >= 60:
+        return f"{s // 60}m {s % 60}s"
+    return f"{s}s"
+
+
+def agent_display_name(agent: str) -> str:
+    names = {
+        "orchestrator": "Orchestrator",
+        "researcher": "Researcher",
+        "writer": "Writer",
+        "creator": "Creator",
+        "picker": "Picker",
+        "chart-generator": "Chart Generator",
+    }
+    return names.get(agent, str(agent).replace("-", " ").title())
+
+
+def build_run_cost_lines(card: dict, remaining_budget: int) -> list[str]:
+    tokens_total = int(card.get("tokens_total") or 0)
+    if tokens_total <= 0 or remaining_budget <= 0:
+        return []
+
+    token_label = format_run_tokens(tokens_total)
+    header_parts = [f"<b>Run cost:</b> {token_label} tok"]
+    if card.get("pricing_available") and card.get("cost_usd") is not None:
+        cost_suffix = format_cost_usd(float(card.get("cost_usd") or 0))
+        if cost_suffix:
+            header_parts.append(cost_suffix)
+    duration = format_duration(card.get("duration_seconds"))
+    if duration:
+        header_parts.append(duration)
+
+    lines = [" · ".join(header_parts)]
+    by_agent = card.get("by_agent") if isinstance(card.get("by_agent"), dict) else {}
+    by_model = card.get("by_model") if isinstance(card.get("by_model"), dict) else {}
+
+    detail_items: list[tuple[int, str, bool]] = []
+    for agent, usage in by_agent.items():
+        if not isinstance(usage, dict):
+            continue
+        total = int(usage.get("tokens_total") or 0)
+        if total <= 0:
+            continue
+        primary = usage.get("primary_model")
+        if not primary and isinstance(usage.get("models"), list) and usage["models"]:
+            primary = usage["models"][0]
+        model_meta = by_model.get(str(primary or "")) or {}
+        model_name = short_model_label(str(model_meta.get("name") or primary or "Unknown"))
+        token_str = format_run_tokens(total)
+        line = f"- {agent_display_name(str(agent))} ({model_name}): {token_str} tok"
+        if card.get("pricing_available") and usage.get("cost_usd") is not None:
+            agent_cost = format_cost_usd(float(usage.get("cost_usd") or 0))
+            if agent_cost:
+                line += f" · {agent_cost}"
+        agent_duration = format_duration(usage.get("duration_seconds"))
+        if agent_duration:
+            line += f" · {agent_duration}"
+        priced = bool(model_meta.get("priced", True)) if primary else False
+        detail_items.append((total, line, priced))
+
+    detail_items.sort(key=lambda item: item[0], reverse=True)
+    has_unpriced = False
+    for _total, detail_line, priced in detail_items:
+        star_line = detail_line if priced else f"{detail_line} *"
+        if not priced:
+            has_unpriced = True
+        candidate = "\n".join(lines + [star_line])
+        if len(candidate) <= remaining_budget:
+            lines.append(star_line)
+        else:
+            break
+
+    if has_unpriced and len(lines) > 1:
+        note = "<i>* est.</i>"
+        if len("\n".join(lines + [note])) <= remaining_budget:
+            lines.append(note)
+
+    return lines
+
+
 def build_per_model_breakdown(by_model: dict, max_len: int = 220) -> str:
     if not isinstance(by_model, dict) or not by_model:
         return ""
@@ -197,17 +285,24 @@ def load_tokens_for_run(run_dir: str) -> dict[str, Any]:
             "tokens_in": None,
             "tokens_out": None,
             "tokens_total": None,
+            "by_agent": {},
             "by_model": {},
             "cost_usd": None,
+            "duration_seconds": None,
             "pricing_available": False,
         }
     by_model = data.get("by_model") if isinstance(data.get("by_model"), dict) else {}
+    by_agent = data.get("by_agent") if isinstance(data.get("by_agent"), dict) else {}
     return {
         "tokens_in": int(data["tokens_in"]) if data.get("tokens_in") is not None else None,
         "tokens_out": int(data["tokens_out"]) if data.get("tokens_out") is not None else None,
         "tokens_total": int(data["tokens_total"]) if data.get("tokens_total") is not None else None,
+        "by_agent": by_agent,
         "by_model": by_model,
         "cost_usd": float(data["cost_usd"]) if data.get("cost_usd") is not None else None,
+        "duration_seconds": int(data["duration_seconds"])
+        if data.get("duration_seconds") is not None
+        else None,
         "pricing_available": bool(data.get("pricing_available")),
     }
 
@@ -386,22 +481,19 @@ def build_caption(card: dict) -> str:
         f"<b>Sources:</b> {sources} | <b>WP:</b> {status_label} | <b>Card sent:</b> {card_sent}"
     )
 
-    tokens_total = card.get("tokens_total")
-    if tokens_total:
-        token_label = format_run_tokens(int(tokens_total))
-        if token_label:
-            cost_line = f"<b>Run cost:</b> {token_label} tokens"
-            if card.get("pricing_available") and card.get("cost_usd"):
-                cost_suffix = format_cost_usd(float(card.get("cost_usd") or 0))
-                if cost_suffix:
-                    cost_line += f" ({cost_suffix})"
-            lines.append(cost_line)
-            breakdown = build_per_model_breakdown(card.get("by_model") or {})
-            if breakdown:
-                lines.append(html_escape(breakdown))
+    footer = (
+        "\n\nReply: <code>RATE 1-10</code> | <code>IMAGE 1-10</code> | "
+        "<code>DRAFT</code> | <code>PUBLISH</code> | <code>EDIT</code> (.md file)"
+    )
+    remaining_budget = TELEGRAM_CAPTION_MAX - len("\n".join(lines)) - len(footer)
+    cost_lines = build_run_cost_lines(card, remaining_budget)
+    lines.extend(cost_lines)
 
     lines.append("")
-    lines.append("Reply: <code>RATE 1-10</code> | <code>IMAGE 1-10</code> | <code>DRAFT</code> | <code>PUBLISH</code> | <code>EDIT</code> (.md file)")
+    lines.append(
+        "Reply: <code>RATE 1-10</code> | <code>IMAGE 1-10</code> | "
+        "<code>DRAFT</code> | <code>PUBLISH</code> | <code>EDIT</code> (.md file)"
+    )
 
     caption = "\n".join(lines)
     if len(caption) > TELEGRAM_CAPTION_MAX:

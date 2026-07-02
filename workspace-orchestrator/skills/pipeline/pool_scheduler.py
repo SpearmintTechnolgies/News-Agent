@@ -4,7 +4,7 @@
 This installed OpenClaw (2026.4.23) has no cron `--command` (no-LLM) job type,
 so this one process owns the timed zero-token tasks:
 
-  * scanner    every SCAN_EVERY_MIN (default 60) -> update_headline_pool.py --all
+  * scanner    every SCAN_EVERY_MIN (default 30) -> update_headline_pool.py --all
   * feed card  every FEED_EVERY_MIN (default 60) -> send_feed_card.py --all
   * dispatch   every DISPATCH_EVERY_MIN (default 1) -> dispatch_feed_jobs.py
                (crash-recovery only: re-kick drainers with queued work + stale lease)
@@ -31,7 +31,7 @@ from datetime import datetime
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 
-SCAN_EVERY_MIN = int(os.environ.get("SCAN_EVERY_MIN", "60"))
+SCAN_EVERY_MIN = int(os.environ.get("SCAN_EVERY_MIN", "30"))
 FEED_EVERY_MIN = int(os.environ.get("FEED_EVERY_MIN", "60"))
 DISPATCH_EVERY_MIN = int(os.environ.get("DISPATCH_EVERY_MIN", "1"))
 IDLE_EVERY_MIN = int(os.environ.get("IDLE_EVERY_MIN", "60"))

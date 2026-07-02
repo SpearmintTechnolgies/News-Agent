@@ -25,7 +25,7 @@ python3 ~/.openclaw/workspace-researcher/skills/research-check/check_research.py
 3. If **`RESEARCH_CHECK: FAIL`**: fix **ONLY** the rules listed as `FAIL:`.
    - `not_a_log` / `not_raw_html` / `size_sane`: you dumped garbage. Replace the file with the real research JSON, or a clean error JSON (`{"status":"error","reason":"..."}`).
    - `source_urls_resolved` / `candidate_urls_resolved`: run `resolve_url.py` and store the publisher URL.
-   - `prose_quality` / `multi_source` / `not_partial` / `no_premature_error`: re-run `run_deep_research.py --discover-aggressive`. Never emit clean error JSON when any source extracted content.
+   - `prose_quality` / `multi_source` / `not_partial` / `no_premature_error`: re-run `run_research.py --extra-search`, or manually loop `search_tool.py` + `read_tool.py` then `build_research_json.py`. Never emit clean error JSON when any source extracted content.
 4. Re-run the validator. Repeat at most **3** self-check iterations per spawn.
 5. If you still cannot produce valid research after 3 tries, write the clean error JSON **only when zero words were extracted** and yield `SUCCESS` — never dump logs or HTML.
 

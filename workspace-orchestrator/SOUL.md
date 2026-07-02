@@ -217,6 +217,15 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_picker_input.py
   --project "$PROJECT_SLUG"
 ```
 
+**FEED_DRAIN runs MUST use `--feed-job-id` instead** (pass the job id as a **literal integer** from the claim output, e.g. `--feed-job-id 75`). The script then reads the selection file straight from the `feed_jobs` DB row, so it never depends on `$SELECTION_FILE` surviving across exec calls — the cause of past intermittent failures. Do NOT use `--selection-file "$SELECTION_FILE"` for FEED_DRAIN.
+
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/build_picker_input.py \
+  --feed-job-id <FEED_JOB_ID literal, e.g. 75> --classify-only \
+  --output "$RUN_DIR/picker/picker_input.json" \
+  --project "$PROJECT_SLUG"
+```
+
 This injects the project's curated WordPress categories and the last-72h primary categories so the Picker assigns real WP categories.
 
 - `PICKER_INPUT_BUILT: ... candidates / target=N / classify_only=... ` → proceed to Step 1c.
@@ -227,7 +236,7 @@ This injects the project's curated WordPress categories and the last-72h primary
 
 ### Step 1c — Picker (Sieve)
 
-1. Use `sessions_spawn` and `sessions_yield` to spawn the `picker` agent:
+1. Call `sessions_spawn` with **`agentId: "picker"`** (mandatory — never omit it) and the task message below, then `sessions_yield`:
 
    ```
    INPUT_FILE: $RUN_DIR/picker/picker_input.json
@@ -303,13 +312,15 @@ Tell the user: "Story $PICK_INDEX/$TOTAL_PICKS — researching..."
 
 #### Step 2.1 — Deep research (Scout, MODE: DEEP_RESEARCH)
 
-1. Spawn the `researcher` agent with this message:
+1. Call `sessions_spawn` with **`agentId: "researcher"`** (mandatory — never omit it) and this message:
 
    ```
    MODE: DEEP_RESEARCH
    INPUT_FILE: $RUN_DIR/picker/picks.json
    PICK_INDEX: $PICK_INDEX
    OUTPUT_FILE: $RUN_DIR/research/raw.json
+
+   Scout's FIRST EXEC MUST BE: run_research.py --self-check (see deep-research/SKILL.md).
    ```
 
    Yield and wait.
@@ -382,7 +393,7 @@ Tell the user: "Story $PICK_INDEX — research done, writing article..."
 
 Word-count policy: writer aims ~1100; both the writer self-check and the orchestrator sync gate accept **950–1250** body words (relaxed 2026-06-19; `check_article.py` and `sync_article_from_raw.py` share the same band, no hidden buffer).
 
-1. Spawn the `writer` agent:
+1. Call `sessions_spawn` with **`agentId: "writer"`** (mandatory — never omit it):
 
    ```
    PROJECT_CONFIG: $PROJECT_CONFIG
@@ -475,7 +486,7 @@ Reply to user: "Story $PICK_INDEX — generating feature image..."
    _SAVE_TO="$RUN_DIR/media/feature.jpg"
    ```
 
-2. Spawn the `creator` agent with this exact message (replace bracketed values with the captured fields and expanded paths):
+2. Call `sessions_spawn` with **`agentId: "creator"`** (mandatory — never omit it) and this exact message (replace bracketed values with the captured fields and expanded paths):
 
    ```
    HEADLINE: <_HEADLINE>
@@ -489,21 +500,16 @@ Reply to user: "Story $PICK_INDEX — generating feature image..."
 
    (Expand `$RUN_DIR` and `$PROJECT_CONFIG` to real paths in the spawn message.)
 
-3. After creator yields, validate the image:
+3. After creator yields, trust the creator result (`generate.sh` validates the final stamped JPEG — no orchestrator image validator):
 
-   ```bash
-   python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/verify_artifacts.py \
-     --stage post_image --manifest "$PIPELINE_MANIFEST"
-   ```
-
-   **Success path** — validator prints `ARTIFACTS_OK: post_image`:
+   **Success path** — creator returned the exact `SAVE_TO` path:
    ```bash
    bash ~/.openclaw/workspace-orchestrator/skills/pipeline/update_manifest_step.sh \
      --manifest "$PIPELINE_MANIFEST" --step image --status succeeded
    ```
    Reply to user: "Story $PICK_INDEX — feature image ready."
 
-   **Failure path** — validator prints `ARTIFACTS_FAIL:` OR creator yielded `IMAGE_FAILED: ...`:
+   **Failure path** — creator yielded `IMAGE_FAILED: ...`:
    - If this is the **first attempt**, retry the creator spawn ONCE with:
      ```
      HEADLINE: <_HEADLINE>
@@ -514,7 +520,6 @@ Reply to user: "Story $PICK_INDEX — generating feature image..."
 
      Previous attempt failed (<paste reason>). Use the Universal Fallback prompt above. Run generate.sh. Return SAVE_TO on success or IMAGE_FAILED: <reason> on failure.
      ```
-     Then re-run the `post_image` validator.
    - If this is the **second failure** (retry also failed), mark image as failed and continue:
      ```bash
      bash ~/.openclaw/workspace-orchestrator/skills/pipeline/update_manifest_step.sh \
@@ -762,55 +767,53 @@ Reached when a legacy batch feed-card `oc_go:` tap was routed through EDITORIAL_
 2. Run Step 0 (`init_run.sh "$PROJECT_SLUG"`, source env) and Step 0.5 (persist `N`, `PICK_RUN_ID`).
 3. Run Step 1 (classify-only branch, using `$SELECTION_FILE`), Step 1c (with `--classify-only`), then the Step 2 queue (STEP25_GATE=ON), then Step 3.
 
-### Feed drain entry (single-click feed card queue — self-draining worker)
+### Feed drain entry (single-click feed card queue — ONE story per cron)
 
 Reached when the incoming message starts with `FEED_DRAIN ` followed by JSON like `{"project":"coinography"}` (delivered by `dispatch_feed_jobs.py` one-shot cron). Parse the JSON and set `DRAIN_PROJECT=<project>`.
 
-1. **Set the drainer lease** so no second worker starts for this project:
+**Process EXACTLY ONE story, then end the turn.** Do NOT loop or claim more than one job. The dispatcher assigns one cron per story: after this story finishes you re-run the dispatcher, which fires a fresh isolated cron (with a clean context) for the next queued job. This keeps each spawned worker's context small and prevents the pile-up that fills context and causes failures.
+
+1. **Claim ONE job** (the lease was already set by the dispatcher that fired this cron):
    ```bash
    python3 - <<PYEOF
-   import editorial_db as db
-   db.set_drainer_lease("$DRAIN_PROJECT")
+   import json, editorial_db as db
+   job = db.claim_next_feed_job(project="$DRAIN_PROJECT")
+   print(json.dumps({"job_id": job.id, "project": job.project, "feed_id": job.feed_id,
+                     "candidate_index": job.candidate_index, "selection_file": job.selection_file})
+         if job else "null")
    PYEOF
    ```
-
-2. **Loop until the project's queue is empty:**
-   - Claim the oldest queued job for this project:
-     ```bash
-     python3 - <<PYEOF
-     import json, editorial_db as db
-     job = db.claim_next_feed_job(project="$DRAIN_PROJECT")
-     print(json.dumps({"job_id": job.id, "project": job.project, "feed_id": job.feed_id,
-                       "candidate_index": job.candidate_index, "selection_file": job.selection_file})
-           if job else "null")
-     PYEOF
-     ```
-   - If the claim returns `null`, **clear the lease** and end the turn:
+   - If the claim returns `null`, **clear the lease and end the turn** (nothing to do):
      ```bash
      python3 - <<PYEOF
      import editorial_db as db
      db.clear_drainer_lease("$DRAIN_PROJECT")
      PYEOF
      ```
-   - Otherwise parse the job JSON and for **this iteration** set:
-     `RUN_MODE=FEED_DRAIN`, `FEED_JOB_ID=<job_id>`, `PROJECT_SLUG=<project>`, `SELECTION_FILE=<selection_file>`,
-     `PICKER_MODE=classify-only`, `STEP25_GATE=OFF`, `CLASSIFY_ONLY_FLAG="--classify-only"`, `N=1`.
-   - Run Step 0 (`init_run.sh "$PROJECT_SLUG"`, source env), Step 0.5 (`N=1`), Step 1 (classify-only branch, using `$SELECTION_FILE`), Step 1c, then the Step 2 queue with **STEP25_GATE=OFF** (auto WP draft + news card), then Step 3 mini-report for this single story.
-   - **Always** mark the job when the iteration finishes (even on fatal stop — use `failed`):
-     ```bash
-     python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/mark_feed_job.py \
-       --job-id "$FEED_JOB_ID" --status done --no-safety-kick
-     ```
-     On a fatal stop before Step 3, use `--status failed` instead.
-   - **Refresh the lease** and loop back to claim the next job:
-     ```bash
-     python3 - <<PYEOF
-     import editorial_db as db
-     db.set_drainer_lease("$DRAIN_PROJECT")
-     PYEOF
-     ```
 
-3. Do **not** wait for user input between iterations. Tap = approval; each article auto-publishes to a WordPress DRAFT + posts the news card. When the queue is empty, clear the lease and end the turn silently.
+2. Parse the job JSON and set:
+   `RUN_MODE=FEED_DRAIN`, `FEED_JOB_ID=<job_id>`, `PROJECT_SLUG=<project>`, `SELECTION_FILE=<selection_file>`,
+   `PICKER_MODE=classify-only`, `STEP25_GATE=OFF`, `CLASSIFY_ONLY_FLAG="--classify-only"`, `N=1`.
+
+3. Run Step 0 (`init_run.sh "$PROJECT_SLUG"`, source env), Step 0.5 (`N=1`), Step 1 (classify-only branch — use **`--feed-job-id <FEED_JOB_ID literal>`**, NOT `$SELECTION_FILE`), Step 1c, then the Step 2 queue with **STEP25_GATE=OFF** (auto WP draft + news card), then Step 3 mini-report for this single story.
+   - A feed job only exists because a user tapped a specific headline, so the selection is ALWAYS present. If Step 1 prints any `PICKER_INPUT_ERROR`, do NOT conclude "empty pool" — retry once with `--feed-job-id <FEED_JOB_ID literal>` before marking the job failed.
+
+4. **Mark the job** (even on fatal stop — use `failed`):
+   ```bash
+   python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/mark_feed_job.py \
+     --job-id "$FEED_JOB_ID" --status done --no-safety-kick
+   ```
+   On a fatal stop before Step 3, use `--status failed` instead.
+
+5. **Chain the next story, then END the turn** — clear this cron's lease and re-run the dispatcher. If more jobs are queued it sets the lease and fires a fresh isolated FEED_DRAIN cron (new context) for the next one; if the queue is empty it prints `DISPATCH_IDLE` and nothing fires:
+   ```bash
+   python3 - <<PYEOF
+   import editorial_db as db
+   db.clear_drainer_lease("$DRAIN_PROJECT")
+   PYEOF
+   python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/dispatch_feed_jobs.py
+   ```
+   Then end the turn silently. Tap = approval; each article auto-publishes to a WordPress DRAFT + posts the news card. Do **not** wait for user input.
 
 ### Auto-run entry (48h idle watchdog)
 
@@ -838,6 +841,7 @@ If the user named one project, use `--project <slug>` instead of `--all`. Do not
 
 - CRITICAL: NEVER spawn `orchestrator` as a subagent. You ARE the orchestrator. Your only valid spawn targets are: `researcher`, `picker`, `writer`, `creator`, and (optionally) `chart-generator`. Spawning any other agent ID — especially yourself, `publisher`, or `wp-publisher` — is a bug. Drive upload (Step 2.4) and WordPress publish (Step 2.6) are run by YOU in bash, never via a subagent spawn.
 - CRITICAL: You MUST use native `sessions_spawn` and `sessions_yield` tools to delegate to other agents. Do not run `openclaw agent ... --deliver` in bash blocks.
+- CRITICAL: EVERY `sessions_spawn` call MUST set `agentId` to the specific worker: `researcher`, `picker`, `writer`, `creator`, or `chart-generator`. The task text/`MODE:` line is NOT the target — `agentId` is. Calling `sessions_spawn` with only `runtime: "subagent"` and no `agentId` spawns a fresh copy of YOURSELF (the orchestrator), which is always a bug. If a spawn is rejected for a missing `agentId`, re-issue the SAME message with the correct `agentId`.
 - CRITICAL: Pipeline = one batch run. After "Pipeline started (Run: ...)", do not end your turn until either (a) a Step 2.5 gate when STEP25_GATE=ON (per story), (b) Step 3 final report, or (c) a fatal stop. When STEP25_GATE=ON, Step 2.5 is the ONLY place inside the queue where you wait for user input. When STEP25_GATE=OFF (auto-run), you never wait for input.
 - CRITICAL: Tell agents to write files directly into `$RUN_DIR/...` paths. Always include the real expanded path in spawn messages (not the variable name).
 - CRITICAL: Validate every step before proceeding. If a validator exits with code 1, follow the retry/stop rules.

@@ -120,6 +120,15 @@ def main() -> int:
     parser.add_argument("--urls", help="Comma-separated candidate URLs (pool mode)")
     parser.add_argument("--selection-file", help="JSON file with {project, urls[]} (pool mode)")
     parser.add_argument(
+        "--feed-job-id",
+        type=int,
+        default=None,
+        help="FEED_DRAIN: resolve the selected story straight from the feed_jobs "
+        "row (self-contained — no shell variable to lose across exec calls). "
+        "Falls back to the durable feed_cards candidate if the /tmp selection "
+        "file was pruned.",
+    )
+    parser.add_argument(
         "--pool-fresh",
         type=int,
         default=None,
@@ -133,25 +142,78 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    pool_mode = bool(args.from_pool or args.urls or args.selection_file or args.pool_fresh)
+    pool_mode = bool(
+        args.from_pool
+        or args.urls
+        or args.selection_file
+        or args.pool_fresh
+        or args.feed_job_id is not None
+    )
 
-    # In pool mode a selection file can carry the authoritative project + urls.
+    # In pool mode a selection file (or feed job) carries the authoritative
+    # project + urls.
     pool_urls: list[str] = []
-    if args.selection_file:
+
+    if args.feed_job_id is not None:
+        # FEED_DRAIN: resolve the selection file straight from the feed_jobs row
+        # so Step 1 never depends on a $SELECTION_FILE shell variable surviving
+        # across separate exec calls (the confirmed root cause of intermittent
+        # feed-drain failures).
+        job = editorial_db.get_feed_job(args.feed_job_id, db_path=args.db_path)
+        if job is None:
+            print(
+                f"PICKER_INPUT_ERROR: feed_job_not_found: id={args.feed_job_id} "
+                "(job reclaimed/cleared, or wrong id passed)"
+            )
+            return 1
+        if not args.project and job.project:
+            args.project = job.project
+        if not job.selection_file:
+            print(
+                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} has empty selection_file"
+            )
+            return 1
+        try:
+            with open(os.path.realpath(job.selection_file), encoding="utf-8") as f:
+                sel = json.load(f)
+            pool_urls = [str(u) for u in (sel.get("urls") or []) if u]
+        except (OSError, json.JSONDecodeError) as e:
+            print(
+                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} selection-file "
+                f"unreadable ({job.selection_file}): {e}"
+            )
+            return 1
+        if not pool_urls:
+            print(
+                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} selection-file has "
+                f"0 urls ({job.selection_file})"
+            )
+            return 1
+    elif args.selection_file:
         try:
             with open(os.path.realpath(args.selection_file), encoding="utf-8") as f:
                 sel = json.load(f)
-            pool_urls = [str(u) for u in (sel.get("urls") or [])]
+            pool_urls = [str(u) for u in (sel.get("urls") or []) if u]
             if not args.project and sel.get("project"):
                 args.project = str(sel["project"])
         except (OSError, json.JSONDecodeError) as e:
             print(f"PICKER_INPUT_ERROR: cannot read selection-file: {e}")
             return 1
+        if not pool_urls:
+            print(
+                f"PICKER_INPUT_ERROR: selection produced 0 urls "
+                f"(file={args.selection_file} — empty or no 'urls' key). "
+                "For FEED_DRAIN prefer --feed-job-id <id>."
+            )
+            return 1
     elif args.urls:
         pool_urls = [u.strip() for u in args.urls.split(",") if u.strip()]
 
     if not pool_mode and not args.headlines:
-        print("PICKER_INPUT_ERROR: --headlines required unless --from-pool/--urls/--selection-file")
+        print(
+            "PICKER_INPUT_ERROR: --headlines required unless "
+            "--from-pool/--urls/--selection-file/--feed-job-id"
+        )
         return 1
 
     try:

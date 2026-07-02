@@ -8,7 +8,7 @@ LOG_DIR="${HOME}/.openclaw/logs"
 LOG_FILE="${LOG_DIR}/pool-scheduler.log"
 # Run the scheduler in local time for log timestamps; interval jobs use monotonic timers.
 export TZ="${TZ:-Asia/Kolkata}"
-export SCAN_EVERY_MIN="${SCAN_EVERY_MIN:-60}"
+export SCAN_EVERY_MIN="${SCAN_EVERY_MIN:-30}"
 export FEED_EVERY_MIN="${FEED_EVERY_MIN:-60}"
 export DISPATCH_EVERY_MIN="${DISPATCH_EVERY_MIN:-1}"
 

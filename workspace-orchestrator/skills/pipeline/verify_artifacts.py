@@ -9,9 +9,11 @@ Stages:
     pre_write   — research_validated exists, run_id matches, non-empty
     pre_sync    — article_raw fresh (mtime >= .run_started), non-empty
     post_sync   — article_final fresh, H1 matches headline, ≥1 source URL match
-    post_image  — feature_image exists, >=40KB, JPEG magic bytes, under active RUN_DIR
     pre_drive   — docx exists + newer than article_final; paths under active RUN_DIR
     pre_wp      — all pre_drive checks + repeat post_sync coherence
+
+Image validation (size ≥40 KB, JPEG magic bytes) is handled by generate.sh at creator
+time; post_image stage removed — orchestrator trusts creator SAVE_TO / IMAGE_FAILED.
 
 Exit 0 + prints ARTIFACTS_OK: <stage>
 Exit 1 + prints ARTIFACTS_FAIL: <reason>  (detailed, actionable)
@@ -318,6 +320,7 @@ def check_pre_wp(manifest: dict, run_dir: str) -> int:
 
 
 def check_post_image(manifest: dict, run_dir: str) -> int:
+    """Legacy / manual smoke test only — image gate moved to generate.sh."""
     artifacts = manifest.get("artifacts", {})
     img_path  = artifacts.get("feature_image", "")
 
@@ -368,7 +371,7 @@ def check_post_image(manifest: dict, run_dir: str) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", required=True,
-                        choices=["pre_write", "pre_sync", "post_sync", "post_image", "pre_drive", "pre_wp"])
+                        choices=["pre_write", "pre_sync", "post_sync", "pre_drive", "pre_wp"])
     parser.add_argument("--manifest", required=True)
     args = parser.parse_args()
 
@@ -389,7 +392,6 @@ def main() -> int:
         "pre_write": check_pre_write,
         "pre_sync":  check_pre_sync,
         "post_sync": check_post_sync,
-        "post_image": check_post_image,
         "pre_drive": check_pre_drive,
         "pre_wp":    check_pre_wp,
     }

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """mark_feed_job.py — Mark a feed_jobs row done/failed.
 
-Called by the orchestrator at the end of each article inside a FEED_DRAIN loop.
-The drainer continues itself — this script does NOT re-dispatch per job.
-A safety kick runs only when the project drainer lease is dead (crash recovery).
+Called by the orchestrator at the end of each single-story FEED_DRAIN cron.
+The drainer chains the next story itself (clear lease + re-run dispatcher), so
+it passes --no-safety-kick. A safety kick runs only when called without that
+flag and the project drainer lease is dead (crash recovery).
 
 Usage:
   python3 mark_feed_job.py --job-id 42 --status done

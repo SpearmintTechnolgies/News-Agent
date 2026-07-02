@@ -113,7 +113,7 @@ def main() -> int:
     cmd = [
         "openclaw", "cron", "add",
         "--name", job_name,
-        "--at", "+30s",
+        "--at", "30s",
         "--agent", "orchestrator",
         "--session", "isolated",
         "--message", msg,

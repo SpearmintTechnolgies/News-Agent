@@ -25,7 +25,7 @@ ARTICLE_DOCX="/tmp/${PROJECT_SLUG}-article.docx"
 echo "Project=$PROJECT_SLUG prefix='$DRIVE_PREFIX' parent=$DRIVE_PARENT account=$DRIVE_ACCT"
 ```
 
-For Coinography this yields prefix="Crypto News", parent="YOUR_GOOGLE_DRIVE_PARENT_FOLDER_ID", account="YOUR_GOOGLE_ACCOUNT@gmail.com" — exactly today's hardcoded values.
+For Coinography this yields prefix="Crypto News", parent="1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx", account="YOUR_GOOGLE_ACCOUNT@gmail.com" — exactly today's hardcoded values.
 
 ### Step 1: Save the Article with Image Reference
 

@@ -221,6 +221,49 @@ stamp_logo() {
   rm -f "$TEMP_LOGO"
 }
 
+is_jpeg_file() {
+  local path="$1"
+  local magic
+  magic=$(head -c 2 "$path" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+  [ "$magic" = "ffd8" ]
+}
+
+validate_final_image() {
+  local path="$1"
+  local size magic_hex
+
+  if [ ! -f "$path" ]; then
+    log_error "Final image missing: $path"
+    return 1
+  fi
+
+  if ! is_jpeg_file "$path"; then
+    magic_hex=$(head -c 3 "$path" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+    log_error "Final image is not a JPEG (magic bytes: ${magic_hex:-unknown})"
+    return 1
+  fi
+
+  size=$(stat -c%s "$path" 2>/dev/null || echo "0")
+  if [ "$size" -ge "$MIN_BYTES" ]; then
+    log_info "Post-stamp validation OK (${size} bytes)."
+    return 0
+  fi
+
+  log_warn "Post-stamp below min (${size} bytes, min ${MIN_BYTES}); attempting quality bump..."
+  if command -v convert &>/dev/null; then
+    if convert "$path" -quality 92 "$path" 2>/dev/null; then
+      size=$(stat -c%s "$path" 2>/dev/null || echo "0")
+      if [ "$size" -ge "$MIN_BYTES" ]; then
+        log_info "Post-stamp validation OK after quality bump (${size} bytes)."
+        return 0
+      fi
+    fi
+  fi
+
+  log_error "Post-stamp below min (${size} bytes, min ${MIN_BYTES}); quality bump failed."
+  return 1
+}
+
 TEMP_RAW="/tmp/pollinations-raw-$$.bin"
 SUCCESS=0
 RETRY_DELAY=5
@@ -244,14 +287,12 @@ for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
       ensure_jpeg "$TEMP_RAW" "$EFFECTIVE_OUTPUT"
       rm -f "$TEMP_RAW"
 
-      FILE_SIZE=$(stat -c%s "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "0")
-      if [ "$FILE_SIZE" -lt "$MIN_BYTES" ]; then
-        log_error "Image too small (${FILE_SIZE} bytes, min $MIN_BYTES)."
+      stamp_logo
+      if ! validate_final_image "$EFFECTIVE_OUTPUT"; then
         rm -f "$EFFECTIVE_OUTPUT" "${EFFECTIVE_OUTPUT}.watermarked"
         continue
       fi
 
-      stamp_logo
       FINAL_SIZE=$(stat -c%s "$EFFECTIVE_OUTPUT" 2>/dev/null || echo "0")
       log_info "Final image at $EFFECTIVE_OUTPUT — ${FINAL_SIZE} bytes (model=$model)"
       echo "$EFFECTIVE_OUTPUT" > "$RESULT_FILE"

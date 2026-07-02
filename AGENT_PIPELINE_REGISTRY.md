@@ -1,6 +1,6 @@
 # Agent Pipeline Registry
 
-**Last updated:** 2026-06-22 (writer SEO/category reliability)  
+**Last updated:** 2026-06-24 (FEED_DRAIN picker input resolves selection from DB via --feed-job-id)  
 **Purpose:** Canonical living reference for the OpenClaw crypto news pipeline — all agents, subagents, prompts, tools, skills, and pipeline steps.  
 **Config source of truth:** [`openclaw.json`](openclaw.json)
 
@@ -140,7 +140,7 @@ All scripts read project config through `workspace-orchestrator/skills/pipeline/
 | `orchestrator` | Nexus | `workspace-orchestrator/` | gpt-5.4 | Controller (Steps 0–3) |
 | `researcher` | Scout | `workspace-researcher/` | gpt-5.4 | Step 1a (HEADLINE_SCAN) + Step 2.1 (DEEP_RESEARCH per pick) |
 | `picker` | Sieve | `workspace-picker/` | gpt-5.4 | Step 1c — Categorize + select N picks |
-| `writer` | Quill | `workspace-writer/` | gpt-5.4 | Step 2.2 — Write |
+| `writer` | Quill | `workspace-writer/` | mistral-large-3-675b | Step 2.2 — Write |
 | `chart-generator` | Pixel | `workspace-chart-generator/` | gpt-5.4-mini | Step 2.3 (chart sub-step, optional) |
 | `creator` | Pixel | `workspace-creator/` | gpt-5.4-mini | Step 2.3 — Feature image (thinking=low) |
 | `publisher` | Press | `workspace-publisher/` | — | **Inlined into orchestrator Step 2.4** (no longer spawned; SOUL kept as a script reference only) |
@@ -197,7 +197,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | 2.0 | `switch_iteration.sh --start <N>` (per pick) — archive previous iter, truncate canonical files |
 | 2.1 | Spawn researcher in `MODE: DEEP_RESEARCH` for the current pick → `validate_research.py` (with `--raw-path`/`--validated-path` for per-iteration files when using sub-bundles) → 24h topic dedup |
 | 2.2 | Spawn writer → self-check (`check_article.py` on raw) → sync → single gate (`check_article.py --post-sync` on final) — targeted REVISION MODE repairs |
-| 2.3 | Spawn creator → validate JPEG (chart sub-step still gated by `ENABLE_ARTICLE_CHARTS`) |
+| 2.3 | Spawn creator → creator-owned JPEG gate in `generate.sh` (chart sub-step still gated by `ENABLE_ARTICLE_CHARTS`) |
 | 2.4 | Build DOCX with pandoc → `verify_artifacts.py --stage pre_drive` → **run `gog drive upload` directly in bash** (no publisher spawn) → `save_google_drive_json.py` |
 | 2.5 | Per-story user gate — reply with headline + category + Drive link, **STOP** for `yes`/`no`/`stop` |
 | 2.6 | If yes → **run `publish.sh --status draft` directly in bash** (no wp-publisher spawn) → `update_recent_topics.py --status drafted` → `aggregate_run_tokens.py` → `build_and_send_card.py` → `update_pick_status.py --status published` (with optional `--tokens-*`, `--cost-usd`, `--tokens-by-model`) |
@@ -208,7 +208,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 **Spawn message templates:**
 
 - **researcher (HEADLINE_SCAN):** `MODE: HEADLINE_SCAN` / `OUTPUT_FILE: $RUN_DIR/research/headlines.json` / `TARGET_COUNT: 10`
-- **researcher (DEEP_RESEARCH):** `MODE: DEEP_RESEARCH` / `INPUT_FILE: $RUN_DIR/picker/picks.json` / `PICK_INDEX: <N>` / `OUTPUT_FILE: $RUN_DIR/research/raw.json`. Scout runs `run_deep_research.py` first (deterministic multi-source extract + pool/RSS discovery), then self-checks with `check_research.py`; yields `SUCCESS` only on `RESEARCH_CHECK: PASS`.
+- **researcher (DEEP_RESEARCH):** `MODE: DEEP_RESEARCH` / `INPUT_FILE: $RUN_DIR/picker/picks.json` / `PICK_INDEX: <N>` / `OUTPUT_FILE: $RUN_DIR/research/raw.json`. Scout reads the pick URL, searches the headline with `search_tool.py` (DuckDuckGo), reads links one-by-one with `read_tool.py` (keyless Jina) until ≥600 words / ≥2 sources, assembles with `build_research_json.py`, then self-checks with `check_research.py`; yields `SUCCESS` only on `RESEARCH_CHECK: PASS`.
 - **picker:** `INPUT_FILE: $RUN_DIR/picker/picker_input.json` / `OUTPUT_FILE: $RUN_DIR/picker/picks.json`
 - **writer:** Resolve template from `PROJECT_CONFIG`; pre-writing plan → write `raw.md` → run `check_article.py` until `ARTICLE_CHECK: PASS`; yield `SUCCESS` only on pass.
 - **chart-generator:** `CHART_COIN: [coin]` / `CHART_DAYS: 30` / `CHART_OUTPUT: $RUN_DIR/media/chart.png`
@@ -238,7 +238,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Mode | Job | Output |
 |------|-----|--------|
 | `HEADLINE_SCAN` | Run `scan_headlines.py` (deterministic, project-aware); LLM fallback if script fails. Returns up to 10 fresh candidate headlines. No deep extraction. | `$RUN_DIR/research/headlines.json` |
-| `DEEP_RESEARCH` | Run `run_deep_research.py` (resolve, parallel extract, pool/RSS source discovery when thin), build aggregated research JSON (≥600 words, ≥2 sources), self-check. | `$RUN_DIR/research/raw.json` (or `--validated-path` per-iteration variant) |
+| `DEEP_RESEARCH` | Agent loop with two tools: read the pick URL, then `search_tool.py` (DuckDuckGo) for corroborating links, read them one-by-one via `read_tool.py` (keyless Jina) until ≥600 words / ≥2 sources, then `build_research_json.py` assembles the JSON; self-check. | `$RUN_DIR/research/raw.json` |
 
 **Tools denied:** `web_search`, `web_fetch`
 
@@ -254,16 +254,20 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 |------|---------|
 | `skills/headline-scan/SKILL.md` | HEADLINE_SCAN: script-first via `scan_headlines.py`, LLM manual fallback, final verification thinking block |
 | `skills/headline-scan/scan_headlines.py` | Deterministic project-aware scanner (parallel fetch, cached resolve, in-code filters/dedupe, batched history) |
-| `skills/deep-research/SKILL.md` | DEEP_RESEARCH: script-first via `run_deep_research.py`; `--discover-aggressive` fallback; min 2 sources enforced |
-| `skills/deep-research/run_deep_research.py` | Deterministic DEEP_RESEARCH: URL queue, parallel extract, headline_pool + RSS discovery loop (max 6 URLs), assembles `raw.json` with zero LLM tokens |
-| `skills/deep-research/extract_article.py` | Multi-tier extraction ladder (trafilatura → curl+trafilatura → bs4 → optional lynx/markdownify → optional Jina when `DEEP_RESEARCH_JINA=1`). Cloudflare challenge rejection. 24h disk content cache at `~/.openclaw/data/extract_cache/` (key=URL sha1); `--no-cache` / `EXTRACT_CACHE_TTL_S` to control. Skips the fetch ladder on repeat sources. |
+| `skills/deep-research/SKILL.md` | DEEP_RESEARCH: **script-first** via `run_research.py` (search_tool + read_tool internally), stop at ≥600 words / ≥2 sources; `--extra-search` retry; fallback ladder for manual loop / web-reader-pro |
+| `skills/deep-research/run_research.py` | **Primary** deterministic DEEP_RESEARCH engine: read pick URL → DDG search → sequential read_tool → build_research_json. Zero LLM tokens. |
+| `skills/deep-research/search_tool.py` | DuckDuckGo search via `ddgs` library (html/lite endpoints, not page-scraping → no Cloudflare/home-IP block). Returns deduped publisher candidates `[{title,url,snippet,domain}]`, social/aggregators filtered, priority sources first. Retry + multi-backend on throttle. |
+| `skills/deep-research/read_tool.py` | Read ONE link to clean prose. Primary: keyless Jina Reader (`r.jina.ai`, fetched on Jina's servers → bypasses Cloudflare; `JINA_API_KEY` auto-lifts 20→500 RPM). Fallback: trafilatura, then skip. Cross-invocation throttle (`~/.openclaw/data/jina_last_request`, `JINA_MIN_INTERVAL_S` default 3.5s). Writes per-source JSON to `<out-dir>` + `CUMULATIVE: words/sources`. |
+| `skills/deep-research/build_research_json.py` | Assemble schema-correct `raw.json` from read_tool out-dir + picks.json (category passthrough, asset detection, key facts, dedupe by domain). Clean error JSON on zero content. Zero LLM tokens. |
+| `skills/deep-research/run_deep_research.py` | **Deprecated stub** — delegates to `run_research.py` (maps `--discover-aggressive` → `--extra-search`). |
+| `skills/deep-research/extract_article.py` | **Deprecated fallback only** (legacy home-IP scrape ladder); primary reading goes through `read_tool.py`. |
 | `skills/research-check/check_research.py` | Self-check validator (`--mode headline_scan\|deep_research`); single source of truth shared with orchestrator gates |
 | `skills/research-check/resolve_url.py` | Resolve aggregator URLs; disk cache + retry + `--batch` mode |
 | `skills/research-check/SKILL.md` | Self-check loop + resolver usage |
 | `skills/history/history_batch.py` | Batched URL history checks (single SQLite connection) |
 | `skills/research/verify_feeds.sh` | Project-aware RSS health check (via `emit_feed_fetch_commands.py`) |
 | `skills/history/article_history.sh` | SQLite duplicate URL check (7-day window); `check-batch` mode |
-| `skills/web-reader-pro/SKILL.md` | Optional fallback reader — not primary path |
+| `skills/fallback/web-reader-pro/SKILL.md` | **Fallback only** — last-resort reader after `run_research.py` / `read_tool.py` exhausted on a URL |
 
 **Reliability (self-check before handoff):** Both modes run `check_research.py` and yield `SUCCESS` only on `RESEARCH_CHECK: PASS`. The checker rejects trajectory-log / raw-HTML dumps and unresolved aggregator URLs, and accepts a clean error JSON (`status:error` with a known reason) so a bad pick is skipped instead of dumping garbage. `validate_research.py` and `validate_headlines.py` import the same check functions, so the gate can never diverge from the self-check.
 
@@ -314,7 +318,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | SOUL | `workspace-writer/SOUL.md` (thin: identity, triggers, output contract) |
 | Templates | `workspace-writer/templates/COINOGRAPHY_TEMPLATE.md`, `MEMECOIN_TEMPLATE.md` (via `writer.template_path` in project config) |
 | Skills | `skills/write-article/`, `skills/revise-article/`, `skills/article/` |
-| Model | gemini-2.5-pro |
+| Model | `mistral.mistral-large-3-675b-instruct` (fallbacks: Nemotron → Kimi → MiniMax → GLM-4.7 → DeepSeek; no GLM-5) |
 | Pipeline step | 2.2 |
 
 **Job:** Read `validated.json`, follow `write-article` or `revise-article` skill, self-check with `check_article.py`, output to `$RUN_DIR/article/raw.md`, yield `SUCCESS` only when `ARTICLE_CHECK: PASS`.
@@ -431,7 +435,7 @@ Plus runtime base text and an injected skill catalog from `SKILL.md` files.
 | Model | gpt-5.4-mini |
 | Role | Default general OpenClaw workspace |
 
-**Extra skills:** `content-writer`, `programmatic-seo`, `web-reader-pro`, `gog`
+**Extra skills:** `content-writer`, `programmatic-seo`, `fallback/web-reader-pro`, `gog`
 
 ---
 
@@ -451,16 +455,16 @@ All under `workspace-orchestrator/skills/pipeline/`:
 | `validate_research.py` | Validate raw research JSON → `validated.json`. Imports the shared `run_deep_research_checks` from researcher `check_research.py` (single source of truth with Scout's self-check); treats clean error JSON as a skip signal. Accepts `--raw-path` + `--validated-path` for per-iteration variants and carries `category` into manifest.story. |
 | `check_recent_topic_duplicates.py` | 24h topic dedup vs `state/recent_topics.json` |
 | `update_recent_topics.py` | Register researched/drafted/published topics. Now also stores `category`. |
-| `verify_artifacts.py` | Stage gates: `pre_write`, `pre_sync`, `post_sync`, `post_image` (feature_image ≥40 KB, JPEG magic bytes), `pre_drive`, `pre_wp`. `post_image` is run after Creator (Pixel) yields; retried once with Universal Fallback prompt before continuing without image. |
+| `verify_artifacts.py` | Stage gates: `pre_write`, `pre_sync`, `post_sync`, `pre_drive`, `pre_wp`. Image validation (≥40 KB JPEG post-stamp) is in `generate.sh`; orchestrator trusts creator `SAVE_TO` / `IMAGE_FAILED`. |
 | `sync_article_from_raw.py` | Sanitize raw.md → final.md; word count + topic gate |
 | `count_article_body_words.py` | Body word count (same logic as sync; writer pre-flight) |
 | `update_manifest_step.sh` | Record step status in manifest |
 | `cleanup_run_artifacts.sh` | Remove `/tmp` symlinks on terminal state — runs ONCE per batch |
 | `save_google_drive_json.py` | Persist `publish/google-drive.json` after Step 2.4 |
-| `aggregate_run_tokens.py` | Step 2.6 — sum LLM token usage from subagent session logs for the current iteration, grouped by model with optional USD cost from `openclaw.json` catalog; writes `publish/tokens.json` + `manifest.results.tokens` (fail-open) |
-| `build_and_send_card.py` | Step 2.6 — Telegram news card + `editorial.db`. Shows `Run cost: N tokens` plus a compact per-model breakdown; optional `(~$X.XX)` when catalog prices are set. |
+| `aggregate_run_tokens.py` | Step 2.6 — sum LLM token usage from subagent + orchestrator session logs for the current iteration. Workers are session-windowed; orchestrator is time-sliced by message timestamp within the iteration window. Emits `by_agent` (with `primary_model`, `cost_usd` priced from that agent's own tokens, `duration_seconds`), `by_model` (with `priced`), total `duration_seconds` (orchestrator first→last message span), optional USD cost from `openclaw.json` catalog; writes `publish/tokens.json` + `manifest.results.tokens` (fail-open). Emits `TOKENS_PRICE_MISSING: <model>` when a consuming model has no catalog price. |
+| `build_and_send_card.py` | Step 2.6 — Telegram news card + `editorial.db`. Shows a compact **Run cost** block: total tok · ~$ · duration header plus per-agent (model) lines with tokens · ~$ · time when caption budget allows; header-only fallback near 1024 chars. |
 | `handle_card_feedback.py` | RATE, Publish (author picker), Unpublish, Edit, feed-card `oc_go` / `oc_feed_refresh` |
-| `editorial_db.py` | SQLite store. Now defines `picked_stories` + `articles.category`, plus helpers `insert_picked_stories`, `update_pick_status`, `recent_published_categories`, `pending_picks_for_run`, `get_pick`, `get_pick_by_index`, `list_picks_by_run`. `articles` and `picked_stories` also store `tokens_in`, `tokens_out`, `tokens_total`, `tokens_by_model` (JSON), `cost_usd`. |
+| `editorial_db.py` | SQLite store. Now defines `picked_stories` + `articles.category`, plus helpers `insert_picked_stories`, `update_pick_status`, `recent_published_categories`, `pending_picks_for_run`, `get_pick`, `get_pick_by_index`, `list_picks_by_run`. `articles` and `picked_stories` also store `tokens_in`, `tokens_out`, `tokens_total`, `tokens_by_model` (JSON), `cost_usd`, `duration_seconds`. |
 
 **Editorial config:** `workspace-orchestrator/config/wp_authors.json` (Toby 3, Ahmed 17, Golan 8), `telegram_card_config.json`
 
@@ -473,7 +477,7 @@ All under `workspace-orchestrator/skills/pipeline/`:
 | Agent | Skill / scripts |
 |-------|-----------------|
 | Orchestrator | Pipeline scripts (14 files above) + `EDITORIAL_FEEDBACK.md` |
-| Researcher | `skills/headline-scan/`, `skills/deep-research/`, `skills/research-check/` (`check_research.py`, `resolve_url.py`), `verify_feeds.sh`, `article_history.sh`, `web-reader-pro` |
+| Researcher | `skills/headline-scan/`, `skills/deep-research/`, `skills/research-check/` (`check_research.py`, `resolve_url.py`), `verify_feeds.sh`, `article_history.sh`, `fallback/web-reader-pro` |
 | Writer | `skills/write-article/`, `skills/revise-article/`, `skills/article/check_article.py` |
 | Chart-generator | `skills/chart-generator/` (global) |
 | Creator | `generate-image/` |
@@ -484,7 +488,7 @@ All under `workspace-orchestrator/skills/pipeline/`:
 
 `chart-generator`, `clawhub`, `coding-agent`, `gog`, `healthcheck`, `mcporter`, `node-connect`, `skill-creator`, `taskflow`, `taskflow-inbox-triage`, `tmux`, `video-frames`, `weather`
 
-Researcher additionally has workspace `web-reader-pro`.
+Researcher additionally has workspace `fallback/web-reader-pro` (fallback-only reader).
 
 ---
 
@@ -557,6 +561,14 @@ Legacy `/tmp/...` paths are symlinks into the canonical (current-iteration) file
 
 | Date | Change |
 |------|--------|
+| 2026-06-24 | **FEED_DRAIN picker-input fix (intermittent ~1-2/10 failures).** Root cause (confirmed via two run interviews + code trace): the orchestrator set `SELECTION_FILE=<path>` in one `exec` block but it was not exported/persisted into `<project>-run-env.sh`; a later Step 1 `exec` only `source`d the env file, so `--selection-file "$SELECTION_FILE"` expanded to empty → misleading `PICKER_INPUT_ERROR: pool mode but no candidates (empty pool / no urls)` → agent gave up. NOT a pool-status issue (`editorial_db.pool_by_urls()` has no status filter; there is no `available` status). Fix: `build_picker_input.py` gains `--feed-job-id <int>` which resolves `selection_file` straight from the `feed_jobs` row via `editorial_db.get_feed_job()` (no shell var to lose), plus specific error messages (`feed_job_not_found`, `empty selection_file`, `selection-file unreadable`, `0 urls`). `SOUL.md`: FEED_DRAIN Step 1 now mandates `--feed-job-id <literal id>` (never `$SELECTION_FILE`) + a self-recovery line (retry once with `--feed-job-id` before marking failed, since a tapped story always exists). No change to `pool_by_urls`/`_load_pool_candidates`, `init_run.sh`, dispatcher, or DB schema; SELECTED/MANUAL/AUTO paths unchanged. |
+| 2026-06-23 | **Creator-owned image gate (post-stamp).** `generate.sh` now validates the final stamped JPEG (≥40 KB, JPEG magic bytes) after logo composite; optional ImageMagick quality re-encode if stamp shrinks file slightly below min. Pre-stamp size check removed — fixes creator SUCCESS / orchestrator `ARTIFACTS_FAIL: post_image` mismatch (e.g. 54,266 B raw → 40,595 B post-stamp). Orchestrator Step 2.3 no longer runs `verify_artifacts.py --stage post_image`; trusts creator `SAVE_TO` / `IMAGE_FAILED` from script exit code. `post_image` removed from validator CLI; `publish.sh` / `wp_post_actions.sh` retain upload-time guard. |
+| 2026-06-23 | **Writer primary → Mistral Large 3 (off GLM-5).** `writer` primary switched from `zai.glm-5` to `mistral.mistral-large-3-675b-instruct` to stop orchestrator + writer contending on the same model quota during pipeline runs. Fallbacks reordered: Nemotron → Kimi → MiniMax → GLM-4.7 → DeepSeek; `zai.glm-5` removed from writer entirely. Orchestrator keeps GLM-5 primary. |
+| 2026-06-23 | **Feed-drain dispatch delay 1m → 30s.** `dispatch_feed_jobs.py` / `check_auto_run.py` one-shot crons schedule at `30s` (was `1m`). Note: `+30s` is invalid for `openclaw cron add --at` — must be `30s` or ISO/duration like `1m`. |
+| 2026-06-23 | **Researcher DEEP_RESEARCH primary-first cleanup.** New `run_research.py` deterministic engine wraps `search_tool` + `read_tool` + `build_research_json` as the REQUIRED FIRST exec (mirrors HEADLINE_SCAN script-first pattern). `run_deep_research.py` reduced to deprecation stub (`--discover-aggressive` → `--extra-search`). Scrubbed contradictory docs (`TOOLS.md`, `research-check/SKILL.md`, `check_research.py` hints). `web-reader-pro` moved to `skills/fallback/` with FALLBACK ONLY description; `deep-research/_meta.json` added for skill registration. `read_tool` word count aligned to `check_research.py` `.split()` metric. `extract_article.py` marked fallback-only. |
+| 2026-06-23 | **Orchestrator self-spawn guard + single-story feed drain.** Root cause of memecoinist runs spawning the orchestrator as its own subagent: `sessions_spawn` was called with `runtime:"subagent"` but no `agentId`, and the engine defaults a missing `agentId` to the caller (so it spawned itself; the `allowAgents` allowlist is skipped when target==requester). Surfaced under memecoinist's high-retry runs (starved fresh pool + strict keyword gate). Fixes: (1) `openclaw.json` orchestrator `subagents.requireAgentId: true` — agentId-less spawns now hard-fail (`forbidden`) instead of self-spawning. (2) `SOUL.md` Step 1c/2.1/2.2/2.3 now show explicit `agentId: "picker"|"researcher"|"writer"|"creator"` and a new CRITICAL rule that every `sessions_spawn` MUST set `agentId`. (3) **Feed-drain is now ONE story per cron**: the SOUL "Feed drain entry" no longer loops the queue — it claims one job, runs the single-story pipeline, marks the job, then clears the lease and re-runs `dispatch_feed_jobs.py` to chain a fresh isolated cron for the next job. Prevents the multi-story context pile-up that filled a single drainer's context and caused failures. `dispatch_feed_jobs.py`/`mark_feed_job.py` docstrings updated; no code-path change to those scripts. Group-id mismatch (memecoinist `YOUR_MEMECOINIST_GROUP_ID` vs live `-1004488104862`) noted but deferred. |
+| 2026-06-23 | **Researcher (Scout) DEEP_RESEARCH streamlined to two tools.** Root cause of the "Cloudflare blocked / 204 words" dead-ends: the old `extract_article.py` ladder fetched pages from the home IP (Cloudflare-blocked), and its Jina tier never ran (gated + required an unset `JINA_API_KEY`). Replaced with an agent-driven loop over two tools: new `search_tool.py` (DuckDuckGo via `ddgs` library — finds links, no page-scraping so no Cloudflare/home-IP block) and new `read_tool.py` (keyless Jina Reader fetched on Jina's servers → bypasses Cloudflare; trafilatura then skip as per-link fallback; cross-invocation ~3.5s throttle for the 20 RPM keyless limit, `JINA_API_KEY`/`JINA_MIN_INTERVAL_S` aware). New `build_research_json.py` assembles schema-correct `raw.json` (paragraph-level boilerplate stripping, dedupe by domain). Stop conditions unchanged (≥600 words, ≥2 sources) with max 6 reads + ~90s budget. `deep-research/SKILL.md` rewritten to the loop; `SOUL.md` updated; researcher `thinkingDefault: medium` set explicitly in `openclaw.json`. `run_deep_research.py` + `extract_article.py` + RSS/pool discovery deprecated (files retained). No new deps (`ddgs`/`trafilatura` already installed); no exec-approval change needed. Smoke-tested on the Binance/Yi He story: Cointelegraph 204w→1249w, 2 sources, `RESEARCH_CHECK: PASS`. |
+| 2026-06-23 | **Scanner interval 60m → 30m.** `pool_scheduler.py` and `ensure_scheduler.sh` default `SCAN_EVERY_MIN` lowered from 60 to 30 so `update_headline_pool.py --all` runs twice per hour. Telegram feed cards unchanged (`FEED_EVERY_MIN=60`). Zero LLM tokens; restart `pool_scheduler` required to pick up new default. |
 | 2026-06-22 | **Writer SEO + category reliability.** (1) `check_article.py`: enforce Primary Keyword in SEO Title, URL Slug, and H1; new `heading_no_inline_hash` + `no_bare_source_line` rules. (2) `autofix_article.py` + `article_hygiene.py`: deterministic fix for inline `#` in headings and bare `Source \| Source` lines. (3) `validate_research.py` + `wp_category_resolve.py`: resolve `wp_category_slugs`→ids from project config; coin-aware guard forces lead-coin category (e.g. Shiba → `shiba-inu-coin`). (4) `publish.sh`: slug→id fallback before `fallback_category_id`; strip bare source lines; write `wp_category_ids/slugs/names` to `wordpress.json`. (5) `build_and_send_card.py`: card Category line from attached WP categories. (6) `picker/SOUL.md`: hard sibling-coin rule. (7) Writer `thinkingDefault: high`; expanded pre-write plan in `write-article/SKILL.md`. Templates reaffirm slug keyword + inline anchors only. |
 | 2026-06-22 | **Image threshold aligned to 40 KB in validator.** `verify_artifacts.py` `post_image` gate lowered from 50 KB (50000) to 40 KB (40960) to match `generate.sh`, `publish.sh`, and `wp_post_actions.sh`. Image Size Test (2026-06-22): Flux JPEG at 48,505 B passed Drive + WP upload but failed the old 50 KB validator — root cause of imageless drafts for ~47–51 KB Flux outputs after logo stamp. |
 | 2026-06-20 | **Card + image fixes.** (1) `build_published_card_keyboard` swaps only Publish→Published; Unpublish + Edit remain after live publish. (2) Image min threshold aligned to 40 KB (40960) in `generate.sh`, `publish.sh`, `wp_post_actions.sh` — fixes Flux ~50KB JPEGs rejected after logo stamp. (3) `save_google_drive_json.py` unwraps nested `gog drive upload` `file` key and accepts `drive.google.com` links. (4) `generate.sh` EXIT trap + `switch_iteration.sh` clear stale 0-byte `feature.jpg` / `.watermarked` leaks on failed generation or iteration reset. |
@@ -564,6 +576,8 @@ Legacy `/tmp/...` paths are symlinks into the canonical (current-iteration) file
 | 2026-06-20 | **Token-efficient creator spawn.** Orchestrator runs `build_creator_input.py` and inlines `HEADLINE`/`CATEGORY`/`SCENE_HINT`/`SAVE_TO`/`PROJECT_CONFIG` into the Pixel spawn (no `validated.json` read). Creator SOUL slimmed (~50 lines); `bootstrapMaxChars: 6000` on creator agent. `generate.sh` writes `.watermarked` sidecar and resolves per-project logo via `PROJECT_CONFIG`. |
 | 2026-06-20 | **Creator image provider: Bifrost/HF → Pollinations.ai direct.** `generate.sh` uses `GET https://gen.pollinations.ai/image/{prompt}` with `flux` primary and `zimage` fallback (~0.00175 pollen/image). `POLLINATIONS_API_KEY` in `openclaw.json` env. No orchestrator/creator spawn changes. |
 | 2026-06-20 | **Creator image provider: Imagen 4 → Hugging Face hf-inference via Bifrost.** `generate.sh` defaults: `huggingface/hf-inference/black-forest-labs/FLUX.1-schnell` primary, `huggingface/hf-inference/stabilityai/stable-diffusion-3-medium-diffusers` fallback. Same Bifrost `/v1/images/generations` path; no script API rewrite. |
+| 2026-06-24 | **Card cost fix + per-agent time breakdown.** Fixed per-agent `cost_usd` bug: when multiple agents shared a model, each line incorrectly showed the full model/grand total (`~$0.41` on every line). Now prices each agent's own token slice from the catalog (sum of per-agent costs equals total). Added `by_agent[*].duration_seconds` from session message timestamps; total run time uses orchestrator first→last message span. Card lines now show `tokens · ~$ · time` per agent (e.g. `Writer: 265.9k tok · ~$0.08 · 7m 50s`). |
+| 2026-06-20 | **Real token cost on Telegram cards.** `aggregate_run_tokens.py` now includes orchestrator tokens via message-level time-slicing within each article's iteration window, records per-agent `primary_model` + `cost_usd`, computes `duration_seconds`, and flags unpriced models (`priced: false`, stderr `TOKENS_PRICE_MISSING`). Card footer: `Run cost: 1.2M tok · ~$1.85 · 6m 12s` header plus per-agent lines (Orchestrator, Writer, …) when under Telegram's 1024-char cap; full detail always in `publish/tokens.json` + DB. **Pricing maintenance:** edit `models.providers.<provider>.models[].cost.input/output` in `openclaw.json` (USD per 1M tokens); next run recomputes automatically. `editorial_db.py`: `duration_seconds` on `articles` / `picked_stories`. |
 | 2026-06-20 | **Bedrock model cost catalog populated.** Set per-model `cost.input` / `cost.output` (USD per 1M tokens) in `openclaw.json` for all 10 `local-bifrost` models from [AWS Bedrock on-demand US East pricing](https://aws.amazon.com/bedrock/pricing/). Enables `pricing_available` + `(~$X.XX)` on Telegram cards via `aggregate_run_tokens.py`. Estimates only — adjust if Bifrost routes through a different region. |
 | 2026-06-20 | **Per-model token + cost tracking on Telegram cards.** `aggregate_run_tokens.py` now groups usage by model (message-level, trajectory fallback), reads per-model `cost` from `openclaw.json` `/models/providers/*/models[]`, and emits `by_model`, `by_agent.models`, `cost_usd`, `pricing_available`. Card footer shows total tokens plus a compact per-model line (e.g. `Mistral Large 3 502k | MiniMax 224k`); `(~$X.XX)` appears only when catalog prices are non-zero. `editorial_db.py` adds `tokens_by_model` + `cost_usd`; `update_pick_status.py` accepts `--tokens-by-model` and `--cost-usd`. |
 | 2026-06-20 | **Token cost on Telegram cards.** New `aggregate_run_tokens.py` (Step 2.6, fail-open): deterministically sums LLM usage from subagent session logs (`agents/*/sessions/*.jsonl`) for the current iteration, prorates picker overhead across `batch.target_count`, writes `publish/tokens.json` + `manifest.results.tokens`. `build_and_send_card.py` adds a `Run cost: N tokens` footer when totals exist. `editorial_db.py`: `tokens_in` / `tokens_out` / `tokens_total` on `articles` and `picked_stories`; `update_pick_status.py` accepts optional `--tokens-*`. Orchestrator `SOUL.md` Step 2.6 runs aggregation before the card and passes token totals on publish. |

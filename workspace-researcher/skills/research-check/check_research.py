@@ -155,8 +155,8 @@ def run_deep_research_checks(
         results.append((
             "not_partial",
             False,
-            f"research is partial ({partial_words} words) — re-run run_deep_research.py "
-            "with --discover-aggressive before yielding SUCCESS",
+            f"research is partial ({partial_words} words) — re-run run_research.py "
+            "with --extra-search before yielding SUCCESS",
         ))
         return results
 
@@ -168,8 +168,8 @@ def run_deep_research_checks(
             results.append((
                 "no_premature_error",
                 False,
-                f"partial extraction ({partial_words} words) — re-run run_deep_research.py "
-                "with --discover-aggressive; do not emit clean error JSON while content exists",
+                f"partial extraction ({partial_words} words) — re-run run_research.py "
+                "with --extra-search; do not emit clean error JSON while content exists",
             ))
             return results
         if reason in KNOWN_ERROR_REASONS:
@@ -221,7 +221,7 @@ def run_deep_research_checks(
             "multi_source",
             False,
             f"source_urls needs >= {MIN_SOURCES} entries (got {source_count}) — "
-            "re-run run_deep_research.py with --discover-aggressive",
+            "re-run run_research.py with --extra-search",
         ))
 
     aggregator_hits = [u for u in urls if isinstance(u, str) and is_aggregator_url(u)]

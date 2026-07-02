@@ -50,4 +50,4 @@ Wait for exit code **0**. Do not run the script twice in parallel for the same s
 - **Exit 0:** return the exact `SAVE_TO` path from the spawn message.
 - **Exit 1:** `cat /tmp/<slug>-image-error.log` (legacy: `/tmp/image-error.log`) and return `IMAGE_FAILED: <contents>`.
 
-The orchestrator validates size (≥40 KB), JPEG format, and `.watermarked` marker — you do not verify the file yourself.
+`generate.sh` validates the **final stamped JPEG** (size ≥40 KB, JPEG format). You relay the script result only — return `SAVE_TO` on exit 0, `IMAGE_FAILED: <error log>` on exit 1.

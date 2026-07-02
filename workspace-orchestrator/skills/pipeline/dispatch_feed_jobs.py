@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""dispatch_feed_jobs.py — Kick one self-draining worker per project when needed.
+"""dispatch_feed_jobs.py — Kick one worker per project when needed.
 
 Pure Python, NO LLM. Reclaims stale running jobs, then for each project with
 queued work and no live drainer lease, fires ONE isolated FEED_DRAIN cron.
-The drainer loop claims jobs itself — this script never claims rows.
+Each cron processes exactly ONE story and then re-runs this dispatcher to chain
+the next story in a fresh cron (see the SOUL "Feed drain entry"). This script
+never claims rows.
 
 Always exits 0.
 """
@@ -46,7 +48,7 @@ def _fire_drainer(project: str, *, dry_run: bool) -> str:
         "--name",
         job_name,
         "--at",
-        "1m",
+        "30s",
         "--agent",
         "orchestrator",
         "--session",

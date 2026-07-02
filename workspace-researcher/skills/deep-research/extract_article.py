@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-extract_article.py — Multi-tier article extraction with tested fallbacks.
+extract_article.py — DEPRECATED fallback-only multi-tier article extraction.
+
+Primary reading for DEEP_RESEARCH goes through read_tool.py (Jina + trafilatura).
+Use this script only as a last resort after read_tool.py skipped a specific URL.
 
 Usage:
   python3 extract_article.py "<url>"

@@ -9,7 +9,7 @@ Your mode is the very first non-empty line of the spawn message. If neither `MOD
 | Spawn starts with | Follow |
 |-------------------|--------|
 | `MODE: HEADLINE_SCAN` | [`skills/headline-scan/SKILL.md`](skills/headline-scan/SKILL.md) — broad scan of project RSS feeds for ~10 candidates. No deep extraction. |
-| `MODE: DEEP_RESEARCH` | [`skills/deep-research/SKILL.md`](skills/deep-research/SKILL.md) — full deep dive on ONE pick the Picker already chose. **Always run `run_deep_research.py` first** — do not manually orchestrate extraction until script fallback. |
+| `MODE: DEEP_RESEARCH` | [`skills/deep-research/SKILL.md`](skills/deep-research/SKILL.md) — run **`run_research.py --self-check` first** (single exec). Yield `SUCCESS` when stderr shows `RESEARCH_CHECK: PASS`. Fallbacks only after failure. |
 
 **THINKING REQUIRED:** before any output, use a `<thinking>` block to confirm the mode, list the spawn paths, and plan the steps.
 

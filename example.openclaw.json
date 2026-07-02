@@ -3,8 +3,9 @@
     "GOOGLE_CLOUD_PROJECT": "YOUR_GCP_PROJECT_ID",
     "GOOGLE_CLOUD_LOCATION": "us-central1",
     "BIFROST_BASE_URL": "http://YOUR_BIFROST_HOST:8888/v1",
-    "AWS_BEARER_TOKEN_BEDROCK": "YOUR_AWS_BEDROCK_BEARER_TOKEN",
-    "POLLINATIONS_API_KEY": "YOUR_POLLINATIONS_API_KEY"
+    "AWS_BEARER_TOKEN_BEDROCK": "YOUR_AWS_BEARER_TOKEN_BEDROCK",
+    "POLLINATIONS_API_KEY": "YOUR_POLLINATIONS_API_KEY",
+    "JINA_API_KEY": "jina_b9dc1d5925ae456b81b1023540dddf6f9AJHBL01hhtNoVZSiBLlfqX0SAkZ"
   },
   "agents": {
     "defaults": {
@@ -41,12 +42,11 @@
         "id": "orchestrator",
         "workspace": "/home/USER/.openclaw/workspace-orchestrator",
         "model": {
-          "primary": "local-bifrost/zai.glm-5",
+          "primary": "local-bifrost/minimax.minimax-m2.5",
           "fallbacks": [
             "local-bifrost/moonshotai.kimi-k2.5",
-            "local-bifrost/minimax.minimax-m2.5",
             "local-bifrost/nvidia.nemotron-super-3-120b",
-            "local-bifrost/mistral.mistral-large-3-675b-instruct"
+            "local-bifrost/zai.glm-4.7-flash"
           ]
         },
         "subagents": {
@@ -56,7 +56,8 @@
             "writer",
             "chart-generator",
             "creator"
-          ]
+          ],
+          "requireAgentId": true
         },
         "tools": {
           "profile": "coding",
@@ -77,6 +78,7 @@
       {
         "id": "researcher",
         "workspace": "/home/USER/.openclaw/workspace-researcher",
+        "thinkingDefault": "medium",
         "model": {
           "primary": "local-bifrost/minimax.minimax-m2.5",
           "fallbacks": [
@@ -96,7 +98,7 @@
         "id": "picker",
         "workspace": "/home/USER/.openclaw/workspace-picker",
         "model": {
-          "primary": "local-bifrost/moonshotai.kimi-k2.5",
+          "primary": "local-bifrost/minimax.minimax-m2.5",
           "fallbacks": [
             "local-bifrost/nvidia.nemotron-super-3-120b",
             "local-bifrost/qwen.qwen3-next-80b-a3b"
@@ -112,13 +114,14 @@
       {
         "id": "writer",
         "workspace": "/home/USER/.openclaw/workspace-writer",
-        "thinkingDefault": "high",
+        "thinkingDefault": "medium",
         "model": {
           "primary": "local-bifrost/zai.glm-5",
           "fallbacks": [
-            "local-bifrost/mistral.mistral-large-3-675b-instruct",
             "local-bifrost/minimax.minimax-m2.5",
             "local-bifrost/nvidia.nemotron-super-3-120b",
+            "local-bifrost/moonshotai.kimi-k2.5",
+            "local-bifrost/mistral.mistral-large-3-675b-instruct",
             "local-bifrost/zai.glm-4.7",
             "local-bifrost/deepseek.v3.2"
           ]
@@ -129,7 +132,7 @@
         "workspace": "/home/USER/.openclaw/workspace-creator",
         "thinkingDefault": "low",
         "model": {
-          "primary": "local-bifrost/zai.glm-4.7-flash",
+          "primary": "local-bifrost/minimax.minimax-m2.5",
           "fallbacks": [
             "local-bifrost/qwen.qwen3-next-80b-a3b"
           ]
@@ -331,6 +334,22 @@
             "cost": {
               "input": 0.1545,
               "output": 0.618,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true
+          },
+          {
+            "id": "qwen.qwen3-coder-next",
+            "name": "Qwen3 Coder Next (Bedrock)",
+            "contextWindow": 256000,
+            "maxTokens": 16384,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.5,
+              "output": 1.2,
               "cacheRead": 0,
               "cacheWrite": 0
             },

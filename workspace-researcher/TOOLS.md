@@ -24,11 +24,20 @@ OUTPUT_FILE="<path>" TARGET_COUNT=10 \
   python3 ~/.openclaw/workspace-researcher/skills/headline-scan/scan_headlines.py
 ```
 
-**DEEP_RESEARCH extraction** (multi-tier fallbacks):
+**DEEP_RESEARCH primary path** (deterministic — run this first; includes inline self-check):
 
 ```bash
-python3 ~/.openclaw/workspace-researcher/skills/deep-research/extract_article.py "<publisher_url>"
+python3 ~/.openclaw/workspace-researcher/skills/deep-research/run_research.py \
+  --input "$INPUT_FILE" --pick-index $PICK_INDEX --output "$OUTPUT_FILE" \
+  --self-check
 ```
+
+If stderr shows `RESEARCH_CHECK: PASS`, yield `SUCCESS` — do not run `check_research.py` again. If `RESEARCH_PARTIAL`, retry once with `--extra-search --self-check`.
+
+**DEEP_RESEARCH fallback only** (after primary path + self-check still fail):
+
+- Manual loop: `search_tool.py` → `read_tool.py` (sequential) → `build_research_json.py`
+- Last resort per URL: `skills/fallback/web-reader-pro/` or deprecated `extract_article.py`
 
 Selection policy and exclusions also come from the project config (`research.exclude_keywords`, `research.source_priority_order`). See [`skills/headline-scan/SKILL.md`](skills/headline-scan/SKILL.md).
 

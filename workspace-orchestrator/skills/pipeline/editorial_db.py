@@ -184,6 +184,7 @@ class Article:
     tokens_total: int | None = None
     tokens_by_model: str | None = None
     cost_usd: float | None = None
+    duration_seconds: int | None = None
 
 
 @dataclass
@@ -230,6 +231,7 @@ class PickedStory:
     tokens_total: int | None = None
     tokens_by_model: str | None = None
     cost_usd: float | None = None
+    duration_seconds: int | None = None
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -293,6 +295,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE picked_stories ADD COLUMN tokens_by_model TEXT")
     if not _column_exists(conn, "picked_stories", "cost_usd"):
         conn.execute("ALTER TABLE picked_stories ADD COLUMN cost_usd REAL")
+    if not _column_exists(conn, "articles", "duration_seconds"):
+        conn.execute("ALTER TABLE articles ADD COLUMN duration_seconds INTEGER")
+    if not _column_exists(conn, "picked_stories", "duration_seconds"):
+        conn.execute("ALTER TABLE picked_stories ADD COLUMN duration_seconds INTEGER")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_project ON articles(project, created_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_picked_project ON picked_stories(project, pick_run_id)")
     conn.execute("UPDATE articles SET wp_status = 'draft' WHERE wp_status IS NULL")
@@ -332,6 +338,9 @@ def _row_to_article(row: sqlite3.Row) -> Article:
         tokens_total=int(row["tokens_total"]) if "tokens_total" in keys and row["tokens_total"] is not None else None,
         tokens_by_model=row["tokens_by_model"] if "tokens_by_model" in keys else None,
         cost_usd=float(row["cost_usd"]) if "cost_usd" in keys and row["cost_usd"] is not None else None,
+        duration_seconds=int(row["duration_seconds"])
+        if "duration_seconds" in keys and row["duration_seconds"] is not None
+        else None,
     )
 
 
@@ -364,6 +373,9 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
         _json.dumps(by_model, ensure_ascii=False) if isinstance(by_model, dict) and by_model else None
     )
     cost_usd = float(card["cost_usd"]) if card.get("cost_usd") is not None else None
+    duration_seconds = (
+        int(card["duration_seconds"]) if card.get("duration_seconds") is not None else None
+    )
 
     with _connect(db_path) as conn:
         conn.execute(
@@ -371,8 +383,8 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
             INSERT INTO articles (
               run_id, alert_id, story_id, headline, category, wp_url, wp_post_id,
               telegram_group, telegram_message_id, card_sent_at, run_dir, wp_status, project,
-              tokens_in, tokens_out, tokens_total, tokens_by_model, cost_usd
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              tokens_in, tokens_out, tokens_total, tokens_by_model, cost_usd, duration_seconds
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id) DO UPDATE SET
               alert_id = excluded.alert_id,
               story_id = excluded.story_id,
@@ -390,7 +402,8 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
               tokens_out = COALESCE(excluded.tokens_out, articles.tokens_out),
               tokens_total = COALESCE(excluded.tokens_total, articles.tokens_total),
               tokens_by_model = COALESCE(excluded.tokens_by_model, articles.tokens_by_model),
-              cost_usd = COALESCE(excluded.cost_usd, articles.cost_usd)
+              cost_usd = COALESCE(excluded.cost_usd, articles.cost_usd),
+              duration_seconds = COALESCE(excluded.duration_seconds, articles.duration_seconds)
             """,
             (
                 run_id,
@@ -411,6 +424,7 @@ def insert_article(card: dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> int:
                 int(card["tokens_total"]) if card.get("tokens_total") is not None else None,
                 tokens_by_model,
                 cost_usd,
+                duration_seconds,
             ),
         )
         conn.commit()
@@ -670,6 +684,9 @@ def _row_to_pick(row: sqlite3.Row) -> PickedStory:
         tokens_total=int(row["tokens_total"]) if "tokens_total" in keys and row["tokens_total"] is not None else None,
         tokens_by_model=row["tokens_by_model"] if "tokens_by_model" in keys else None,
         cost_usd=float(row["cost_usd"]) if "cost_usd" in keys and row["cost_usd"] is not None else None,
+        duration_seconds=int(row["duration_seconds"])
+        if "duration_seconds" in keys and row["duration_seconds"] is not None
+        else None,
     )
 
 
