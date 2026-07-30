@@ -23,6 +23,21 @@ import re
 import sys
 
 
+def _unwrap_drive_payload(data: dict) -> dict:
+    """gog drive upload --json nests metadata under a top-level file key."""
+    nested = data.get("file")
+    if isinstance(nested, dict):
+        return nested
+    return data
+
+
+def _link_from_dict(data: dict) -> str | None:
+    link = data.get("webViewLink") or data.get("web_view_link") or data.get("url")
+    if link:
+        return str(link).strip()
+    return None
+
+
 def extract_web_view_link(text: str) -> str | None:
     text = text.strip()
     if not text:
@@ -30,12 +45,13 @@ def extract_web_view_link(text: str) -> str | None:
     try:
         data = json.loads(text)
         if isinstance(data, dict):
-            link = data.get("webViewLink") or data.get("web_view_link") or data.get("url")
+            payload = _unwrap_drive_payload(data)
+            link = _link_from_dict(payload)
             if link:
-                return str(link).strip()
+                return link
     except json.JSONDecodeError:
         pass
-    match = re.search(r"https://docs\.google\.com/[^\s\"'<>]+", text)
+    match = re.search(r"https://(?:docs|drive)\.google\.com/[^\s\"'<>]+", text)
     if match:
         return match.group(0).rstrip(".,)")
     return None
@@ -73,10 +89,10 @@ def main() -> int:
         try:
             parsed = json.loads(raw_json)
             if isinstance(parsed, dict):
-                payload = parsed
+                payload = _unwrap_drive_payload(parsed)
                 if not web_view_link:
                     web_view_link = str(
-                        parsed.get("webViewLink") or parsed.get("web_view_link") or ""
+                        _link_from_dict(payload) or ""
                     ).strip()
         except json.JSONDecodeError:
             link = extract_web_view_link(raw_json)

@@ -1,27 +1,26 @@
 # EDITORIAL_FEEDBACK.md — News Card Editorial Feedback
 
-Handles Telegram feedback on news cards sent after pipeline Step 6. **Part of the Step 6 success path** (card send) but **not** a pipeline step itself — do not spawn subagents for editorial actions.
+Handles Telegram feedback on news cards sent after pipeline execution.
+**DO NOT** start the pipeline or spawn subagents when handling editorial feedback.
 
 ---
 
-## When this applies
+## When This Applies
 
-| Pattern | Example |
-|---------|---------|
-| Callback `oc_r:` / `oc_ri:` / `oc_ri_menu:` | Rate article or image |
-| Callback `oc_draft:` / `oc_draft_yes:` / `oc_draft_no:` | Unpublish flow |
-| Callback `oc_publish:` / `oc_pub_a:` / `oc_pub_y:` / `oc_pub_n:` | Publish flow (author picker) |
-| Callback `oc_edit:` / `oc_edit_apply:` / `oc_edit_cancel:` | Edit flow |
-| Text | `RATE 8`, `IMAGE 7`, `DRAFT`, `PUBLISH`, `EDIT` |
-| Document reply | `.md` file replying to bot's edit prompt |
+| Incoming Callback / Text | Action |
+|--------------------------|--------|
+| `oc_r:`, `oc_ri:`, `oc_ri_menu:`, `RATE 8`, `IMAGE 7` | Rate article or feature image |
+| `oc_draft:`, `oc_draft_yes:`, `oc_draft_no:`, `DRAFT` | Unpublish flow (switch status to draft) |
+| `oc_publish:`, `oc_pub_a:`, `oc_pub_y:`, `oc_pub_n:`, `PUBLISH` | Publish flow (in-card author picker: Toby/Ahmed/Golan) |
+| `oc_edit:`, `oc_edit_apply:`, `oc_edit_cancel:`, `EDIT` | Edit flow (download `.md` -> upload edited `.md` -> apply) |
+| `oc_go:`, `oc_feed_refresh:` | Feed card callbacks (handled by `feed-tap-claimer` or handler) |
+| Document reply (`.md` file) | Apply edited Markdown file to WordPress post |
 
 ---
 
-## What to do
+## Execution Protocol
 
-1. **Do NOT** start or continue the crypto news pipeline.
-2. **Do NOT** spawn subagents.
-3. Run the handler immediately:
+Run `handle_card_feedback.py` immediately in `bash`:
 
 ```bash
 python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.py \
@@ -35,78 +34,24 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.
   --document-name "<original filename if document upload>"
 ```
 
-4. **If the handler already sent a Telegram reply, do NOT repeat stdout in the group — end turn silently.**
-5. If handler failed before replying, show the stdout line to the user.
+### Output Rules
+- **Silent Turn:** If the handler sent a Telegram reply directly, OR if stdout is `NO_REPLY`, **end your turn silently with NO output text**.
+- **Error Handling:** If the handler prints an explicit error line (not `NO_REPLY`), output that line.
 
 ---
 
-## Pipeline vs feedback
+## Callback Mechanics Summary
 
-| User says | Route |
-|-----------|-------|
-| `run pipeline`, `run crypto news pipeline` | SOUL.md pipeline |
-| RATE, IMAGE, DRAFT, PUBLISH, EDIT, callback taps, edit `.md` upload | This doc |
+### 1. Feed-Card Taps (`oc_go:`, `oc_feed_refresh:`)
+- Intercepted by `feed-tap-claimer` plugin in-process zero-LLM.
+- Fallback in orchestrator: Run `handle_card_feedback.py`.
+- `oc_go:` enqueues job in `feed_jobs` DB table and edits card. End turn (drainer runs pipeline asynchronously).
 
-Pipeline takes precedence only when the message explicitly requests the pipeline.
+### 2. PUBLISH Flow
+- `oc_publish:{run_id}` $\rightarrow$ Shows author buttons (Toby: 3, Ahmed: 17, Golan: 8).
+- `oc_pub_a:{run_id}:{author_id}` $\rightarrow$ Publishes post live on WordPress immediately with chosen author byline.
 
-**Channels:** Pipeline gate (Step 5 yes/no) is in the **Telegram DM** with Nexus. News cards and editorial feedback run in the **`news-agent` group** (`config/telegram_card_config.json`). RATE/PUBLISH/EDIT in DM will not resolve articles unless you reply to the card in the group.
-
----
-
-## PUBLISH flow notes
-
-- Tap **Publish** or reply `PUBLISH` to the card.
-- Bot shows **Toby** / **Ahmed** / **Golan** author buttons (`config/wp_authors.json`).
-- Pick author → confirm **Yes, publish as …** / **Cancel**.
-- WordPress receives `status: publish` + `author: 3|17` on **coinography.com** via `wp_post_actions.sh`.
-- If already published → bot replies "already published".
-- Draft posts are created by the pipeline as author renu (API user); byline changes only at Telegram publish.
-
-### Callback prefixes
-
-| callback_data | Action |
-|---------------|--------|
-| `oc_publish:{run_id}` | Show author picker |
-| `oc_pub_a:{run_id}:{author_id}` | Confirm chosen author |
-| `oc_pub_y:{run_id}:{author_id}` | Publish live with author |
-| `oc_pub_n:{run_id}` | Cancel publish flow |
-
----
-
-## EDIT flow notes
-
-- Tap **Edit** or reply `EDIT` to the news card.
-- Bot sends `article-{run_id}.md` as a document.
-- Download → edit → **save** → reply to that document with a corrected **`.md` file** (not pasted text).
-- Identical upload (no changes) → bot replies "No changes detected" and keeps the edit session open (`EDIT_UNCHANGED`).
-- Changed upload → bot shows **+N / −M lines** summary plus **Apply to WordPress** / **Cancel** buttons.
-- After apply on a draft → bot offers a **Publish** button (author picker follows).
-- Pasted text during edit → handler returns `EDIT_USE_DOCUMENT`.
-- Second edit compares against the latest **applied** content (not stale snapshot).
-
-### Document reply — CRITICAL routing rule
-
-When the user replies to the bot's edit prompt with a `.md` document:
-
-1. **Always** call the handler with `--document-file-id` from the **user's uploaded document** in the current message metadata.
-2. **Never** read `media/inbound/tmp*.md` from reply context — that is often the **bot's original unedited file** bundled with the user's upload.
-3. **Never** call `handle_edit_document()` manually with a local path. The handler downloads the file from Telegram via `file_id`.
-4. Set `--reply-to-message-id` to the **bot edit prompt message id** (the document the user replied to).
-
-Wrong file selection causes false `EDIT_UNCHANGED` even when the user's saved file has real edits.
-
----
-
-## DRAFT flow notes
-
-- Tap **Unpublish** or reply `DRAFT` to the card.
-- Confirm with **Yes, unpublish** / **Cancel**.
-- Sets WordPress post status to `draft` on coinography.com (author unchanged).
-
----
-
-## Mention rules
-
-- Callback taps: no `@mention` needed.
-- Reply to news card: `RATE`, `DRAFT`, `PUBLISH`, `EDIT` work without `@mention`.
-- Reply to bot edit prompt with `.md`: works via `reply_to_bot` implicit mention.
+### 3. EDIT Flow
+- User replies `EDIT` $\rightarrow$ Handler sends `article-{run_id}.md`.
+- User uploads updated `.md` file $\rightarrow$ Handler compares diff (+N / −M lines) and presents **Apply** / **Cancel** buttons.
+- **CRITICAL:** Pass `--document-file-id` of the user's uploaded document from message metadata.

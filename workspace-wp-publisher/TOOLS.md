@@ -30,8 +30,10 @@ This file contains the exact credentials and paths for publishing to WordPress. 
 
 | File | Purpose |
 |---|---|
-| `/tmp/wp-result.txt` | WordPress post URL on success |
-| `/tmp/wp-error.log` | Exact error reason on failure |
+| `$RUN_DIR/publish/wp-url.txt` | WordPress post URL on success (canonical, run-scoped) |
+| `/tmp/${PROJECT_SLUG}-wp-result.txt` | WordPress post URL on success (per-slug, concurrency-safe) |
+| `/tmp/${PROJECT_SLUG}-wp-error.log` | Exact error reason on failure (per-slug, concurrency-safe) |
+| `/tmp/wp-result.txt` | Legacy global URL mirror (best-effort fallback only) |
 
 ---
 
@@ -52,8 +54,8 @@ bash ~/.openclaw/workspace-wp-publisher/skills/wordpress/publish.sh \
 
 - Default `--status draft` (pipeline). Use `--status publish` only when explicitly going live from the agent.
 - `--title` and `--excerpt` are optional — the script auto-extracts them from `/tmp/crypto-article.md` if not provided.
-- Exit `0` → success → read `/tmp/wp-result.txt` for the post URL
-- Exit `1` → failure → read `/tmp/wp-error.log` for the reason
+- Exit `0` → success → read `/tmp/${PROJECT_SLUG}-wp-result.txt` for the post URL (or `$RUN_DIR/publish/wp-url.txt`)
+- Exit `1` → failure → read `/tmp/${PROJECT_SLUG}-wp-error.log` for the reason
 
 ### `wp_post_actions.sh` — update existing posts (Telegram editorial)
 

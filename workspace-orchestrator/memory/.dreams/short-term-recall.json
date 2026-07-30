@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-18T08:22:52.955Z",
+  "updatedAt": "2026-07-28T12:52:07.470Z",
   "entries": {
     "memory:memory/2026-05-16.md:1:5": {
       "key": "memory:memory/2026-05-16.md:1:5",
@@ -34,6 +34,37 @@
         "direct",
         "answers",
         "especially"
+      ]
+    },
+    "memory:memory/2026-06-23.md:1:33": {
+      "key": "memory:memory/2026-06-23.md:1:33",
+      "path": "memory/2026-06-23.md",
+      "startLine": 1,
+      "endLine": 33,
+      "source": "memory",
+      "snippet": "# Memory Log - 2026-06-23 ## Feed Drain Run - 13:05 UTC **Project:** Coinography **Run ID:** coinography-run-20260623-130544-3817-30690 **Job ID:** 13 **Feed Card:** f-coinography-20260623-125300 ### Story Published - **Headline:** Assetara Unveils AI Trading Ecosystem Integrating Automated Execution with Risk Controls and Blockchain Verification - **Category:** ai (Artificial Intelligence) - **WP Status:** Draft - **WP URL:** https://coinography.com/?p=9726 - **Drive URL:** https://docs.google.com/document/d/1pG-TpK0_t1WZXH9HZtJq5sHoEzN8Rh5G/edit?ouid=111680905295040844902 ### Pipeline Metrics - Picker: classify-only mode (human-selected story from feed card) - Research: 83.7k tok",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 1,
+      "maxScore": 1,
+      "firstRecalledAt": "2026-07-28T12:52:07.470Z",
+      "lastRecalledAt": "2026-07-28T12:52:07.470Z",
+      "queryHashes": [
+        "f86e2c3dd0a2"
+      ],
+      "recallDays": [
+        "2026-07-28"
+      ],
+      "conceptTags": [
+        "f-coinography-20260623-125300",
+        "coinography.com",
+        "classify-only",
+        "human-selected",
+        "83.7k",
+        "log",
+        "feed",
+        "drain"
       ]
     }
   }

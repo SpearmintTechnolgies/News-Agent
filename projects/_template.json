@@ -1,0 +1,55 @@
+{
+  "slug": "REPLACE_SLUG",
+  "callback_code": "REPLACE_CC",
+  "name": "REPLACE_NAME",
+  "description": "REPLACE_DESCRIPTION",
+  "wordpress": {
+    "url": "REPLACE_WP_URL",
+    "user": "REPLACE_WP_USER",
+    "app_password_ref": "credentials/wp/REPLACE_SLUG.pass",
+    "default_status": "draft",
+    "fallback_category_id": 0,
+    "picker_category_slugs": [],
+    "picker_category_note": "Curated allow-list of slugs the Picker may assign as a PRIMARY category. Hand-maintained; survives re-runs of sync_wp_categories.py (which only rewrites `categories`).",
+    "categories": []
+  },
+  "telegram": {
+    "account": "news",
+    "group_id": "REPLACE_GROUP_ID",
+    "group_name": "REPLACE_GROUP_NAME",
+    "card_prefix": "[REPLACE_NAME]"
+  },
+  "research": {
+    "rss_feeds": [],
+    "source_priority_order": [],
+    "exclude_keywords": [],
+    "exclude_keywords_note": "",
+    "headline_scan_target_count": 10,
+    "max_age_hours": 24
+  },
+  "picker": {
+    "diversity_window_hours": 72
+  },
+  "writer": {
+    "template_path": "workspace-writer/templates/COINOGRAPHY_TEMPLATE.md",
+    "min_body_words": 1000,
+    "max_body_words": 1200,
+    "sync_max_body_words": 1300,
+    "voice_hint": "Authoritative, neutral, fact-driven crypto news voice."
+  },
+  "creator": {
+    "image_style_hint": "Cinematic crypto editorial, photorealistic 3D coin renders or brand logo compositions, dark studio background, dramatic lighting, no humans.",
+    "image_aspect": "16:9",
+    "image_size": "1024x576",
+    "logo_path": "assets/logo.png"
+  },
+  "publisher": {
+    "drive_doc_prefix": "REPLACE_NAME News",
+    "drive_parent_id": "",
+    "drive_account": ""
+  },
+  "authors": [],
+  "state": {
+    "recent_topics_file": "workspace-orchestrator/state/recent_topics-REPLACE_SLUG.json"
+  }
+}

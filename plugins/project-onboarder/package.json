@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/project-onboarder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deterministic /onboard Telegram flow for adding a new news-agent project end to end",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.mjs"
+    ]
+  }
+}

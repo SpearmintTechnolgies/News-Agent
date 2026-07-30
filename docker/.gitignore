@@ -1,0 +1,6 @@
+.env
+openclaw-data/
+build-context/
+gog-bin/
+news-agent-deploy/
+*.tar.gz

@@ -2,35 +2,35 @@
   "entries": {
     "/home/bhard/.openclaw/openclaw.json": {
       "lastKnownGood": {
-        "hash": "f2963b1e1f0532d3b2bb5036b1386a5c68e88bbb1ee559ccc0c786edea1ddc37",
-        "bytes": 11347,
-        "mtimeMs": 1780141325394.5972,
-        "ctimeMs": 1780141325394.5972,
+        "hash": "ff0b021c2e7df94fec01e6c1be1d050588cb63d3910cef373d651269f68489fb",
+        "bytes": 16482,
+        "mtimeMs": 1785244521767.028,
+        "ctimeMs": 1785244521767.028,
         "dev": "2080",
-        "ino": "420873",
+        "ino": "448920",
         "mode": 384,
         "nlink": 1,
         "uid": 1000,
         "gid": 1000,
         "hasMeta": true,
         "gatewayMode": "local",
-        "observedAt": "2026-05-30T11:43:12.315Z"
+        "observedAt": "2026-07-29T10:47:15.261Z"
       },
       "lastObservedSuspiciousSignature": null,
       "lastPromotedGood": {
-        "hash": "f2963b1e1f0532d3b2bb5036b1386a5c68e88bbb1ee559ccc0c786edea1ddc37",
-        "bytes": 11347,
-        "mtimeMs": 1780141325394.5972,
-        "ctimeMs": 1780141325394.5972,
+        "hash": "ff0b021c2e7df94fec01e6c1be1d050588cb63d3910cef373d651269f68489fb",
+        "bytes": 16482,
+        "mtimeMs": 1785244521767.028,
+        "ctimeMs": 1785244521767.028,
         "dev": "2080",
-        "ino": "420873",
+        "ino": "448920",
         "mode": 33152,
         "nlink": 1,
         "uid": 1000,
         "gid": 1000,
         "hasMeta": true,
         "gatewayMode": "local",
-        "observedAt": "2026-05-30T11:42:34.520Z"
+        "observedAt": "2026-07-29T10:35:50.452Z"
       }
     }
   }

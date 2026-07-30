@@ -15,8 +15,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import urllib.parse
-import urllib.request
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
@@ -25,25 +23,44 @@ if _SCRIPT_DIR not in sys.path:
 from editorial_db import (
     Article,
     DEFAULT_DB_PATH,
+    claim_feed_card_index,
     clear_edit_session,
+    count_queued_jobs,
+    enqueue_feed_job,
     get_edit_session_by_prompt,
+    get_feed_card,
     get_latest_version,
     init_db,
     lookup_by_alert_id,
     lookup_by_message_id,
     lookup_by_run_id,
+    mark_pool,
     record_editorial_action,
     record_rating,
     save_article_version,
     set_wp_author,
     set_wp_status,
+    touch_last_contact,
     upsert_edit_session,
 )
+
+import project_config as pc  # noqa: E402
+from build_and_send_card import (  # noqa: E402
+    build_author_picker_card_keyboard,
+    build_inline_keyboard,
+    build_published_card_keyboard,
+    edit_message_reply_markup,
+    extract_drive_url,
+)
+from telegram_api import download_telegram_file, telegram_request  # noqa: E402
 
 OPENCLAW_JSON = os.path.expanduser("~/.openclaw/openclaw.json")
 WP_ACTIONS = os.path.expanduser(
     "~/.openclaw/workspace-wp-publisher/skills/wordpress/wp_post_actions.sh"
 )
+# Legacy global authors file -- kept as a fallback when no project context
+# is available (e.g. dev tools or old data). Production reads authors from
+# the active project's config (projects/<slug>.json).
 WP_AUTHORS_JSON = os.path.expanduser(
     "~/.openclaw/workspace-orchestrator/config/wp_authors.json"
 )
@@ -64,9 +81,13 @@ _RE_PUBLISH = re.compile(r"^oc_publish:(.+)$")
 _RE_PUB_AUTHOR = re.compile(r"^oc_pub_a:([^:]+):(\d+)$")
 _RE_PUB_YES = re.compile(r"^oc_pub_y:([^:]+):(\d+)$")
 _RE_PUB_NO = re.compile(r"^oc_pub_n:(.+)$")
+_RE_NOOP = re.compile(r"^oc_noop:(.+)$")
 _RE_EDIT = re.compile(r"^oc_edit:(.+)$")
 _RE_EDIT_APPLY = re.compile(r"^oc_edit_apply:(.+)$")
 _RE_EDIT_CANCEL = re.compile(r"^oc_edit_cancel:(.+)$")
+# Approve-title-first feed card callbacks
+_RE_FEED_GO = re.compile(r"^oc_go:(.+):(\d{1,3})$")
+_RE_FEED_REFRESH = re.compile(r"^oc_feed_refresh:(.+)$")
 _RE_TEXT_RATE = re.compile(r"^(?:RATE|rate)\s+(\d{1,2})\b")
 _RE_TEXT_IMAGE = re.compile(r"^(?:IMAGE|image)\s+(\d{1,2})\b")
 _RE_TEXT_DRAFT = re.compile(r"^(?:DRAFT|draft|UNPUBLISH|unpublish)\s*$")
@@ -103,57 +124,32 @@ def format_diff_summary(baseline: str, edited: str) -> str:
 
 
 def load_bot_token() -> str:
+    tg_cfg_path = os.path.expanduser(
+        "~/.openclaw/workspace-orchestrator/config/telegram_card_config.json"
+    )
+    try:
+        with open(tg_cfg_path, encoding="utf-8") as f:
+            tg_cfg = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        tg_cfg = {}
+
+    token = str(tg_cfg.get("bot_token") or "").strip()
+    if token:
+        return token
+
     try:
         with open(OPENCLAW_JSON, encoding="utf-8") as f:
             data = json.load(f)
-        return (data.get("channels") or {}).get("telegram", {}).get("botToken", "")
     except (OSError, json.JSONDecodeError):
         return ""
 
-
-def telegram_request(
-    token: str, method: str, data: dict | None = None, files: dict | None = None
-) -> dict:
-    url = f"https://api.telegram.org/bot{token}/{method}"
-    if files:
-        boundary = "----OpenClawBoundary"
-        body_parts: list[bytes] = []
-        for name, (filename, content, mime) in files.items():
-            body_parts.append(f"--{boundary}\r\n".encode())
-            body_parts.append(
-                f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'.encode()
-            )
-            body_parts.append(f"Content-Type: {mime}\r\n\r\n".encode())
-            body_parts.append(content)
-            body_parts.append(b"\r\n")
-        if data:
-            for key, val in data.items():
-                body_parts.append(f"--{boundary}\r\n".encode())
-                body_parts.append(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode())
-                body_parts.append(str(val).encode("utf-8"))
-                body_parts.append(b"\r\n")
-        body_parts.append(f"--{boundary}--\r\n".encode())
-        body = b"".join(body_parts)
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-            method="POST",
-        )
-    else:
-        encoded = urllib.parse.urlencode(data or {}).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=encoded,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        raw = resp.read().decode("utf-8")
-    result = json.loads(raw)
-    if not result.get("ok"):
-        raise RuntimeError(result.get("description", "unknown Telegram error"))
-    return result
+    telegram = (data.get("channels") or {}).get("telegram") or {}
+    account_id = str(tg_cfg.get("telegram_account") or "news").strip()
+    account = (telegram.get("accounts") or {}).get(account_id) or {}
+    token = str(account.get("botToken") or "").strip()
+    if token:
+        return token
+    return str(telegram.get("botToken") or "").strip()
 
 
 def send_message(
@@ -205,16 +201,6 @@ def send_document(
     return msg.get("message_id")
 
 
-def download_telegram_file(token: str, file_id: str) -> bytes:
-    result = telegram_request(token, "getFile", {"file_id": file_id})
-    file_path = (result.get("result") or {}).get("file_path")
-    if not file_path:
-        raise RuntimeError("getFile returned no path")
-    url = f"https://api.telegram.org/file/bot{token}/{file_path}"
-    with urllib.request.urlopen(url, timeout=60) as resp:
-        return resp.read()
-
-
 def build_image_score_keyboard(run_id: str) -> dict:
     return {
         "inline_keyboard": [
@@ -235,7 +221,30 @@ def build_draft_confirm_keyboard(run_id: str) -> dict:
     }
 
 
-def load_wp_authors() -> list[dict]:
+def load_wp_authors(project: str | None = None) -> list[dict]:
+    """Load authors list for the given project.
+
+    Resolution order:
+      1. If `project` is supplied, read `authors` from projects/<project>.json.
+      2. Otherwise, try to resolve project from env / manifest.
+      3. As a last resort, fall back to the legacy global `wp_authors.json`.
+
+    Returns a list of `{id, label, name}` dicts.
+    """
+    if project is None:
+        try:
+            project = pc.resolve_project_slug()
+        except Exception:
+            project = None
+    if project:
+        try:
+            cfg = pc.load_project_config(slug=project)
+            authors = cfg.get("authors") or []
+            cleaned = [a for a in authors if isinstance(a, dict) and a.get("id")]
+            if cleaned:
+                return cleaned
+        except (FileNotFoundError, ValueError):
+            pass
     try:
         with open(WP_AUTHORS_JSON, encoding="utf-8") as f:
             data = json.load(f)
@@ -245,8 +254,8 @@ def load_wp_authors() -> list[dict]:
         return []
 
 
-def author_by_id(author_id: int) -> dict | None:
-    for author in load_wp_authors():
+def author_by_id(author_id: int, project: str | None = None) -> dict | None:
+    for author in load_wp_authors(project=project):
         if int(author.get("id", -1)) == author_id:
             return author
     return None
@@ -259,8 +268,11 @@ def _author_callback_data(run_id: str, author_id: int) -> str:
     return data
 
 
-def author_picker_labels() -> str:
-    labels = [str(a.get("label") or a.get("name") or a["id"]) for a in load_wp_authors()]
+def author_picker_labels(project: str | None = None) -> str:
+    labels = [
+        str(a.get("label") or a.get("name") or a["id"])
+        for a in load_wp_authors(project=project)
+    ]
     if not labels:
         return "an author"
     if len(labels) == 1:
@@ -360,6 +372,16 @@ def extract_alert_from_text(text: str) -> str | None:
 def parse_input(payload: str | None, message_text: str | None) -> dict | None:
     if payload:
         p = payload.strip()
+        feed_go = _RE_FEED_GO.match(p)
+        if feed_go:
+            return {
+                "action": "feed_go",
+                "feed_id": feed_go.group(1).strip(),
+                "candidate_index": int(feed_go.group(2)),
+            }
+        feed_refresh = _RE_FEED_REFRESH.match(p)
+        if feed_refresh:
+            return {"action": "feed_refresh", "feed_id": feed_refresh.group(1).strip()}
         pub_yes = _RE_PUB_YES.match(p)
         if pub_yes:
             return {
@@ -377,6 +399,9 @@ def parse_input(payload: str | None, message_text: str | None) -> dict | None:
         pub_no = _RE_PUB_NO.match(p)
         if pub_no:
             return {"action": "publish_no", "run_id": pub_no.group(1).strip()}
+        noop = _RE_NOOP.match(p)
+        if noop:
+            return {"action": "noop", "run_id": noop.group(1).strip()}
         for pattern, action in (
             (_RE_IMAGE_MENU, "image_menu"),
             (_RE_DRAFT_YES, "draft_yes"),
@@ -438,17 +463,31 @@ def resolve_article_markdown(article: Article, db_path: str) -> str | None:
         if os.path.isfile(path):
             with open(path, encoding="utf-8") as f:
                 return f.read()
-    fallback = f"/tmp/crypto-run-{article.run_id}/article/final.md"
+    project = getattr(article, "project", None) or "coinography"
+    fallback = f"/tmp/{project}-run-{article.run_id}/article/final.md"
     if os.path.isfile(fallback):
         with open(fallback, encoding="utf-8") as f:
+            return f.read()
+    # Second-chance: legacy crypto-run-* path for old DB rows pre-migration
+    legacy_fallback = f"/tmp/crypto-run-{article.run_id}/article/final.md"
+    if legacy_fallback != fallback and os.path.isfile(legacy_fallback):
+        with open(legacy_fallback, encoding="utf-8") as f:
             return f.read()
     return None
 
 
-def run_wp_action(args: list[str]) -> tuple[bool, str]:
+def run_wp_action(args: list[str], project: str | None = None) -> tuple[bool, str]:
+    """Invoke wp_post_actions.sh with the given args. If `project` is set,
+    `--project <slug>` is appended so the script targets the correct site's
+    credentials. When omitted, the script falls back to its own resolution
+    (env / manifest / coinography default).
+    """
+    full_args = list(args)
+    if project and not any(a == "--project" for a in full_args):
+        full_args.extend(["--project", project])
     try:
         result = subprocess.run(
-            ["bash", WP_ACTIONS, *args],
+            ["bash", WP_ACTIONS, *full_args],
             capture_output=True,
             text=True,
             timeout=120,
@@ -459,6 +498,68 @@ def run_wp_action(args: list[str]) -> tuple[bool, str]:
         return False, line or f"exit {result.returncode}"
     except Exception as e:
         return False, str(e)
+
+
+def run_wp_ensure_image(args: list[str], project: str | None = None) -> tuple[bool, str]:
+    """Non-fatal --ensure-featured-image call; publish proceeds even when missing."""
+    full_args = list(args)
+    if project and not any(a == "--project" for a in full_args):
+        full_args.extend(["--project", project])
+    try:
+        result = subprocess.run(
+            ["bash", WP_ACTIONS, *full_args],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        line = (result.stdout or result.stderr or "").strip().split("\n")[-1]
+        if result.returncode == 0 and line.startswith("WP_IMAGE_"):
+            return True, line
+        return False, line or f"exit {result.returncode}"
+    except Exception as e:
+        return False, str(e)
+
+
+def resolve_feature_image_path(article: Article) -> str:
+    if article.run_dir:
+        run_path = os.path.join(article.run_dir, "media", "feature.jpg")
+        if os.path.isfile(run_path):
+            return run_path
+    project = getattr(article, "project", None) or "coinography"
+    return f"/tmp/{project}-feature.jpg"
+
+
+def article_to_card(article: Article) -> dict:
+    card = {
+        "run_id": article.run_id,
+        "wp_url": article.wp_url,
+        "wp_status": article.wp_status,
+    }
+    if article.run_dir:
+        drive_path = os.path.join(article.run_dir, "publish", "drive.json")
+        if os.path.isfile(drive_path):
+            try:
+                with open(drive_path, encoding="utf-8") as f:
+                    card["drive_url"] = extract_drive_url(json.load(f))
+            except (OSError, json.JSONDecodeError, TypeError):
+                pass
+    return card
+
+
+def edit_article_card_keyboard(
+    article: Article,
+    keyboard: dict,
+    token: str,
+    chat_id: str,
+) -> bool:
+    msg_id = article.telegram_message_id
+    if not token or not chat_id or not msg_id:
+        return False
+    try:
+        edit_message_reply_markup(token, chat_id, int(msg_id), json.dumps(keyboard))
+        return True
+    except Exception:
+        return False
 
 
 def handle_rate(
@@ -522,7 +623,10 @@ def handle_draft_yes(
         if token and chat_id:
             send_message(token, chat_id, "No WordPress post ID on file.", reply_to_message_id=reply_id)
         return "DRAFT_FAILED: no wp_post_id"
-    ok, msg = run_wp_action(["--post-id", article.wp_post_id, "--set-status", "draft"])
+    ok, msg = run_wp_action(
+        ["--post-id", article.wp_post_id, "--set-status", "draft"],
+        project=getattr(article, "project", None),
+    )
     if not ok:
         if token and chat_id:
             send_message(token, chat_id, f"Unpublish failed: {msg}", reply_to_message_id=reply_id)
@@ -551,16 +655,27 @@ def handle_publish_request(
                 reply_to_message_id=reply_id,
             )
         return f"PUBLISH_ALREADY: {article.alert_id}"
-    authors = load_wp_authors()
+    authors = load_wp_authors(project=getattr(article, "project", None))
     if not authors:
         if token and chat_id:
             send_message(token, chat_id, "Author list not configured.", reply_to_message_id=reply_id)
         return "PUBLISH_FAILED: no authors config"
+
+    card = article_to_card(article)
+    keyboard = build_author_picker_card_keyboard(card, authors)
+    if edit_article_card_keyboard(article, keyboard, token, chat_id):
+        return f"PUBLISH_AUTHOR_PICKER_SHOWN: {article.alert_id}"
+
     if token and chat_id:
+        headline = html_escape((article.headline or "Untitled")[:120])
+        post_ref = html_escape(str(article.wp_post_id or "?"))
         send_message(
             token,
             chat_id,
-            f"Choose author for <code>{article.alert_id}</code>:",
+            (
+                f'Choose author for <code>{article.alert_id}</code> — '
+                f'"{headline}" (post {post_ref}):'
+            ),
             reply_to_message_id=reply_id,
             reply_markup=build_author_picker_keyboard(article.run_id, authors),
         )
@@ -574,7 +689,7 @@ def handle_publish_author_pick(
     chat_id: str,
     reply_id: int | None,
 ) -> str:
-    author = author_by_id(author_id)
+    author = author_by_id(author_id, project=getattr(article, "project", None))
     if not author:
         if token and chat_id:
             send_message(token, chat_id, "Unknown author.", reply_to_message_id=reply_id)
@@ -646,12 +761,23 @@ def handle_publish_yes(
         if token and chat_id:
             send_message(token, chat_id, "No WordPress post ID on file.", reply_to_message_id=reply_id)
         return "PUBLISH_FAILED: no wp_post_id"
-    author = author_by_id(author_id)
+    author = author_by_id(author_id, project=getattr(article, "project", None))
     if not author:
         if token and chat_id:
             send_message(token, chat_id, "Unknown author.", reply_to_message_id=reply_id)
         return "PUBLISH_FAILED: invalid author"
     author_name = str(author.get("name") or author.get("label") or author_id)
+    project = getattr(article, "project", None)
+    img_path = resolve_feature_image_path(article)
+    _, image_line = run_wp_ensure_image(
+        [
+            "--post-id",
+            article.wp_post_id,
+            "--ensure-featured-image",
+            img_path,
+        ],
+        project=project,
+    )
     ok, msg = run_wp_action(
         [
             "--post-id",
@@ -660,7 +786,8 @@ def handle_publish_yes(
             "publish",
             "--author",
             str(author_id),
-        ]
+        ],
+        project=project,
     )
     if not ok:
         if token and chat_id:
@@ -676,6 +803,10 @@ def handle_publish_yes(
             break
     if url:
         update_topic_registry_published(article, url)
+    card = article_to_card(article)
+    published_kb = build_published_card_keyboard(card, url or None)
+    if edit_article_card_keyboard(article, published_kb, token, chat_id):
+        return f"PUBLISH_OK: {article.alert_id} author={author_id} {image_line}"
     if token and chat_id:
         body = (
             f"Published <code>{article.alert_id}</code> as <b>{html_escape(author_name)}</b> — now live."
@@ -683,7 +814,7 @@ def handle_publish_yes(
         if url:
             body += f"\n\n{url}"
         send_message(token, chat_id, body, reply_to_message_id=reply_id)
-    return f"PUBLISH_OK: {article.alert_id} author={author_id}"
+    return f"PUBLISH_OK: {article.alert_id} author={author_id} {image_line}"
 
 
 def handle_edit_start(
@@ -813,7 +944,8 @@ def handle_edit_apply(
         tmp_path = f.name
     try:
         ok, msg = run_wp_action(
-            ["--post-id", article.wp_post_id, "--markdown", tmp_path, "--update-content"]
+            ["--post-id", article.wp_post_id, "--markdown", tmp_path, "--update-content"],
+            project=getattr(article, "project", None),
         )
     finally:
         os.unlink(tmp_path)
@@ -865,6 +997,123 @@ def handle_edit_cancel(
     if token and chat_id:
         send_message(token, chat_id, f"Edit cancelled for <code>{article.alert_id}</code>.", reply_to_message_id=reply_id)
     return f"EDIT_CANCELLED: {article.alert_id}"
+
+
+FEED_GO_DIR = "/tmp"
+
+
+def _feed_go_path(feed_id: str, candidate_index: int) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", feed_id)
+    return os.path.join(FEED_GO_DIR, f"openclaw-feed-go-{safe}-{int(candidate_index)}.json")
+
+
+def _try_dispatch_feed_jobs() -> None:
+    try:
+        script = os.path.join(_SCRIPT_DIR, "dispatch_feed_jobs.py")
+        subprocess.run([sys.executable, script], capture_output=True, text=True, timeout=90)
+    except Exception as e:
+        print(f"DISPATCH_WARN: {e}", file=sys.stderr)
+
+
+def handle_feed_refresh(feed_id: str, token: str, chat_id: str, db_path: str) -> str:
+    try:
+        import send_feed_card as sfc
+
+        return sfc.refresh_card(
+            feed_id, token=token, chat_id=chat_id, limit=sfc.HEADLINES_PER_PROJECT
+        )
+    except Exception as e:
+        return f"FEED_REFRESH_FAIL: {feed_id} detail={e}"
+
+
+def handle_feed_go(
+    feed_id: str,
+    candidate_index: int,
+    token: str,
+    chat_id: str,
+    reply_id: int | None,
+    db_path: str,
+) -> str:
+    card = get_feed_card(feed_id, db_path=db_path)
+    if not card:
+        return f"FEED_NOT_FOUND: {feed_id}"
+    try:
+        candidates = json.loads(card.candidates_json)
+    except (ValueError, TypeError):
+        candidates = []
+    by_idx = {int(c["index"]): c for c in candidates if "index" in c}
+    if candidate_index not in by_idx:
+        return f"FEED_SELECT_INVALID: {feed_id} idx={candidate_index}"
+
+    if not claim_feed_card_index(feed_id, candidate_index, db_path=db_path):
+        if token and chat_id:
+            send_message(
+                token,
+                chat_id,
+                "This story was already queued or ran — ignoring the duplicate tap.",
+                reply_to_message_id=reply_id,
+            )
+        return f"FEED_GO_DUPLICATE: {feed_id} idx={candidate_index}"
+
+    chosen = by_idx[candidate_index]
+    headline = str(chosen.get("headline") or "")
+    url = str(chosen.get("url") or "")
+    mark_pool(card.project, [url], "selected", db_path=db_path)
+
+    go_path = _feed_go_path(feed_id, candidate_index)
+    payload = {
+        "feed_id": feed_id,
+        "project": card.project,
+        "count": 1,
+        "urls": [url],
+        "headlines": [headline],
+    }
+    try:
+        with open(go_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+    except OSError as e:
+        return f"FEED_GO_FAIL: {feed_id} idx={candidate_index} detail={e}"
+
+    job_id = enqueue_feed_job(
+        card.project,
+        feed_id,
+        candidate_index,
+        headline,
+        go_path,
+        db_path=db_path,
+    )
+    position = count_queued_jobs(db_path=db_path)
+
+    if token and chat_id:
+        try:
+            import send_feed_card as sfc
+            from build_and_send_card import edit_message_reply_markup
+
+            msg_id = chosen.get("message_id")
+            if msg_id:
+                kb = sfc.build_run_card_keyboard(feed_id, candidate_index, "queued")
+                edit_message_reply_markup(
+                    token, chat_id, int(msg_id), json.dumps(kb)
+                )
+        except Exception as e:
+            print(f"FEED_EDIT_WARN: {e}", file=sys.stderr)
+
+        pos_text = f" (position {position} in queue)" if position > 1 else ""
+        send_message(
+            token,
+            chat_id,
+            f"Queued on <b>{html_escape(card.project)}</b>{pos_text}:\n"
+            f"{html_escape(headline)}\n"
+            f"<i>A running worker will pick this up automatically.</i>",
+            reply_to_message_id=reply_id,
+        )
+
+    _try_dispatch_feed_jobs()
+    return (
+        f"FEED_JOB_ENQUEUED: project={card.project} feed_id={feed_id} "
+        f"idx={candidate_index} job_id={job_id} position={position} "
+        f"selection_file={go_path}"
+    )
 
 
 def main() -> int:
@@ -952,6 +1201,30 @@ def main() -> int:
     alert_id = parsed.get("alert_id")
     score = parsed.get("score")
 
+    # Any recognized engagement resets the 48h idle clock (group-level).
+    try:
+        touch_last_contact(db_path=args.db_path)
+    except Exception:
+        pass
+
+    # Feed-card selection actions operate on feed_cards/headline_pool, not the
+    # articles table — handle them before article resolution.
+    if action == "feed_refresh":
+        print(handle_feed_refresh(parsed["feed_id"], token, chat_id, args.db_path))
+        return 0
+    if action == "feed_go":
+        print(
+            handle_feed_go(
+                parsed["feed_id"],
+                int(parsed["candidate_index"]),
+                token,
+                chat_id,
+                reply_id,
+                args.db_path,
+            )
+        )
+        return 0
+
     article = resolve_article(
         chat_id=chat_id or None,
         reply_to_message_id=args.reply_to_message_id,
@@ -1024,8 +1297,16 @@ def main() -> int:
             print("PUBLISH_FAILED: missing author_id")
             return 0
         print(
-            handle_publish_author_pick(
-                article, int(author_id), token, chat_id, reply_id
+            handle_publish_yes(
+                article,
+                int(author_id),
+                args.user_id,
+                source,
+                raw,
+                args.db_path,
+                token,
+                chat_id,
+                reply_id,
             )
         )
     elif action == "publish_yes":
@@ -1035,7 +1316,7 @@ def main() -> int:
                 send_message(
                     token,
                     chat_id,
-                    f"Choose an author first ({author_picker_labels()}).",
+                    f"Choose an author first ({author_picker_labels(project=getattr(article, 'project', None))}).",
                     reply_to_message_id=reply_id,
                 )
             print("PUBLISH_FAILED: author required")
@@ -1054,9 +1335,18 @@ def main() -> int:
             )
         )
     elif action == "publish_no":
-        if token and chat_id:
+        card = article_to_card(article)
+        if edit_article_card_keyboard(
+            article, build_inline_keyboard(card), token, chat_id
+        ):
+            print("PUBLISH_CANCELLED")
+        elif token and chat_id:
             send_message(token, chat_id, "Publish cancelled.", reply_to_message_id=reply_id)
-        print("PUBLISH_CANCELLED")
+            print("PUBLISH_CANCELLED")
+        else:
+            print("PUBLISH_CANCELLED")
+    elif action == "noop":
+        print("NOOP")
     elif action == "edit":
         if not args.user_id:
             print("EDIT_FAILED: user-id required")

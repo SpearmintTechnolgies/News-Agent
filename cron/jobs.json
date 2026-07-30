@@ -1,4 +1,53 @@
 {
   "version": 1,
-  "jobs": []
+  "jobs": [
+    {
+      "id": "069d3080-d312-4bac-910d-51de4cc65c7e",
+      "agentId": "orchestrator",
+      "name": "feed-drain-memecoinist-20260623-105742",
+      "enabled": false,
+      "deleteAfterRun": true,
+      "createdAtMs": 1782212285773,
+      "schedule": {
+        "kind": "at",
+        "at": "2026-06-23T10:58:43.526Z"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "FEED_DRAIN {\"project\": \"memecoinist\"}",
+        "timeoutSeconds": 7200
+      },
+      "delivery": {
+        "mode": "none",
+        "channel": "last"
+      },
+      "state": {}
+    },
+    {
+      "id": "4ca431c6-2e6c-40fe-be4c-da7a2237873c",
+      "agentId": "orchestrator",
+      "name": "auto-run-20260727-145459",
+      "enabled": false,
+      "deleteAfterRun": true,
+      "createdAtMs": 1785164107623,
+      "schedule": {
+        "kind": "at",
+        "at": "2026-07-27T14:55:30.394Z"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "AUTO_RUN {\"projects\": [{\"project\": \"coinnetwork\", \"count\": 4}, {\"project\": \"coinography\", \"count\": 4}, {\"project\": \"memecoinist\", \"count\": 4}]}",
+        "timeoutSeconds": 7200
+      },
+      "delivery": {
+        "mode": "none",
+        "channel": "last"
+      },
+      "state": {}
+    }
+  ]
 }

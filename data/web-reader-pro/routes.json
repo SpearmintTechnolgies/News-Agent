@@ -1,0 +1,102 @@
+{
+  "news.google.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 3
+    },
+    "total_quality": {
+      "webfetch": 223
+    },
+    "last_updated": "2026-06-22T09:28:31.351237"
+  },
+  "cointelegraph.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 4
+    },
+    "total_quality": {
+      "webfetch": 235
+    },
+    "last_updated": "2026-06-19T11:27:53.339346"
+  },
+  "crypto.news": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 2
+    },
+    "total_quality": {
+      "webfetch": 182
+    },
+    "last_updated": "2026-06-04T05:19:40.253233"
+  },
+  "www.coindesk.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 3
+    },
+    "total_quality": {
+      "webfetch": 269
+    },
+    "last_updated": "2026-06-23T11:30:57.093016"
+  },
+  "ambcrypto.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 1
+    },
+    "total_quality": {
+      "webfetch": 91
+    },
+    "last_updated": "2026-06-18T09:09:12.120461"
+  },
+  "www.benzinga.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 1
+    },
+    "total_quality": {
+      "webfetch": 96
+    },
+    "last_updated": "2026-06-18T14:23:38.207499"
+  },
+  "www.kucoin.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 1
+    },
+    "total_quality": {
+      "webfetch": 96
+    },
+    "last_updated": "2026-06-20T13:58:37.516235"
+  },
+  "cryptonews.net": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 1
+    },
+    "total_quality": {
+      "webfetch": 84
+    },
+    "last_updated": "2026-06-22T09:27:21.935927"
+  },
+  "coinalertnews.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 1
+    },
+    "total_quality": {
+      "webfetch": 88
+    },
+    "last_updated": "2026-06-23T11:31:04.909527"
+  },
+  "pluang.com": {
+    "preferred_tier": "webfetch",
+    "success_count": {
+      "webfetch": 1
+    },
+    "total_quality": {
+      "webfetch": 66
+    },
+    "last_updated": "2026-07-29T06:03:17.077926"
+  }
+}

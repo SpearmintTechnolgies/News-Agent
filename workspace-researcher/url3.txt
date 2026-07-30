@@ -1,6 +1,0 @@
-    <title>SEC Commissioner Hester Peirce Clarifies Limits on Tokenized Stocks</title>
-    <link>https://cryptofox.news/news/sec-commissioner-hester-peirce-clarifies-limits-on-tokenized-stocks</link>
-    <description>U.S. Securities and Exchange Commission (SEC) Commissioner Hester Peirce recently clarified the regulatory boundaries regarding the proposed "innovation exemption" for the on-chain trading of tokenized stocks. In a statement released on the social platform X on May 21, 2026, P…</description>
-    <category>Markets</category>
-    <content:encoded><![CDATA[<p>U.S. Securities and Exchange Commission (SEC) Commissioner <strong>Hester Peirce</strong> recently clarified the regulatory boundaries regarding the proposed <strong>"innovation exemption"</strong> for the on-chain trading of tokenized stocks. In a statement released on the social platform X on May 21, 2026, Peirce addressed what she described as an overinterpretation of the proposal, emphasizing that the exemption is intended to facilitate the digital representation of <strong>existing equity securities</strong> rather than the creation of entirely new financial instruments. This clarification aims to set realistic expectations for the integration of traditional finance and blockchain technology.</p>
-<h2>Scope of the Innovation Exemption</h2>

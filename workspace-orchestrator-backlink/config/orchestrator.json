@@ -1,6 +1,0 @@
-{
-  "mode": "intelligent",
-  "max_retries_per_step": 2,
-  "default_project_slug": "cryptography-com",
-  "default_trigger": "batch_discover"
-}

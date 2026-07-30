@@ -1,0 +1,36 @@
+{
+  "_preset_name": "general-crypto",
+  "_preset_description": "Broad crypto news niche (regulation, ETFs, hacks, L1/L2, exchanges, stablecoins, adoption). Modeled on Coinography.",
+  "research": {
+    "rss_feeds": [
+      { "source": "CoinDesk", "url": "https://www.coindesk.com/arc/outboundfeeds/rss/" },
+      { "source": "CoinTelegraph", "url": "https://cointelegraph.com/rss" },
+      { "source": "Decrypt", "url": "https://decrypt.co/feed" },
+      { "source": "Google News", "url": "https://news.google.com/rss/search?q=cryptocurrency+OR+blockchain+OR+ethereum+OR+solana+OR+altcoin+OR+%22digital+assets%22+OR+XRP+OR+cardano+-dogecoin+-shiba+-pepe+-floki+-bonk+-wif+-memecoin+-%22meme+coin%22&hl=en-US&gl=US&ceid=US:en" },
+      { "source": "BeInCrypto", "url": "https://beincrypto.com/feed/" },
+      { "source": "The Block", "url": "https://www.theblock.co/rss.xml" },
+      { "source": "CryptoSlate", "url": "https://cryptoslate.com/feed/" }
+    ],
+    "source_priority_order": ["CoinDesk", "CoinTelegraph", "Decrypt", "The Block", "BeInCrypto", "CryptoSlate", "Google News"],
+    "exclude_keywords": ["dogecoin", "shiba", "pepe", "floki", "bonk", "wif", "memecoin", "meme coin"],
+    "exclude_keywords_note": "Deprioritize/skip memecoin price pumps unless seriously covered by 2+ priority sources.",
+    "headline_scan_target_count": 10,
+    "max_age_hours": 24
+  },
+  "writer": {
+    "template_path": "workspace-writer/templates/COINOGRAPHY_TEMPLATE.md",
+    "min_body_words": 1000,
+    "max_body_words": 1200,
+    "sync_max_body_words": 1300,
+    "voice_hint": "Authoritative, neutral, fact-driven crypto news voice."
+  },
+  "creator": {
+    "image_style_hint": "Cinematic crypto editorial, photorealistic 3D coin renders or brand logo compositions, dark studio background, dramatic lighting, no humans.",
+    "image_aspect": "16:9",
+    "image_size": "1024x576",
+    "logo_path": "assets/logo.png"
+  },
+  "picker": {
+    "diversity_window_hours": 72
+  }
+}

@@ -1,44 +1,4 @@
 {
   "version": 2,
-  "runs": {
-    "4ae8893d-149b-4420-a079-a0e566fd1edd": {
-      "runId": "4ae8893d-149b-4420-a079-a0e566fd1edd",
-      "childSessionKey": "agent:main:subagent:69e5ab85-2716-4126-b516-9c99b7511044",
-      "controllerSessionKey": "agent:main:telegram:backlink:direct:5691449303",
-      "requesterSessionKey": "agent:main:telegram:backlink:direct:5691449303",
-      "requesterOrigin": {
-        "channel": "telegram",
-        "to": "telegram:5691449303",
-        "accountId": "backlink"
-      },
-      "requesterDisplayKey": "agent:main:telegram:backlink:direct:5691449303",
-      "task": "You are bl-content. Run step for workflow WF-20260530-113146-bc6ed6 with BACKLINK_SKIP_IMAGE_GEN=true",
-      "cleanup": "keep",
-      "expectsCompletionMessage": true,
-      "spawnMode": "run",
-      "label": "bl-content-test",
-      "model": "local-bifrost/gemini-3.5-flash",
-      "workspaceDir": "/home/bhard/.openclaw/workspace",
-      "runTimeoutSeconds": 0,
-      "createdAt": 1780141014457,
-      "startedAt": 1780141015996,
-      "sessionStartedAt": 1780141014457,
-      "accumulatedRuntimeMs": 0,
-      "cleanupHandled": true,
-      "retainAttachmentsOnKeep": false,
-      "endedAt": 1780141354041,
-      "outcome": {
-        "status": "error",
-        "error": "gateway closed (1006 abnormal closure (no close frame)): no close reason\nGateway target: ws://127.0.0.1:18789\nSource: local loopback\nConfig: /home/bhard/.openclaw/openclaw.json\nBind: loopback\n\nPossible causes:\n- Gateway not yet ready to accept connections (retry after a moment)\n- TLS mismatch (connecting with ws:// to a wss:// gateway, or vice versa)\n- Gateway crashed or was terminated unexpectedly\nRun `openclaw doctor` for diagnostics.",
-        "startedAt": 1780141015996,
-        "endedAt": 1780141354041,
-        "elapsedMs": 338045
-      },
-      "endedReason": "subagent-error",
-      "frozenResultText": null,
-      "frozenResultCapturedAt": 1780141354052,
-      "announceRetryCount": 1,
-      "lastAnnounceRetryAt": 1780141379664
-    }
-  }
+  "runs": {}
 }

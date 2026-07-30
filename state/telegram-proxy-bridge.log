@@ -1,0 +1,74 @@
+Using uvloop
+Serving on 127.0.0.1:18888 by http 
+Start server failed.
+	==> [Errno 98] error while attempting to bind on address ('127.0.0.1', 18888): address already in use
+Using uvloop
+Serving on 127.0.0.1:18888 by http 
+Start server failed.
+	==> [Errno 98] error while attempting to bind on address ('127.0.0.1', 18888): address already in use
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution
+Future exception was never retrieved
+future: <Future finished exception=gaierror(-3, 'Temporary failure in name resolution')>
+socket.gaierror: [Errno -3] Temporary failure in name resolution

@@ -2,7 +2,11 @@
   "env": {
     "GOOGLE_CLOUD_PROJECT": "project-133cdfbf-a67a-492b-91c",
     "GOOGLE_CLOUD_LOCATION": "us-central1",
-    "AWS_BEARER_TOKEN_BEDROCK": "ABSKQmVkcm9ja0FQSUtleS1iZHM5LWF0LTk3MjQ2MTIxODAzNDpHU1NHeFFmZlpNM2I5NTZidlNvdEZ4SkNIbzJZUWlGZTdVdWRPQTM3QmVoZ214SzVUc1pOUURrODdsMD0="
+    "BIFROST_BASE_URL": "http://host.docker.internal:8888/v1",
+    "AWS_BEARER_TOKEN_BEDROCK": "ABSKTWFudGxlQXBpS2V5LXpiNWl2dmxqLWF0LTI4OTg2OTY4NTM5MDpzQ0VvV2JCOEFBdEd6Z1FpT3I3eTdQbzlwN2prR1BZekVZdHcyOGpHL1gxOU1veXU2azJqRUpVTktqRT0=",
+    "JINA_API_KEY": "jina_b9dc1d5925ae456b81b1023540dddf6f9AJHBL01hhtNoVZSiBLlfqX0SAkZ",
+    "BEDROCK_MANTLE_BASE_URL": "https://bedrock-mantle.us-east-1.api.aws/v1",
+    "POLLINATIONS_API_KEY": "sk_E9wUldwB1d2LPkPfduyR1SVVZvzkGWaH"
   },
   "agents": {
     "defaults": {
@@ -10,40 +14,48 @@
       "models": {},
       "thinkingDefault": "medium",
       "model": {
-        "primary": "local-bifrost/gemini-3.5-flash",
+        "primary": "bedrock-mantle/qwen.qwen3-coder-next",
         "fallbacks": [
-          "local-bifrost/gemini-3.1-pro-preview",
-          "local-bifrost/gemini-2.5-pro",
-          "local-bifrost/gemini-2.5-flash"
+          "bedrock-mantle/moonshotai.kimi-k2.5"
         ]
       },
       "contextInjection": "always",
       "bootstrapMaxChars": 50000,
-      "bootstrapTotalMaxChars": 300000
+      "bootstrapTotalMaxChars": 300000,
+      "compaction": {
+        "mode": "safeguard"
+      }
     },
     "list": [
       {
         "id": "main",
         "workspace": "/home/bhard/.openclaw/workspace",
         "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
         }
       },
       {
         "id": "orchestrator",
         "workspace": "/home/bhard/.openclaw/workspace-orchestrator",
         "model": {
-          "primary": "local-bifrost/gemini-3.1-pro-preview"
+          "primary": "bedrock-mantle/zai.glm-5",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5",
+            "bedrock-mantle/minimax.minimax-m2.5"
+          ]
         },
         "subagents": {
           "allowAgents": [
             "researcher",
+            "picker",
             "writer",
             "chart-generator",
-            "creator",
-            "publisher",
-            "wp-publisher"
-          ]
+            "creator"
+          ],
+          "requireAgentId": true
         },
         "tools": {
           "profile": "coding",
@@ -62,129 +74,54 @@
         }
       },
       {
-        "id": "orchestrator-backlink",
-        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
+        "id": "news-scanner",
+        "workspace": "/home/bhard/.openclaw/workspace-news-scanner",
         "model": {
-          "primary": "local-bifrost/gemini-3.1-pro-preview"
-        },
-        "subagents": {
-          "allowAgents": [
-            "bl-discovery",
-            "bl-scorer",
-            "bl-auditor",
-            "bl-content"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
           ]
         },
-        "tools": {
-          "profile": "coding",
-          "alsoAllow": [
-            "agents_list",
-            "message",
-            "gateway",
-            "exec",
-            "process",
-            "sessions_spawn",
-            "sessions_yield",
-            "subagents"
-          ]
-        }
-      },
-      {
-        "id": "bl-discovery",
-        "workspace": "/home/bhard/.openclaw/workspace-bl-discovery",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+        "heartbeat": {
+          "every": "30m",
+          "lightContext": true,
+          "isolatedSession": true,
+          "target": "none",
+          "activeHours": {
+            "start": "06:00",
+            "end": "24:00",
+            "timezone": "Asia/Kolkata"
+          }
         },
         "tools": {
-          "profile": "coding",
-          "alsoAllow": [
-            "exec",
-            "sessions_yield"
-          ]
-        }
-      },
-      {
-        "id": "bl-qualifier",
-        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        }
-      },
-      {
-        "id": "bl-placement",
-        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        }
-      },
-      {
-        "id": "bl-drafter",
-        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        }
-      },
-      {
-        "id": "bl-publisher",
-        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        }
-      },
-      {
-        "id": "bl-verifier",
-        "workspace": "/home/bhard/.openclaw/workspace-orchestrator-backlink",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        }
-      },
-      {
-        "id": "bl-auditor",
-        "workspace": "/home/bhard/.openclaw/workspace-bl-auditor",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        },
-        "tools": {
-          "profile": "coding",
-          "alsoAllow": [
-            "exec",
-            "sessions_yield"
-          ]
-        }
-      },
-      {
-        "id": "bl-content",
-        "workspace": "/home/bhard/.openclaw/workspace-bl-content",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        },
-        "tools": {
-          "profile": "coding",
-          "alsoAllow": [
-            "exec",
-            "sessions_yield"
-          ]
-        }
-      },
-      {
-        "id": "bl-scorer",
-        "workspace": "/home/bhard/.openclaw/workspace-bl-scorer",
-        "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
-        },
-        "tools": {
-          "profile": "coding",
-          "alsoAllow": [
-            "exec",
-            "sessions_yield"
-          ]
+          "profile": "coding"
         }
       },
       {
         "id": "researcher",
         "workspace": "/home/bhard/.openclaw/workspace-researcher",
+        "thinkingDefault": "medium",
         "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
+        },
+        "tools": {
+          "deny": [
+            "web_search",
+            "web_fetch"
+          ]
+        }
+      },
+      {
+        "id": "picker",
+        "workspace": "/home/bhard/.openclaw/workspace-picker",
+        "model": {
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
         },
         "tools": {
           "deny": [
@@ -196,36 +133,68 @@
       {
         "id": "writer",
         "workspace": "/home/bhard/.openclaw/workspace-writer",
+        "thinkingDefault": "medium",
         "model": {
-          "primary": "local-bifrost/gemini-2.5-pro"
+          "primary": "bedrock-mantle/minimax.minimax-m2.5",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
         }
       },
       {
         "id": "creator",
         "workspace": "/home/bhard/.openclaw/workspace-creator",
+        "thinkingDefault": "low",
         "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
+        },
+        "tools": {
+          "deny": [
+            "image_generate",
+            "web_search",
+            "web_fetch",
+            "browser"
+          ]
         }
       },
       {
         "id": "publisher",
         "workspace": "/home/bhard/.openclaw/workspace-publisher",
         "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
         }
       },
       {
         "id": "wp-publisher",
         "workspace": "/home/bhard/.openclaw/workspace-wp-publisher",
         "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
+        },
+        "tools": {
+          "deny": [
+            "web_search",
+            "web_fetch",
+            "browser"
+          ]
         }
       },
       {
         "id": "chart-generator",
         "workspace": "/home/bhard/.openclaw/workspace-chart-generator",
         "model": {
-          "primary": "local-bifrost/gemini-3.5-flash"
+          "primary": "bedrock-mantle/qwen.qwen3-coder-next",
+          "fallbacks": [
+            "bedrock-mantle/moonshotai.kimi-k2.5"
+          ]
         }
       }
     ]
@@ -234,77 +203,210 @@
     "mode": "replace",
     "providers": {
       "local-bifrost": {
-        "baseUrl": "http://172.30.176.1:8888/v1",
+        "baseUrl": "http://host.docker.internal:8888/v1",
         "api": "openai-completions",
         "apiKey": "dummy",
         "models": [
           {
-            "id": "gemini-3.1-pro-preview",
-            "name": "Gemini 3.1 Pro (Bifrost Vertex)",
-            "contextWindow": 200000,
-            "maxTokens": 32768,
+            "id": "vertex/gemini-3.5-flash",
+            "name": "Gemini 3.5 Flash (Vertex)",
+            "contextWindow": 1048576,
+            "maxTokens": 65536,
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "cost": {
-              "input": 0,
-              "output": 0,
+              "input": 0.15,
+              "output": 0.6,
               "cacheRead": 0,
               "cacheWrite": 0
             },
-            "reasoning": true
+            "reasoning": true,
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
           },
           {
-            "id": "gemini-3.5-flash",
-            "name": "Gemini 3.5 Flash (Bifrost Vertex)",
-            "contextWindow": 128000,
-            "maxTokens": 16384,
+            "id": "vertex/gemini-3.1-flash-lite",
+            "name": "Gemini 3.1 Flash Lite (Vertex)",
+            "contextWindow": 1048576,
+            "maxTokens": 65536,
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "cost": {
-              "input": 0,
-              "output": 0,
+              "input": 0.05,
+              "output": 0.2,
               "cacheRead": 0,
               "cacheWrite": 0
             },
-            "reasoning": true
+            "reasoning": true,
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
           },
           {
-            "id": "gemini-2.5-pro",
-            "name": "Gemini 2.5 Pro (Bifrost Vertex)",
-            "contextWindow": 200000,
-            "maxTokens": 32768,
+            "id": "vertex/gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash (Vertex)",
+            "contextWindow": 1048576,
+            "maxTokens": 65536,
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "cost": {
-              "input": 0,
-              "output": 0,
+              "input": 0.1,
+              "output": 0.4,
               "cacheRead": 0,
               "cacheWrite": 0
             },
-            "reasoning": true
+            "reasoning": true,
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
           },
           {
-            "id": "gemini-2.5-flash",
-            "name": "Gemini 2.5 Flash (Bifrost Vertex)",
-            "contextWindow": 128000,
-            "maxTokens": 16384,
+            "id": "vertex/gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro (Vertex)",
+            "contextWindow": 1048576,
+            "maxTokens": 65536,
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "cost": {
-              "input": 0,
-              "output": 0,
+              "input": 1.25,
+              "output": 5.0,
               "cacheRead": 0,
               "cacheWrite": 0
             },
-            "reasoning": true
+            "reasoning": true,
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
+          },
+          {
+            "id": "vertex/gemini-3.1-pro-preview",
+            "name": "Gemini 3.1 Pro Preview (Vertex)",
+            "contextWindow": 1048576,
+            "maxTokens": 65536,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 2.0,
+              "output": 8.0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "reasoning": true,
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
+          }
+        ]
+      },
+      "bedrock-mantle": {
+        "baseUrl": "https://bedrock-mantle.us-east-1.api.aws/v1",
+        "api": "openai-completions",
+        "apiKey": "ABSKTWFudGxlQXBpS2V5LXpiNWl2dmxqLWF0LTI4OTg2OTY4NTM5MDpzQ0VvV2JCOEFBdEd6Z1FpT3I3eTdQbzlwN2prR1BZekVZdHcyOGpHL1gxOU1veXU2azJqRUpVTktqRT0=",
+        "models": [
+          {
+            "id": "moonshotai.kimi-k2.5",
+            "name": "Kimi K2.5 (Bedrock Mantle)",
+            "contextWindow": 131072,
+            "maxTokens": 4096,
+            "cost": {
+              "input": 0.6,
+              "output": 5.25,
+              "cacheRead": 0.15
+            },
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
+          },
+          {
+            "id": "deepseek.v3.2",
+            "name": "DeepSeek V3.2 (Bedrock Mantle)",
+            "contextWindow": 65536,
+            "maxTokens": 4096,
+            "compat": {
+              "supportsUsageInStreaming": true
+            },
+            "cost": {
+              "input": 0.64,
+              "output": 1.91,
+              "cacheRead": 0.16
+            }
+          },
+          {
+            "id": "minimax.minimax-m2.5",
+            "name": "MiniMax M2.5 (Bedrock Mantle)",
+            "contextWindow": 131072,
+            "maxTokens": 8192,
+            "reasoning": true,
+            "cost": {
+              "input": 0.3,
+              "output": 1.2,
+              "cacheRead": 0.075
+            },
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
+          },
+          {
+            "id": "qwen.qwen3-coder-next",
+            "name": "Qwen 3 Coder Next (Bedrock Mantle)",
+            "contextWindow": 131072,
+            "maxTokens": 4096,
+            "cost": {
+              "input": 0.5,
+              "output": 1.2,
+              "cacheRead": 0.125
+            },
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
+          },
+          {
+            "id": "google.gemma-3-27b-it",
+            "name": "Google Gemma 3 27B IT",
+            "contextWindow": 131072,
+            "maxTokens": 4096,
+            "compat": {
+              "supportsUsageInStreaming": true
+            },
+            "cost": {
+              "input": 0.23,
+              "output": 0.38,
+              "cacheRead": 0.0575
+            }
+          },
+          {
+            "id": "zai.glm-5",
+            "name": "GLM 5 (Bedrock Mantle)",
+            "contextWindow": 131072,
+            "maxTokens": 8192,
+            "cost": {
+              "input": 1.0,
+              "output": 3.2,
+              "cacheRead": 0.25
+            },
+            "compat": {
+              "supportsUsageInStreaming": true
+            }
           }
         ]
       }
     }
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "telegram:5337250772"
+    ]
   },
   "gateway": {
     "mode": "local",
@@ -337,6 +439,13 @@
   "session": {
     "dmScope": "per-channel-peer"
   },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "openclaw",
+    "headless": true,
+    "noSandbox": true,
+    "executablePath": "/home/bhard/.openclaw/bin/chromium"
+  },
   "tools": {
     "profile": "coding",
     "exec": {
@@ -354,14 +463,6 @@
       }
     }
   },
-  "auth": {
-    "profiles": {
-      "openrouter:default": {
-        "provider": "openrouter",
-        "mode": "api_key"
-      }
-    }
-  },
   "plugins": {
     "entries": {
       "searxng": {
@@ -375,11 +476,43 @@
       "amazon-bedrock": {
         "enabled": false
       },
-      "openrouter": {
-        "enabled": true
-      },
       "browser": {
         "enabled": true
+      },
+      "memory-core": {
+        "config": {
+          "dreaming": {
+            "enabled": false
+          }
+        }
+      },
+      "feed-tap-claimer": {
+        "enabled": true
+      },
+      "project-onboarder": {
+        "enabled": true
+      }
+    },
+    "load": {
+      "paths": [
+        "/home/bhard/.openclaw/plugins/feed-tap-claimer",
+        "/home/bhard/.openclaw/plugins/project-onboarder"
+      ]
+    },
+    "installs": {
+      "feed-tap-claimer": {
+        "source": "path",
+        "sourcePath": "/home/bhard/.openclaw/plugins/feed-tap-claimer",
+        "installPath": "/home/bhard/.openclaw/plugins/feed-tap-claimer",
+        "version": "1.0.0",
+        "installedAt": "2026-06-19T13:39:15.074Z"
+      },
+      "project-onboarder": {
+        "source": "path",
+        "sourcePath": "/home/bhard/.openclaw/plugins/project-onboarder",
+        "installPath": "/home/bhard/.openclaw/plugins/project-onboarder",
+        "version": "1.0.0",
+        "installedAt": "2026-07-02T12:52:45.000Z"
       }
     }
   },
@@ -404,30 +537,36 @@
   },
   "meta": {
     "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-05-29T10:47:11.651Z"
+    "lastTouchedAt": "2026-06-19T13:41:25.285Z"
   },
   "channels": {
     "telegram": {
       "enabled": true,
-      "botToken": "8788660586:AAGnipTMSAWK1uSBI-62UIyGIlXiXKNsZS0",
+      "defaultAccount": "news",
       "groupPolicy": "open",
-      "groups": {
-        "-1003760909509": {
-          "requireMention": true
-        },
-        "*": {
-          "requireMention": true
-        }
-      },
       "accounts": {
-        "backlink": {
-          "name": "backlinks-agent",
-          "enabled": true,
-          "botToken": "8967981365:AAFxOtK_bRFYXUGW00uvQXy2bX-de2hxl-A",
+        "news": {
+          "name": "News Agent",
+          "botToken": "8788660586:AAGnipTMSAWK1uSBI-62UIyGIlXiXKNsZS0",
           "groupPolicy": "open",
+          "allowFrom": [
+            "5337250772"
+          ],
+          "groupAllowFrom": [
+            "5337250772"
+          ],
           "groups": {
-            "-5291081154": {
-              "requireMention": true
+            "-1003760909509": {
+              "requireMention": true,
+              "systemPrompt": "PROJECT_SLUG=coinography. You operate EXCLUSIVELY for the Coinography project in this group. Never ask which project; never act on memecoinist here."
+            },
+            "-1004488104862": {
+              "requireMention": true,
+              "systemPrompt": "PROJECT_SLUG=memecoinist. You operate EXCLUSIVELY for the MemeCoinist project in this group. Never ask which project; never act on coinography here."
+            },
+            "-1003963851656": {
+              "requireMention": true,
+              "systemPrompt": "PROJECT_SLUG=coinnetwork. You operate EXCLUSIVELY for the Coinnetwork project in this group. Never ask which project; never act on coinography or memecoinist here."
             },
             "*": {
               "requireMention": true
@@ -439,20 +578,10 @@
   },
   "bindings": [
     {
-      "agentId": "orchestrator-backlink",
-      "match": {
-        "channel": "telegram",
-        "accountId": "backlink",
-        "peer": {
-          "kind": "group",
-          "id": "-5291081154"
-        }
-      }
-    },
-    {
       "agentId": "orchestrator",
       "match": {
         "channel": "telegram",
+        "accountId": "news",
         "peer": {
           "kind": "group",
           "id": "-1003760909509"
@@ -462,7 +591,30 @@
     {
       "agentId": "orchestrator",
       "match": {
-        "channel": "telegram"
+        "channel": "telegram",
+        "accountId": "news",
+        "peer": {
+          "kind": "group",
+          "id": "-1004488104862"
+        }
+      }
+    },
+    {
+      "agentId": "orchestrator",
+      "match": {
+        "channel": "telegram",
+        "accountId": "news",
+        "peer": {
+          "kind": "group",
+          "id": "-1003963851656"
+        }
+      }
+    },
+    {
+      "agentId": "orchestrator",
+      "match": {
+        "channel": "telegram",
+        "accountId": "news"
       }
     }
   ],

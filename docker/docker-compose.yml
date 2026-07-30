@@ -1,0 +1,41 @@
+# News Agent — pre-built images + persistent volumes
+services:
+  news-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: openclaw-news-agent:2026.4.24
+    container_name: openclaw-news-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ:-Asia/Kolkata}
+      HOME: /home/openclaw
+      XDG_CONFIG_HOME: /home/openclaw/.config
+      BIFROST_BASE_URL: http://bifrost:8080/v1
+      GOG_KEYRING_PASSWORD: ${GOG_KEYRING_PASSWORD:-}
+      GOG_ACCOUNT: ${GOG_ACCOUNT:-}
+      SCAN_EVERY_MIN: ${SCAN_EVERY_MIN:-30}
+      FEED_EVERY_MIN: ${FEED_EVERY_MIN:-180}
+      FEED_QUIET_START_HOUR: ${FEED_QUIET_START_HOUR:-0}
+      FEED_QUIET_END_HOUR: ${FEED_QUIET_END_HOUR:-6}
+      FEED_QUIET_TIMEZONE: ${FEED_QUIET_TIMEZONE:-Asia/Kolkata}
+      IMAGE_MODEL: ${IMAGE_MODEL:-vertex/gemini-3.1-flash-image}
+      IMAGE_MODEL_FALLBACK: ${IMAGE_MODEL_FALLBACK:-vertex/gemini-3.1-flash-lite-image}
+    volumes:
+      - ./openclaw-data/data:/home/openclaw/.openclaw/data
+      - ./openclaw-data/credentials:/home/openclaw/.openclaw/credentials
+      - ./openclaw-data/projects:/home/openclaw/.openclaw/projects
+      - ./openclaw-data/telegram:/home/openclaw/.openclaw/telegram
+      - ./openclaw-data/identity:/home/openclaw/.openclaw/identity
+      - ./openclaw-data/devices:/home/openclaw/.openclaw/devices
+      - ./openclaw-data/logs:/home/openclaw/.openclaw/logs
+      - ./openclaw-data/article_history.db:/home/openclaw/.openclaw/article_history.db
+      - ./openclaw-data/workspace-orchestrator/state:/home/openclaw/.openclaw/workspace-orchestrator/state
+      - ./openclaw-data/gogcli-config:/home/openclaw/.config/gogcli
+      - ./openclaw-data/assets:/home/openclaw/.openclaw/assets
+      - ./openclaw-data/media/inbound:/home/openclaw/.openclaw/media/inbound
+      - ./openclaw-data/backups:/home/openclaw/.openclaw/.backups
+    ports:
+      - "${GATEWAY_PORT:-18789}:18789"

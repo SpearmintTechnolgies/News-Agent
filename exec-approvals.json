@@ -53,8 +53,8 @@
           "id": "c74ee01c-e2ee-45dd-93ba-e7c27cfdb1b1",
           "pattern": "/usr/bin/wc",
           "source": "allow-always",
-          "lastUsedAt": 1779701660511,
-          "lastUsedCommand": "wc -w /tmp/crypto-run-20260525-072854/article/raw.md",
+          "lastUsedAt": 1781933692824,
+          "lastUsedCommand": "wc -l ~/.openclaw/workspace-orchestrator/SOUL.md ~/.openclaw/workspace-orchestrator/EDITORIAL_FEEDBACK.md",
           "lastResolvedPath": "/usr/bin/wc"
         },
         {
@@ -238,8 +238,8 @@
           "id": "9b00534d-0c25-4301-acb9-f3edd898f31b",
           "pattern": "/home/bhard/.openclaw/workspace-creator/skills/generate-image/generate.sh",
           "source": "allow-always",
-          "lastUsedAt": 1779863323406,
-          "lastUsedCommand": "bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh \"Medium shot of a serious British government official at a podium during a press conference, HTX and Tron logos visible on a large projected screen behind them, editorial press photography, Reuters style, photorealistic, DSLR, 35mm lens, sharp focus, candid\"",
+          "lastUsedAt": 1785216814239,
+          "lastUsedCommand": "bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh \"Zimbabwe blockchain sandbox approval — photorealistic 3D gold Bitcoin coin centered, warm studio lighting, dark background with subtle circuit pattern, sharp focus, cinematic crypto editorial\"",
           "lastResolvedPath": "/usr/bin/bash"
         },
         {

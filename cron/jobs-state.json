@@ -1,4 +1,29 @@
 {
   "version": 1,
-  "jobs": {}
+  "jobs": {
+    "069d3080-d312-4bac-910d-51de4cc65c7e": {
+      "updatedAtMs": 1782212385996,
+      "state": {
+        "lastRunAtMs": 1782212323536,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 62460,
+        "lastError": "⚠️ 📝 Edit: `in ~/.openclaw/workspace-orchestrator/skills/pipeline/update_pick_status.py` failed",
+        "lastDeliveryStatus": "not-requested",
+        "consecutiveErrors": 1
+      }
+    },
+    "4ca431c6-2e6c-40fe-be4c-da7a2237873c": {
+      "updatedAtMs": 1785164146861,
+      "state": {
+        "lastRunAtMs": 1785164130400,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 16461,
+        "lastError": "FallbackSummaryError: All models failed (4): local-bifrost/minimax.minimax-m2.5: 400 Operation not allowed (format) | local-bifrost/vertex/gemini-3.1-flash-lite: 400 no keys found that support model: gemini-3.1-flash-lite (format) | local-bifrost/vertex/gemini-2.5-flash: 400 no keys found that support model: gemini-2.5-flash (format) | local-bifrost/vertex/gemini-3.5-flash: 400 no keys found that support model: gemini-3.5-flash (format)",
+        "lastDeliveryStatus": "not-requested",
+        "consecutiveErrors": 1
+      }
+    }
+  }
 }

@@ -1,0 +1,34 @@
+{
+  "_preset_name": "memecoin",
+  "_preset_description": "Memecoin news niche (launches, pumps, exchange listings, whale moves, Solana/Base meme trends). Modeled on MemeCoinist.",
+  "research": {
+    "rss_feeds": [
+      { "source": "CoinDesk", "url": "https://www.coindesk.com/arc/outboundfeeds/rss/" },
+      { "source": "CoinTelegraph", "url": "https://cointelegraph.com/rss" },
+      { "source": "Decrypt", "url": "https://decrypt.co/feed" },
+      { "source": "Google News", "url": "https://news.google.com/rss/search?q=memecoin+OR+%22meme+coin%22+OR+dogecoin+OR+shiba+OR+pepe+OR+solana+meme&hl=en-US&gl=US&ceid=US:en" },
+      { "source": "BeInCrypto", "url": "https://beincrypto.com/feed/" }
+    ],
+    "source_priority_order": ["CoinDesk", "CoinTelegraph", "Decrypt", "BeInCrypto", "Google News"],
+    "exclude_keywords": [],
+    "exclude_keywords_note": "No exclusions — memecoin pumps/launches are the core content.",
+    "headline_scan_target_count": 10,
+    "max_age_hours": 24
+  },
+  "writer": {
+    "template_path": "workspace-writer/templates/MEMECOIN_TEMPLATE.md",
+    "min_body_words": 900,
+    "max_body_words": 1150,
+    "sync_max_body_words": 1250,
+    "voice_hint": "High-energy, culturally fluent memecoin voice — punchy but fact-driven."
+  },
+  "creator": {
+    "image_style_hint": "Vibrant meme-culture crypto art, bold colors, playful coin mascots, internet-meme energy, no humans.",
+    "image_aspect": "16:9",
+    "image_size": "1024x576",
+    "logo_path": "assets/logo.png"
+  },
+  "picker": {
+    "diversity_window_hours": 72
+  }
+}

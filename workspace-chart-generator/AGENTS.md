@@ -41,5 +41,3 @@ Never silently fail.
 Always save to the path specified in CHART_OUTPUT.
 Default fallback: `/tmp/chart.png`
 
-## Documentation
-When you change this workspace, any worker SOUL/AGENTS/skills, openclaw.json agent config, or pipeline scripts, update AGENT_PIPELINE_REGISTRY.md in the same change (date + change log entry).

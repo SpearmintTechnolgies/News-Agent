@@ -1,0 +1,39 @@
+# OpenClaw Project Git Ignore Rules
+
+# Dependencies & Build Caches
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+cache/
+data/extract_cache/
+
+# Databases & Runtime State (Fresh start on clone)
+*.db
+data/*.db
+memory/*.sqlite
+article_history.db
+
+# Logs & Session Histories
+logs/*.log
+logs/*.jsonl
+state/*.log
+state/*.pid
+cron/runs/
+update-check.json
+
+# Backups & Temp Dumps
+.backups/
+.backups-*/
+openclaw.json.bak*
+openclaw.json.clobbered*
+
+# Docker Container Build Output Archives
+docker/bifrost-data/
+docker/openclaw-data/
+docker/build-context/
+docker/news-agent-deploy/*.tar.gz
+
+# OS Temp Files
+.DS_Store
+Thumbs.db

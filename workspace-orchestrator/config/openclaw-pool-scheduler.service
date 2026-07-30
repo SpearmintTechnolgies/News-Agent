@@ -1,0 +1,25 @@
+[Unit]
+Description=OpenClaw approve-title-first scheduler (scanner + feed cards + 48h idle watchdog)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bhard
+# Keep PATH so the openclaw binary (used by the idle watchdog to wake the
+# orchestrator) is resolvable.
+Environment=PATH=/home/bhard/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TZ=Asia/Kolkata
+Environment=FEED_EVERY_MIN=180
+Environment=FEED_QUIET_START_HOUR=0
+Environment=FEED_QUIET_END_HOUR=6
+Environment=FEED_QUIET_TIMEZONE=Asia/Kolkata
+WorkingDirectory=/home/bhard/.openclaw/workspace-orchestrator/skills/pipeline
+ExecStart=/usr/bin/python3 /home/bhard/.openclaw/workspace-orchestrator/skills/pipeline/pool_scheduler.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/bhard/.openclaw/logs/pool-scheduler.log
+StandardError=append:/home/bhard/.openclaw/logs/pool-scheduler.log
+
+[Install]
+WantedBy=multi-user.target

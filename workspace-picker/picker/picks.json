@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "reason": "input_unreadable",
+  "detail": "INPUT_FILE $RUN_DIR/picker/picker_input.json not found - the run directory or picker input file has not been created yet"
+}

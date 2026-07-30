@@ -12,6 +12,9 @@ Stages:
     pre_drive   — docx exists + newer than article_final; paths under active RUN_DIR
     pre_wp      — all pre_drive checks + repeat post_sync coherence
 
+Image validation (size ≥40 KB, JPEG magic bytes) is handled by generate.sh at creator
+time; post_image stage removed — orchestrator trusts creator SAVE_TO / IMAGE_FAILED.
+
 Exit 0 + prints ARTIFACTS_OK: <stage>
 Exit 1 + prints ARTIFACTS_FAIL: <reason>  (detailed, actionable)
 """
@@ -310,6 +313,56 @@ def check_pre_wp(manifest: dict, run_dir: str) -> int:
                 )
 
     print("ARTIFACTS_OK: pre_wp — all coherence checks passed")
+    return 0
+
+
+# ── entry point ──────────────────────────────────────────────────────────────
+
+
+def check_post_image(manifest: dict, run_dir: str) -> int:
+    """Legacy / manual smoke test only — image gate moved to generate.sh."""
+    artifacts = manifest.get("artifacts", {})
+    img_path  = artifacts.get("feature_image", "")
+
+    if not img_path:
+        return fail("manifest has no feature_image path")
+
+    # Resolve symlinks so we check the real file, not the /tmp pointer
+    real_path = os.path.realpath(img_path) if os.path.exists(img_path) else img_path
+
+    if not os.path.exists(real_path):
+        return fail(f"feature image missing: {img_path}")
+
+    size = os.path.getsize(real_path)
+    if size < 40_960:
+        return fail(
+            f"feature image too small ({size} bytes, min 40960) — "
+            f"likely 0-byte placeholder or aborted generation\n"
+            f"  Path: {real_path}"
+        )
+
+    # JPEG magic bytes (FFD8 FF)
+    try:
+        with open(real_path, "rb") as f:
+            head = f.read(3)
+    except OSError as e:
+        return fail(f"cannot read feature image: {e}")
+    if head[:2] != b"\xff\xd8":
+        return fail(
+            f"feature image is not a JPEG (magic bytes: {head.hex()})\n"
+            f"  Path: {real_path}"
+        )
+
+    # Image must be under the active RUN_DIR (real path check)
+    if run_dir and run_dir not in real_path:
+        return fail(
+            f"feature_image is not under active RUN_DIR\n"
+            f"  Expected under: {run_dir}\n"
+            f"  Got:            {real_path}\n"
+            f"  (possible stale cross-run file)"
+        )
+
+    print(f"ARTIFACTS_OK: post_image — {os.path.basename(real_path)} ({size} bytes)")
     return 0
 
 

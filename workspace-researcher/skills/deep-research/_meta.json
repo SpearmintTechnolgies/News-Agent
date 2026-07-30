@@ -1,0 +1,5 @@
+{
+  "slug": "deep-research",
+  "name": "deep-research",
+  "description": "DEEP_RESEARCH primary path: run run_research.py first (DuckDuckGo search + Jina read). Use when spawn starts with MODE: DEEP_RESEARCH."
+}
