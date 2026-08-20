@@ -11,7 +11,7 @@ Callback prefixes (handled by handle_card_feedback.py):
   oc_feed_refresh:{feed_id}   rebuild from the latest pool (legacy, edit in place)
 
 Usage:
-  python3 send_feed_card.py --project memecoinist
+  python3 send_feed_card.py --project coinnetwork
   python3 send_feed_card.py --all [--limit 5]
 
 Always exits 0. Prints FEED_CARD_SENT lines to stderr and NO_REPLY to stdout.
@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from html import escape as html_escape
@@ -172,10 +173,48 @@ def _send_text_card(
     return (result.get("result") or {}).get("message_id")
 
 
-def send_one(project: str, *, token: str, chat_id: str, limit: int) -> str:
+def _refresh_pool_if_empty(project: str) -> None:
+    if db.fresh_pool(project, limit=1):
+        return
+    script = os.path.join(_SCRIPT_DIR, "update_headline_pool.py")
+    try:
+        subprocess.run(
+            [sys.executable, script, "--project", project],
+            timeout=180,
+            check=False,
+        )
+    except Exception as e:
+        print(
+            f"FEED_WARN: pool refresh failed project={project} detail={e}",
+            file=sys.stderr,
+        )
+
+
+def _notify_empty_pool(token: str, chat_id: str) -> None:
+    telegram_request(
+        token,
+        "sendMessage",
+        data={
+            "chat_id": chat_id,
+            "text": "No fresh headlines in the pool right now. Try /new again in a few minutes.",
+            "disable_web_page_preview": "true",
+        },
+    )
+
+
+def send_one(
+    project: str,
+    *,
+    token: str,
+    chat_id: str,
+    limit: int,
+    notify_if_empty: bool = False,
+) -> str:
     limit = min(int(limit), HEADLINES_PER_PROJECT)
     candidates = candidates_from_pool(project, limit)
     if not candidates:
+        if notify_if_empty:
+            _notify_empty_pool(token, chat_id)
         return f"FEED_SKIP: project={project} reason=empty_pool"
     feed_id = make_feed_id(project)
     name, prefix = _project_meta(project)
@@ -271,6 +310,11 @@ def main() -> int:
         help=f"Headlines per project (default {MAX_CANDIDATES}, max {HEADLINES_PER_PROJECT})",
     )
     p.add_argument("--refresh-feed-id", help="Refresh an existing feed card in place")
+    p.add_argument(
+        "--ensure-pool",
+        action="store_true",
+        help="Scan RSS if the headline pool is empty, then send cards",
+    )
     args = p.parse_args()
 
     try:
@@ -312,7 +356,18 @@ def main() -> int:
             if not chat_id:
                 print(f"FEED_ERROR: project={slug} reason=no_group_id", file=sys.stderr)
                 continue
-            print(send_one(slug, token=token, chat_id=chat_id, limit=args.limit), file=sys.stderr)
+            if args.ensure_pool:
+                _refresh_pool_if_empty(slug)
+            print(
+                send_one(
+                    slug,
+                    token=token,
+                    chat_id=chat_id,
+                    limit=args.limit,
+                    notify_if_empty=args.ensure_pool,
+                ),
+                file=sys.stderr,
+            )
         except Exception as e:
             print(f"FEED_ERROR: project={slug} detail={e}", file=sys.stderr)
 

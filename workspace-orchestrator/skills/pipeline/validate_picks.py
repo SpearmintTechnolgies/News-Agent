@@ -78,7 +78,7 @@ def main() -> int:
     parser.add_argument(
         "--project",
         default=None,
-        help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinography",
+        help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinnetwork",
     )
     parser.add_argument(
         "--classify-only",
@@ -130,6 +130,8 @@ def main() -> int:
         fallback_id = int(cfg.get_path("wordpress.fallback_category_id", 17))
     except (TypeError, ValueError):
         fallback_id = 17
+    id_to_slug = {v: k for k, v in slug_to_id.items()}
+    fallback_slug = id_to_slug.get(fallback_id) or next(iter(slug_to_id.keys()))
 
     picks_path = os.path.realpath(args.picks)
     input_path = os.path.realpath(args.picker_input)
@@ -148,11 +150,9 @@ def main() -> int:
         print(f"PICKS_INVALID: status must be 'ok', got {pdata.get('status')!r}")
         return 1
 
-    try:
-        with open(input_path, encoding="utf-8") as f:
-            idata = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
-        print(f"PICKS_INVALID: cannot read picker_input.json: {e}")
+    idata = _read_json_loose(input_path)
+    if not isinstance(idata, dict):
+        print(f"PICKS_INVALID: cannot read picker_input.json: {input_path}")
         return 1
 
     target_count = int(idata.get("target_count") or 0)
@@ -241,19 +241,20 @@ def main() -> int:
             print(f"PICKS_INVALID: pick #{i} has no category slugs")
             return 1
 
-        primary = slug_list[0]
-        if primary not in slug_to_id:
-            print(
-                f"PICKS_INVALID: pick #{i} primary slug {primary!r} is not a known "
-                f"WordPress category for project '{project_slug}'"
-            )
-            return 1
-        if curated_set and primary not in curated_set:
-            print(
-                f"PICKS_INVALID: pick #{i} primary slug {primary!r} is not in the "
-                f"curated picker_category_slugs for '{project_slug}'"
-            )
-            return 1
+        # Picker output can include unknown/unapproved primary slugs (e.g. `arbitrum`)
+        # in `wp_category_slugs[0]`. Validate_picks used to hard-fail in that case,
+        # which caused infinite retry loops on FEED_DRAIN.
+        #
+        # Instead, pick the first known slug, preferring curated_set when present.
+        primary = None
+        curated_primary_candidates = [
+            s for s in slug_list if s in slug_to_id and (not curated_set or s in curated_set)
+        ]
+        if curated_primary_candidates:
+            primary = curated_primary_candidates[0]
+        else:
+            any_known = [s for s in slug_list if s in slug_to_id]
+            primary = any_known[0] if any_known else fallback_slug
 
         # Hard batch-uniqueness on the PRIMARY slug, unless the picker relaxed.
         if primary in seen_primary_slugs and not diversity_relaxed:
@@ -267,7 +268,8 @@ def main() -> int:
         # slugs are dropped with a warning rather than failing the batch.
         resolved_slugs: list[str] = []
         resolved_ids: list[int] = []
-        for s in slug_list:
+        ordered_slugs = [primary] + [s for s in slug_list if s != primary]
+        for s in ordered_slugs:
             if s in slug_to_id:
                 if s not in resolved_slugs:
                     resolved_slugs.append(s)
@@ -276,7 +278,8 @@ def main() -> int:
                 print(f"[WARN] pick #{i} dropping unknown secondary slug {s!r}", file=sys.stderr)
         if not resolved_ids:
             resolved_ids = [fallback_id]
-            resolved_slugs = [primary]
+            resolved_slugs = [fallback_slug]
+            primary = fallback_slug
 
         seen_pick_indices.add(pick_index)
         seen_candidate_indices.add(candidate_index)

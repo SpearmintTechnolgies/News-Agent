@@ -29,7 +29,8 @@ TICK_SEC, RUN_SCAN_ON_START (1/0).
 from __future__ import annotations
 
 import os
-os.environ["PATH"] = "/home/bhard/.npm-global/bin:" + os.environ.get("PATH", "")
+if os.name != "nt":
+    os.environ["PATH"] = "/home/bhard/.npm-global/bin:" + os.environ.get("PATH", "")
 import subprocess
 import sys
 import time
@@ -71,14 +72,29 @@ def initial_next_feed(from_ts: float) -> float:
     return adjust_feed_fire_time(from_ts + FEED_EVERY_MIN * 60)
 
 
-def run_script(name: str, *args: str) -> None:
+def run_script(name: str, *args: str, timeout: int = 120, detach: bool = False) -> None:
     path = os.path.join(HERE, name)
     try:
+        if detach:
+            os.makedirs(os.path.expanduser("~/.openclaw/logs"), exist_ok=True)
+            logf = open(os.path.join(os.path.expanduser("~/.openclaw/logs"), f"{name}.out.log"), "a", encoding="utf-8")
+            flags = 0x00000200 | 0x00000008 | 0x08000000 if os.name == "nt" else 0
+            subprocess.Popen(
+                [sys.executable, "-u", path, *args],
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                creationflags=flags,
+                cwd=HERE,
+            )
+            log(f"{name} {' '.join(args)} -> detached")
+            return
         res = subprocess.run(
             [sys.executable, path, *args],
             capture_output=True,
             text=True,
-            timeout=900,
+            timeout=timeout,
+            cwd=HERE,
         )
         out = (res.stderr or "").strip() or (res.stdout or "").strip()
         log(f"{name} {' '.join(args)} -> rc={res.returncode} {out[-300:]}")
@@ -113,20 +129,20 @@ def main() -> int:
             time.sleep(TICK_SEC)
             continue
 
+        if now >= next_dispatch:
+            run_script("dispatch_feed_jobs.py", timeout=60)
+            next_dispatch = now + DISPATCH_EVERY_MIN * 60
+
         if now >= next_scan:
-            run_script("update_headline_pool.py", "--all")
+            run_script("update_headline_pool.py", "--all", detach=True)
             next_scan = now + SCAN_EVERY_MIN * 60
 
         if now >= next_feed:
-            run_script("send_feed_card.py", "--all")
+            run_script("send_feed_card.py", "--all", detach=True)
             next_feed = compute_next_feed_after_send(now)
 
-        if now >= next_dispatch:
-            run_script("dispatch_feed_jobs.py")
-            next_dispatch = now + DISPATCH_EVERY_MIN * 60
-
         if now >= next_idle:
-            run_script("check_auto_run.py")
+            run_script("check_auto_run.py", timeout=60)
             next_idle = now + IDLE_EVERY_MIN * 60
 
         time.sleep(TICK_SEC)

@@ -45,7 +45,9 @@ REQUIRED_FIELDS = cr.RESEARCH_REQUIRED_FIELDS
 
 def atomic_write_json(path: str, data: dict) -> None:
     dir_ = os.path.dirname(os.path.abspath(path))
-    with tempfile.NamedTemporaryFile("w", dir=dir_, delete=False, suffix=".tmp") as f:
+    with tempfile.NamedTemporaryFile(
+        "w", dir=dir_, delete=False, suffix=".tmp", encoding="utf-8"
+    ) as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         tmp = f.name
     os.replace(tmp, path)
@@ -139,8 +141,16 @@ def main() -> int:
     wp_category_ids = data.get("wp_category_ids")
     if args.picks and args.pick_index is not None and os.path.exists(args.picks):
         try:
-            with open(args.picks, encoding="utf-8") as f:
-                picks_doc = json.load(f)
+            raw = open(args.picks, "rb").read()
+            picks_doc = None
+            for enc in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+                try:
+                    picks_doc = json.loads(raw.decode(enc))
+                    break
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+            if not isinstance(picks_doc, dict):
+                raise ValueError("picks.json is not an object")
             match = next(
                 (
                     p
@@ -165,7 +175,7 @@ def main() -> int:
         data["wp_category_ids"] = wp_category_ids
 
     # Resolve slug -> numeric ids from project config when ids are missing.
-    project_slug = manifest.get("project") or "coinography"
+    project_slug = manifest.get("project") or "coinnetwork"
     wp_categories: list[dict] = []
     try:
         cfg = pc.load_project_config(slug=project_slug)

@@ -145,13 +145,23 @@ def duration_from_steps(manifest: dict) -> int | None:
 
 
 def file_references_run_dir(path: str, run_dir: str) -> bool:
-    needle = run_dir.rstrip("/")
-    if not needle:
+    raw = str(run_dir or "").strip()
+    if not raw:
         return False
+    variants = {raw, raw.replace("\\", "/"), raw.replace("/", "\\")}
+    try:
+        real = os.path.realpath(raw)
+        variants.update({real, real.replace("\\", "/"), real.replace("/", "\\")})
+    except OSError:
+        pass
+    base = os.path.basename(raw.replace("\\", "/").rstrip("/"))
+    if base:
+        variants.add(base)
+    needles = [v for v in variants if v]
     try:
         with open(path, encoding="utf-8", errors="ignore") as f:
-            chunk = f.read(262_144)
-        return needle in chunk
+            chunk = f.read(1_048_576)
+        return any(n in chunk for n in needles)
     except OSError:
         return False
 
@@ -206,6 +216,9 @@ def merge_model_usage(
         bucket = target.setdefault(model_id, empty_model_bucket())
         bucket["tokens_in"] += int(usage.get("tokens_in") or 0)
         bucket["tokens_out"] += int(usage.get("tokens_out") or 0)
+        bucket["tokens_cache_read"] = bucket.get("tokens_cache_read", 0) + int(
+            usage.get("tokens_cache_read") or 0
+        )
         bucket["tokens_total"] += int(usage.get("tokens_total") or 0)
 
 
@@ -217,6 +230,7 @@ def prorate_model_usage(
         out[model_id] = {
             "tokens_in": int(round(bucket["tokens_in"] * share)),
             "tokens_out": int(round(bucket["tokens_out"] * share)),
+            "tokens_cache_read": int(round(int(bucket.get("tokens_cache_read") or 0) * share)),
             "tokens_total": int(round(bucket["tokens_total"] * share)),
         }
     return out
@@ -365,7 +379,7 @@ def load_model_catalog() -> dict[str, dict[str, Any]]:
     catalog: dict[str, dict[str, Any]] = {}
     data = load_json(OPENCLAW_JSON)
     providers = (data.get("models") or {}).get("providers") or {}
-    for provider in providers.values():
+    for provider_name, provider in providers.items():
         if not isinstance(provider, dict):
             continue
         for model in provider.get("models") or []:
@@ -375,7 +389,7 @@ def load_model_catalog() -> dict[str, dict[str, Any]]:
             if not model_id:
                 continue
             cost = model.get("cost") or {}
-            catalog[model_id] = {
+            entry = {
                 "name": str(model.get("name") or model_id),
                 "cost": {
                     "input": float(cost.get("input") or 0),
@@ -385,7 +399,41 @@ def load_model_catalog() -> dict[str, dict[str, Any]]:
                     "per_image": float(cost.get("per_image") or 0),
                 },
             }
+            keys = [model_id]
+            if str(provider_name or "").strip():
+                keys.append(f"{provider_name}/{model_id}")
+            for key in keys:
+                existing = catalog.get(key)
+                existing_cost = (existing or {}).get("cost") or {}
+                if (
+                    existing
+                    and (
+                        float(existing_cost.get("input") or 0) > 0
+                        or float(existing_cost.get("output") or 0) > 0
+                        or float(existing_cost.get("per_image") or 0) > 0
+                    )
+                    and not (
+                        float(entry["cost"].get("input") or 0) > 0
+                        or float(entry["cost"].get("output") or 0) > 0
+                        or float(entry["cost"].get("per_image") or 0) > 0
+                    )
+                ):
+                    continue
+                catalog[key] = entry
     return catalog
+
+
+def lookup_catalog(catalog: dict[str, dict[str, Any]], model_id: str) -> dict[str, Any]:
+    key = str(model_id or "").strip()
+    if not key:
+        return {}
+    if key in catalog:
+        return catalog[key]
+    if "/" in key:
+        tail = key.rsplit("/", 1)[-1]
+        if tail in catalog:
+            return catalog[tail]
+    return {}
 
 
 def model_cost_usd(tokens_in: int, tokens_out: int, cost: dict[str, float], tokens_cache_read: int = 0) -> float:
@@ -507,12 +555,13 @@ def finalize_by_model(
         tokens_total = int(usage.get("tokens_total") or 0)
         if tokens_total <= 0 and not (tokens_in or tokens_out):
             continue
-        meta = catalog.get(model_id) or {}
+        meta = lookup_catalog(catalog, model_id)
         cost = meta.get("cost") or {}
         priced = model_is_priced(cost)
         if not priced and (tokens_in or tokens_out or tokens_total):
             missing_prices.append(model_id)
-        cost_usd = model_cost_usd(tokens_in, tokens_out, cost)
+        tokens_cache_read = int(usage.get("tokens_cache_read") or 0)
+        cost_usd = model_cost_usd(tokens_in, tokens_out, cost, tokens_cache_read)
         total_cost += cost_usd
         by_model[model_id] = {
             "name": str(meta.get("name") or model_id),
@@ -597,12 +646,13 @@ def agent_cost_usd(
 ) -> float:
     total = 0.0
     for model_id, usage in agent_models.items():
-        meta = catalog.get(model_id) or {}
+        meta = lookup_catalog(catalog, model_id)
         cost = meta.get("cost") or {}
         total += model_cost_usd(
             int(usage.get("tokens_in") or 0),
             int(usage.get("tokens_out") or 0),
             cost,
+            int(usage.get("tokens_cache_read") or 0),
         )
     return round(total, 6)
 
@@ -763,6 +813,19 @@ def aggregate_tokens(manifest_path: str) -> dict[str, Any]:
     image_cost = load_image_cost(run_dir)
     if image_cost:
         result = merge_image_cost(result, image_cost, catalog)
+
+    steps_path = os.path.join(run_dir, "publish", "steps.json")
+    steps_file = load_json(steps_path)
+    steps = steps_file.get("steps") if isinstance(steps_file.get("steps"), dict) else {}
+    if steps:
+        result["steps"] = steps
+        wall = sum(
+            int((row or {}).get("duration_seconds") or 0)
+            for row in steps.values()
+            if isinstance(row, dict)
+        )
+        if wall > 0:
+            result["wall_seconds"] = wall
 
     return result
 

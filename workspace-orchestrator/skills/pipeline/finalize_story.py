@@ -6,7 +6,7 @@ Actions executed in order:
 1. (Optional) Convert article to docx & upload to Google Drive (--drive-upload) [Fail-Safe]
 2. Update recent topics registry (~/.openclaw/workspace-orchestrator/state/recent_topics.json)
 3. Aggregate LLM token usage (updates publish/tokens.json and manifest.json)
-4. Build and send Telegram news card (photo + caption + inline keyboard)
+4. Build and send Telegram news card (photo + caption + inline keyboard), then a follow-up exact-cost message
 5. Update pick status in editorial.db (status=published, token usage, cost)
 6. Mark feed job as done in editorial.db (resolves feed_job_id from manifest or active running job)
 7. Perform internal verification check & return verified_clean: true
@@ -43,6 +43,7 @@ from build_and_send_card import (  # noqa: E402
     load_json,
     resolve_chat_id,
     save_article_version,
+    send_story_cost_message,
     send_telegram_card,
 )
 import project_config as pc  # noqa: E402
@@ -307,6 +308,13 @@ def finalize_story(
                 )
                 card["telegram_message_id"] = message_id
                 card_sent = bool(message_id)
+                if card_sent:
+                    try:
+                        card["telegram_cost_message_id"] = send_story_cost_message(
+                            bot_token, chat_id, card, reply_to_message_id=message_id
+                        )
+                    except Exception as cost_err:
+                        print(f"COST_MESSAGE_WARN: {cost_err}", file=sys.stderr)
 
                 try:
                     editorial_db.init_db(db_path)

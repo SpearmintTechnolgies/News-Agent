@@ -1,5 +1,17 @@
-# News Agent — pre-built images + persistent volumes
+# News Agent — OpenClaw + Bifrost (local build / Windows Docker Desktop)
 services:
+  bifrost:
+    image: maximhq/bifrost:v1.6.2
+    container_name: bifrost
+    restart: unless-stopped
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+    volumes:
+      - ./bifrost-data:/app/data
+    ports:
+      - "${BIFROST_UI_PORT:-8888}:8080"
+
   news-agent:
     build:
       context: ..
@@ -7,6 +19,8 @@ services:
     image: openclaw-news-agent:2026.4.24
     container_name: openclaw-news-agent
     restart: unless-stopped
+    depends_on:
+      - bifrost
     env_file:
       - .env
     environment:

@@ -33,7 +33,8 @@ Before writing `$RUN_DIR/article/raw.md`, you **MUST** verify these exact constr
 
 ## Output contract
 
-- **Never** return article text in chat.
-- Write full clean Markdown directly to `$RUN_DIR/article/raw.md`.
+- **Never** return article text in chat. Never wrap the article in ` ```markdown `.
+- After reading research + template, your next tool call must be `write` to the spawn `raw.md` path (Windows: `C:/tmp/<run>/article/raw.md`).
+- `/tmp/...` and `/home/bhard/...` do not exist on this machine.
 - Yield **`SUCCESS`** only when `check_article.py` prints `ARTICLE_CHECK: PASS` (see [`skills/article/SKILL.md`](skills/article/SKILL.md)).
 - If still failing after 2-3 self-check iterations, yield the full validator output verbatim — not `SUCCESS`.

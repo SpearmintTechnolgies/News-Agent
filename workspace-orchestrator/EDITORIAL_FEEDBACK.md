@@ -20,23 +20,18 @@ Handles Telegram feedback on news cards sent after pipeline execution.
 
 ## Execution Protocol
 
-Run `handle_card_feedback.py` immediately in `bash`:
+Run the wrapper immediately — **one exec, then stop**. Do not interpret `callback_data`, invent author names, narrate parsing, or type `C:\Users\...`.
 
-```bash
-python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.py \
-  --payload "<callback data if present>" \
-  --message-text "<user text if present>" \
-  --chat-id "<telegram chat id>" \
-  --user-id "<telegram user id>" \
-  --username "<telegram username if known>" \
-  --reply-to-message-id "<replied-to message id if present>" \
-  --document-file-id "<telegram file_id if document upload>" \
-  --document-name "<original filename if document upload>"
+```text
+C:\tmp\oc-feedback.cmd --payload <callback> --chat-id -1003736953686 --user-id <id> --username <name>
 ```
 
+`--chat-id` must be the numeric group id (`-1003736953686`). Strip any `telegram:` prefix.
+Pass the callback string **exactly** as received (e.g. `oc_pub_a:20260812-174854-1273-27067:1`). Coinnetwork authors are configured in project JSON (Renu Sharma / Marcus Webb) — never invent other names.
+
 ### Output Rules
-- **Silent Turn:** If the handler sent a Telegram reply directly, OR if stdout is `NO_REPLY`, **end your turn silently with NO output text**.
-- **Error Handling:** If the handler prints an explicit error line (not `NO_REPLY`), output that line.
+- **Silent Turn:** If the handler sent a Telegram reply directly, OR if stdout is `NO_REPLY` / `FEED_JOB_ENQUEUED` / `*_OK` / `*_SENT` / `PUBLISH_*`, **end your turn with zero text** (literally `NO_REPLY` only). Never narrate “I clicked a card”, “waiting for script”, or path/debug talk in the group. That work is background.
+- **Error Handling:** Do **not** paste stack traces or UnicodeDecodeError into Telegram. Log locally. Group stays quiet.
 
 ---
 
@@ -48,7 +43,7 @@ python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/handle_card_feedback.
 - `oc_go:` enqueues job in `feed_jobs` DB table and edits card. End turn (drainer runs pipeline asynchronously).
 
 ### 2. PUBLISH Flow
-- `oc_publish:{run_id}` $\rightarrow$ Shows author buttons (Toby: 3, Ahmed: 17, Golan: 8).
+- `oc_publish:{run_id}` $\rightarrow$ Shows author buttons from project config (Coinnetwork: Renu Sharma / Marcus Webb).
 - `oc_pub_a:{run_id}:{author_id}` $\rightarrow$ Publishes post live on WordPress immediately with chosen author byline.
 
 ### 3. EDIT Flow

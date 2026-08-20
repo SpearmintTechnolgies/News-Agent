@@ -93,6 +93,23 @@ def extract_key_facts(content: str, max_facts: int = 3) -> list[str]:
     return facts[:max_facts]
 
 
+def load_json_file(path: str) -> Any:
+    """Load JSON written by agents that sometimes save Windows-1252 on Windows."""
+    with open(path, "rb") as f:
+        raw = f.read()
+    if not raw:
+        raise ValueError(f"empty json file: {path}")
+    last_err: Exception | None = None
+    for enc in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return json.loads(raw.decode(enc))
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            last_err = e
+            continue
+    assert last_err is not None
+    raise last_err
+
+
 def domain_of(url: str) -> str:
     try:
         host = urlparse(url).netloc.lower()
@@ -102,8 +119,7 @@ def domain_of(url: str) -> str:
 
 
 def load_pick(input_file: str, pick_index: int) -> dict[str, Any] | None:
-    with open(input_file, encoding="utf-8") as f:
-        doc = json.load(f)
+    doc = load_json_file(input_file)
 
     if isinstance(doc, list):
         picks = doc
@@ -184,6 +200,26 @@ def build(input_file: str, pick_index: int, out_dir: str, output_file: str) -> t
 
     headline = str(pick.get("headline") or pick.get("primary_headline") or "Untitled")
     primary_asset, chart_coin = detect_asset(f"{headline} {aggregated[:500]}")
+    pick_url = str(pick.get("url") or pick.get("primary_url") or "").strip()
+    pick_dom = domain_of(pick_url)
+
+    def _image_ok(url: str) -> bool:
+        u = url.lower()
+        if not url.startswith("http"):
+            return False
+        bad = ("/brands/", "favicon", "150x150", "sprite", "logo.svg", "yimg.com/lb/")
+        return not any(b in u for b in bad)
+
+    source_image_url = ""
+    for s in sources:
+        img = str(s.get("image_url") or "").strip()
+        if not _image_ok(img):
+            continue
+        if pick_dom and domain_of(s.get("url") or "") == pick_dom:
+            source_image_url = img
+            break
+        if not source_image_url:
+            source_image_url = img
 
     out = {
         "status": "ok",
@@ -199,6 +235,7 @@ def build(input_file: str, pick_index: int, out_dir: str, output_file: str) -> t
         "chart_coin": chart_coin,
         "sources_used": [s.get("source") or domain_of(s["url"]) for s in sources],
         "source_urls": [s["url"] for s in sources],
+        "source_image_url": source_image_url,
         "combined_key_facts": facts[:8],
         "aggregated_raw_content": aggregated,
         "partial_words": total_words,

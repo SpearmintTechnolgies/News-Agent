@@ -39,10 +39,18 @@ import project_config as pc  # noqa: E402
 def atomic_write_json(path: str, data: dict) -> None:
     dir_ = os.path.dirname(os.path.abspath(path))
     os.makedirs(dir_, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", dir=dir_, delete=False, suffix=".tmp") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        tmp = f.name
-    os.replace(tmp, path)
+    fd, tmp = tempfile.mkstemp(prefix=".picker_input_", suffix=".tmp", dir=dir_)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _consumed_pick_urls(db_path: str, project: str) -> set[str]:
@@ -72,6 +80,108 @@ def _consumed_pick_urls(db_path: str, project: str) -> set[str]:
     return urls
 
 
+def _picker_candidate(
+    headline: str,
+    url: str,
+    *,
+    source: str = "",
+    pub_date: str = "",
+    summary: str = "",
+    corro: object = None,
+) -> dict:
+    return {
+        "headline": headline or url,
+        "url": url,
+        "pub_date": pub_date or "",
+        "source": source or "Unknown",
+        "summary": summary or "",
+        "corroborating_sources": corro if isinstance(corro, list) else [],
+    }
+
+
+def _selection_file_paths(path: str) -> list[str]:
+    """Windows Git-Bash /tmp paths are the same file as C:\\tmp or %TEMP%."""
+    if not path:
+        return []
+    out = [path, os.path.realpath(path)]
+    if "/tmp" in path.replace("\\", "/") or path.lower().startswith("\\tmp"):
+        rest = path.replace("\\", "/").split("/tmp", 1)[-1].lstrip("/")
+        if rest:
+            out.append(os.path.join(r"C:\tmp", rest.replace("/", os.sep)))
+            tmp = os.environ.get("TEMP") or os.environ.get("TMP") or ""
+            if tmp:
+                out.append(os.path.join(tmp, rest.replace("/", os.sep)))
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for p in out:
+        if p and p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
+
+
+def _load_selection_payload(path: str) -> dict:
+    last_err: Exception | None = None
+    for candidate in _selection_file_paths(path):
+        try:
+            with open(candidate, encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, json.JSONDecodeError) as e:
+            last_err = e
+            continue
+    raise OSError(str(last_err or path))
+
+
+def _candidates_from_selection(sel: dict, job: editorial_db.FeedJob | None) -> list[dict]:
+    urls = [str(u) for u in (sel.get("urls") or []) if u]
+    heads = [str(h) for h in (sel.get("headlines") or [])]
+    fallback = (job.headline if job else "") or ""
+    out: list[dict] = []
+    for i, url in enumerate(urls):
+        head = heads[i] if i < len(heads) else fallback or url
+        out.append(_picker_candidate(head, url))
+    return out
+
+
+def _candidates_from_feed_card(
+    job: editorial_db.FeedJob, pool_urls: list[str], db_path: str
+) -> list[dict]:
+    card = editorial_db.get_feed_card(job.feed_id, db_path=db_path)
+    if not card:
+        return []
+    try:
+        cands = json.loads(card.candidates_json or "[]")
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(cands, list):
+        return []
+    wanted = {u for u in pool_urls if u}
+    out: list[dict] = []
+    for c in cands:
+        if not isinstance(c, dict):
+            continue
+        url = str(c.get("url") or "")
+        match = bool(url and url in wanted)
+        try:
+            if int(c.get("index", -1)) == int(job.candidate_index):
+                match = True
+        except (TypeError, ValueError):
+            pass
+        if match and url:
+            out.append(
+                _picker_candidate(
+                    str(c.get("headline") or job.headline or url),
+                    url,
+                    source=str(c.get("source") or ""),
+                    pub_date=str(c.get("pub_date") or ""),
+                    summary=str(c.get("summary") or ""),
+                    corro=c.get("corroborating_sources"),
+                )
+            )
+    return out
+
+
 def _load_pool_candidates(project: str, urls: list[str], db_path: str) -> list[dict]:
     """Build candidate dicts from the headline_pool for the given URLs, in order."""
     editorial_db.init_db(db_path)
@@ -85,14 +195,14 @@ def _load_pool_candidates(project: str, urls: list[str], db_path: str) -> list[d
             except (ValueError, TypeError):
                 corro = []
         out.append(
-            {
-                "headline": c.headline,
-                "url": c.url,
-                "pub_date": c.pub_date,
-                "source": c.source or "Unknown",
-                "summary": c.summary or "",
-                "corroborating_sources": corro if isinstance(corro, list) else [],
-            }
+            _picker_candidate(
+                c.headline,
+                c.url,
+                source=c.source or "Unknown",
+                pub_date=c.pub_date or "",
+                summary=c.summary or "",
+                corro=corro,
+            )
         )
     return out
 
@@ -112,7 +222,7 @@ def main() -> int:
     parser.add_argument(
         "--project",
         default=None,
-        help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinography",
+        help="Project slug; default: resolved from PROJECT_SLUG / manifest / coinnetwork",
     )
     # Approve-title-first: build candidates from the headline_pool (selected
     # stories) instead of a headlines.json file.
@@ -151,51 +261,52 @@ def main() -> int:
     )
 
     # In pool mode a selection file (or feed job) carries the authoritative
-    # project + urls.
+    # project + urls. Scanner refresh can drop the URL from headline_pool
+    # after the human already tapped Run — keep the card/selection as source
+    # of truth so Sieve does not die silently.
     pool_urls: list[str] = []
+    selection_payload: dict = {}
+    feed_job: editorial_db.FeedJob | None = None
 
     if args.feed_job_id is not None:
         # FEED_DRAIN: resolve the selection file straight from the feed_jobs row
         # so Step 1 never depends on a $SELECTION_FILE shell variable surviving
         # across separate exec calls (the confirmed root cause of intermittent
         # feed-drain failures).
-        job = editorial_db.get_feed_job(args.feed_job_id, db_path=args.db_path)
-        if job is None:
+        feed_job = editorial_db.get_feed_job(args.feed_job_id, db_path=args.db_path)
+        if feed_job is None:
             print(
                 f"PICKER_INPUT_ERROR: feed_job_not_found: id={args.feed_job_id} "
                 "(job reclaimed/cleared, or wrong id passed)"
             )
             return 1
-        if not args.project and job.project:
-            args.project = job.project
-        if not job.selection_file:
-            print(
-                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} has empty selection_file"
-            )
-            return 1
-        try:
-            with open(os.path.realpath(job.selection_file), encoding="utf-8") as f:
-                sel = json.load(f)
-            pool_urls = [str(u) for u in (sel.get("urls") or []) if u]
-        except (OSError, json.JSONDecodeError) as e:
-            print(
-                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} selection-file "
-                f"unreadable ({job.selection_file}): {e}"
-            )
-            return 1
+        if not args.project and feed_job.project:
+            args.project = feed_job.project
+        if feed_job.selection_file:
+            try:
+                selection_payload = _load_selection_payload(feed_job.selection_file)
+                pool_urls = [str(u) for u in (selection_payload.get("urls") or []) if u]
+            except (OSError, json.JSONDecodeError) as e:
+                print(
+                    f"PICKER_INPUT_WARN: selection-file unreadable "
+                    f"({feed_job.selection_file}): {e} — trying feed card",
+                    file=sys.stderr,
+                )
+        if not pool_urls:
+            card_cands = _candidates_from_feed_card(feed_job, [], args.db_path)
+            pool_urls = [c["url"] for c in card_cands if c.get("url")]
         if not pool_urls:
             print(
-                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} selection-file has "
-                f"0 urls ({job.selection_file})"
+                f"PICKER_INPUT_ERROR: feed_job {args.feed_job_id} has no URL "
+                f"(selection_file={feed_job.selection_file!r})"
             )
             return 1
     elif args.selection_file:
         try:
-            with open(os.path.realpath(args.selection_file), encoding="utf-8") as f:
-                sel = json.load(f)
-            pool_urls = [str(u) for u in (sel.get("urls") or []) if u]
-            if not args.project and sel.get("project"):
-                args.project = str(sel["project"])
+            selection_payload = _load_selection_payload(args.selection_file)
+            pool_urls = [str(u) for u in (selection_payload.get("urls") or []) if u]
+            if not args.project and selection_payload.get("project"):
+                args.project = str(selection_payload["project"])
         except (OSError, json.JSONDecodeError) as e:
             print(f"PICKER_INPUT_ERROR: cannot read selection-file: {e}")
             return 1
@@ -280,6 +391,19 @@ def main() -> int:
             print("PICKER_INPUT_ERROR: pool mode but no candidates (empty pool / no urls)")
             return 1
         candidates_in = _load_pool_candidates(project_slug, pool_urls, args.db_path)
+        if not candidates_in and (feed_job is not None or selection_payload):
+            if feed_job is not None:
+                candidates_in = _candidates_from_feed_card(
+                    feed_job, pool_urls, args.db_path
+                )
+            if not candidates_in and selection_payload:
+                candidates_in = _candidates_from_selection(selection_payload, feed_job)
+            if candidates_in:
+                print(
+                    f"PICKER_INPUT_WARN: headline_pool miss; used saved card/"
+                    f"selection ({len(candidates_in)} urls) project={project_slug}",
+                    file=sys.stderr,
+                )
         if not candidates_in:
             print(
                 f"PICKER_INPUT_ERROR: none of the {len(pool_urls)} urls found in "
@@ -311,8 +435,10 @@ def main() -> int:
         print(f"PICKER_INPUT_ERROR: target_count must be >= 1, got {args.target_count}")
         return 1
 
+    # Human FEED_DRAIN / classify-only: keep the tapped URL even if it ran before.
+    skip_consumed = bool(args.classify_only or args.feed_job_id is not None)
     try:
-        consumed = _consumed_pick_urls(args.db_path, project_slug)
+        consumed = set() if skip_consumed else _consumed_pick_urls(args.db_path, project_slug)
     except sqlite3.Error as e:
         print(f"PICKER_INPUT_ERROR: db read failed: {e}")
         return 1

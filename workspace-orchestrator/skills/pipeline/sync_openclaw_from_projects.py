@@ -34,7 +34,7 @@ from openclaw_telegram_sync import (  # noqa: E402
 
 def collect_project_bindings(*, slug_filter: str | None = None) -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
-    for slug in pc.list_available_projects():
+    for slug in pc.list_project_slugs_on_disk():
         if slug_filter and slug != slug_filter:
             continue
         try:

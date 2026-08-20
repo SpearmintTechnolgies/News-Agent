@@ -18,7 +18,10 @@ RUN npm install -g openclaw@2026.4.23 \
 
 COPY workspace-researcher/skills/fallback/web-reader-pro/requirements.txt /tmp/pipeline-requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/pipeline-requirements.txt \
-    && pip3 install --no-cache-dir --break-system-packages trafilatura
+    && pip3 install --no-cache-dir --break-system-packages \
+        trafilatura \
+        ddgs \
+        duckduckgo-search
 
 # gog binary from build host (static Go binary)
 COPY docker/gog-bin/gog /usr/local/bin/gog

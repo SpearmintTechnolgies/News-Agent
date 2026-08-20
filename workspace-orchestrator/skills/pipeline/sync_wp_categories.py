@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument(
         "--slug",
         default=None,
-        help="Project slug (defaults to env / manifest / coinography)",
+        help="Project slug (defaults to env / manifest / coinnetwork)",
     )
     parser.add_argument(
         "--dry-run",

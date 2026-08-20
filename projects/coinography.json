@@ -1,8 +1,9 @@
 {
   "slug": "coinography",
+  "enabled": false,
   "callback_code": "cog",
   "name": "Coinography",
-  "description": "General crypto news site covering regulation, ETFs, hacks, L1/L2 protocols, exchanges, stablecoins, adoption, and market movement.",
+  "description": "Main production crypto news site (https://coinography.com). Parked for testing — set enabled=true and DEFAULT_PROJECT_SLUG=coinography when quality is proven on coinnetwork.",
   "wordpress": {
     "url": "https://coinography.com",
     "user": "renu@coinography.com",
@@ -353,8 +354,8 @@
   },
   "telegram": {
     "account": "news",
-    "group_id": "-1003760909509",
-    "group_name": "news-agent",
+    "group_id": "",
+    "group_name": "Spearmint News Agent (parked — set group when re-enabling coinography)",
     "card_prefix": "[Coinography]"
   },
   "research": {

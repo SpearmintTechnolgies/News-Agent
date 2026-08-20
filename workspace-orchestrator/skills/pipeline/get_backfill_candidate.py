@@ -9,7 +9,7 @@ and any already drafted/published for the project. Marks the chosen URL
 build_picker_input.py --selection-file (classify-only).
 
 Usage:
-  python3 get_backfill_candidate.py --project memecoinist \
+  python3 get_backfill_candidate.py --project coinnetwork \
       --exclude-urls "https://a,https://b" \
       --output /tmp/<slug>-backfill.json
 

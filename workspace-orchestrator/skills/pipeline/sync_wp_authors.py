@@ -48,7 +48,7 @@ def atomic_write_json(path: str, data: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--slug", default=None, help="Project slug (defaults to env / manifest / coinography)")
+    parser.add_argument("--slug", default=None, help="Project slug (defaults to env / manifest / coinnetwork)")
     parser.add_argument("--roles", default="author,editor,administrator", help="Comma-separated WP roles to include")
     parser.add_argument("--write", action="store_true", help="Overwrite authors[] with ALL fetched users (default: dry-run print only)")
     args = parser.parse_args()

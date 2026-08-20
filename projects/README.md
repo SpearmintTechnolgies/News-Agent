@@ -5,11 +5,14 @@ Each `projects/<slug>.json` defines a publishing target (a WordPress site). The 
 ## Run syntax
 
 ```
-run pipeline N                  # defaults to coinography (back-compat)
+run pipeline N                  # defaults to coinnetwork (active test site)
 run pipeline <slug> N           # run pipeline N times for project <slug>
+                                # e.g. run pipeline coinography 1 for the main site
 ```
 
 The orchestrator parses `<slug>` in Step 0.4, validates `projects/<slug>.json`, and locks it into `manifest.json` for the whole run.
+
+**Active defaults (2026 testing):** `coinnetwork` → https://coinnetwork.info is the default when no slug is given. `coinography` → https://coinography.com remains configured but with `"enabled": false` so pool scan / `--all` feed skip it until you re-enable for production.
 
 ## Add a new site (recommended: automated onboarding)
 
@@ -108,3 +111,7 @@ See `AGENT_PIPELINE_REGISTRY.md` → **Projects** section for the field-by-field
 1. Stop running `run pipeline <slug> N` for it.
 2. Archive the config + credentials (move out of `projects/` and `credentials/wp/`).
 3. Existing DB rows tagged with that `project` slug stay — they're history, not active runs.
+
+## Parking a site (e.g. main while testing)
+
+Set `"enabled": false` in `projects/<slug>.json`. Keep the file and credentials. Pool scan and `--all` feed skip it; explicit `run pipeline <slug> N` still works. To go live on Coinography again: set `"enabled": true`, set `DEFAULT_PROJECT_SLUG = "coinography"` in `project_config.py`, and prefer the Coinography Telegram group.

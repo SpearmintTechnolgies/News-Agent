@@ -8,7 +8,7 @@
 #   bash wp_post_actions.sh --post-id 123 --set-status draft
 #   bash wp_post_actions.sh --post-id 123 --set-status publish --author 17
 #   bash wp_post_actions.sh --post-id 123 --markdown /path/to/article.md --update-content
-#   bash wp_post_actions.sh --post-id 123 --set-status draft --project memecoinist
+#   bash wp_post_actions.sh --post-id 123 --set-status draft --project coinnetwork
 #   bash wp_post_actions.sh --post-id 123 --ensure-featured-image /path/to/feature.jpg
 #
 # Output (stdout):
@@ -21,6 +21,13 @@
 #   WP_ACTION_FAILED: reason
 set -euo pipefail
 
+# Windows: python3 must be CPython, not the Microsoft Store stub (exit 49).
+if [[ -x "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" ]]; then
+  python3() { "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" "$@"; }
+  export -f python3
+  export PATH="/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311:/c/Program Files/Git/bin:/c/Program Files/Git/usr/bin:${PATH:-}"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_CONFIG_PY="$HOME/.openclaw/workspace-orchestrator/skills/pipeline/project_config.py"
 
@@ -30,6 +37,7 @@ AUTHOR_ID=""
 MARKDOWN_PATH=""
 UPDATE_CONTENT=0
 ENSURE_IMAGE_PATH=""
+REPLACE_IMAGE=0
 PROJECT_ARG=""
 
 while [[ $# -gt 0 ]]; do
@@ -40,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --markdown) MARKDOWN_PATH="$2"; shift 2 ;;
     --update-content) UPDATE_CONTENT=1; shift ;;
     --ensure-featured-image) ENSURE_IMAGE_PATH="$2"; shift 2 ;;
+    --replace-featured-image) ENSURE_IMAGE_PATH="$2"; REPLACE_IMAGE=1; shift 2 ;;
     --project) PROJECT_ARG="$2"; shift 2 ;;
     *) echo "WP_ACTION_FAILED: unknown arg $1"; exit 1 ;;
   esac
@@ -147,7 +156,7 @@ if [[ -n "$ENSURE_IMAGE_PATH" ]]; then
   fi
   EXISTING_MEDIA=$(echo "$FEAT_BODY" | python3 -c \
     "import json,sys; print(int(json.load(sys.stdin).get('featured_media') or 0))" 2>/dev/null || echo 0)
-  if [[ "$EXISTING_MEDIA" -gt 0 ]]; then
+  if [[ "$REPLACE_IMAGE" -eq 0 && "$EXISTING_MEDIA" -gt 0 ]]; then
     echo "WP_IMAGE_OK: already_set=${EXISTING_MEDIA}"
     exit 0
   fi
@@ -240,10 +249,13 @@ if [[ "$UPDATE_CONTENT" -eq 1 ]]; then
 
   clean_markdown "$MARKDOWN_PATH" "$CLEAN_MD"
 
-  if command -v pandoc &>/dev/null; then
-    timeout 20s pandoc "$CLEAN_MD" -t html -o "$HTML_PATH" 2>/dev/null || cp "$CLEAN_MD" "$HTML_PATH"
+  if command -v pandoc &>/dev/null && pandoc -v >/dev/null 2>&1; then
+    timeout 20s pandoc "$CLEAN_MD" -t html -o "$HTML_PATH" 2>/dev/null \
+      || python3 "${SCRIPT_DIR}/md_to_html.py" "$CLEAN_MD" -o "$HTML_PATH" \
+      || fail "markdown→html failed"
   else
-    cp "$CLEAN_MD" "$HTML_PATH"
+    python3 "${SCRIPT_DIR}/md_to_html.py" "$CLEAN_MD" -o "$HTML_PATH" \
+      || fail "markdown→html failed (no pandoc)"
   fi
 
   if [[ -f "${SCRIPT_DIR}/html_to_gutenberg.py" ]]; then

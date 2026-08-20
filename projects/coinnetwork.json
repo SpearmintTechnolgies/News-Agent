@@ -1,8 +1,9 @@
 {
   "slug": "coinnetwork",
+  "enabled": true,
   "callback_code": "cnw",
   "name": "Coinnetwork",
-  "description": "General crypto news site covering regulation, adoption, L1/L2, DeFi, NFTs, market movement, and blockchain news.",
+  "description": "Active test publishing target (https://coinnetwork.info). Default project for pipeline runs until Coinography is re-enabled for production.",
   "wordpress": {
     "url": "https://coinnetwork.info",
     "user": "wizardtokenofficial@gmail.com",
@@ -422,8 +423,8 @@
   },
   "telegram": {
     "account": "news",
-    "group_id": "-1003963851656",
-    "group_name": "coinnetwork_news-agent",
+    "group_id": "-1003736953686",
+    "group_name": "Spearmint News Agent",
     "card_prefix": "[Coinnetwork]"
   },
   "research": {

@@ -1,11 +1,15 @@
 {
   "vertex/gemini-3.1-flash-image": {
-    "name": "Gemini 3.1 Flash Image (Vertex)",
+    "name": "Nano Banana 2 (Gemini 3.1 Flash Image)",
     "per_image": 0.0001
   },
   "vertex/gemini-3.1-flash-lite-image": {
-    "name": "Gemini 3.1 Flash Lite Image (Vertex)",
+    "name": "Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)",
     "per_image": 3.4e-05
+  },
+  "vertex/gemini-2.5-flash-image": {
+    "name": "Nano Banana (Gemini 2.5 Flash Image)",
+    "per_image": 0.0001
   },
   "huggingface/hf-inference/black-forest-labs/FLUX.1-schnell": {
     "name": "FLUX.1 Schnell (HF via Bifrost)",
@@ -13,6 +17,10 @@
   },
   "pollinations/flux": {
     "name": "Pollinations.ai Flux (Free)",
+    "per_image": 0.0
+  },
+  "pollinations/flux-realism": {
+    "name": "Pollinations.ai Flux Realism (Free)",
     "per_image": 0.0
   }
 }

@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# generate.sh — Bifrost image generation (Creator Agent / Pixel)
+# generate.sh — Vertex Nano Banana image generation (Creator Agent / Pixel)
 # =============================================================================
 # Usage:
 #   bash generate.sh "<IMAGE PROMPT>"
 #
 # Environment (optional):
-#   BIFROST_BASE_URL       — OpenAI-compatible API base (default from openclaw.json env)
-#   IMAGE_MODEL            — Primary model (default: vertex/gemini-3.1-flash-lite-image)
-#   IMAGE_MODEL_FALLBACK   — Fallback model (default: huggingface/.../FLUX.1-schnell)
+#   IMAGE_MODEL            — Primary (default: vertex/gemini-3.1-flash-lite-image)
+#   IMAGE_MODEL_FALLBACK1  — Fallback (default: vertex/gemini-2.5-flash-image)
+#   IMAGE_MODEL_FALLBACK2  — Fallback (default: vertex/gemini-3.1-flash-image)
+#   IMAGE_MODEL_FALLBACK3  — Last resort (default: pollinations/flux-realism)
 #   OUTPUT_PATH            — Save path (default: /tmp/crypto-feature.jpg)
 #   PROJECT_CONFIG         — Project JSON path (for creator.logo_path)
 #   PROJECT_SLUG           — Per-run slug for result/error file names
@@ -23,11 +24,22 @@
 
 set -euo pipefail
 
+# Windows: python3 must be CPython, not the Microsoft Store stub (exit 49).
+if [[ -x "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" ]]; then
+  python3() { "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" "$@"; }
+  export -f python3
+  export PATH="/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311:/c/Program Files/Git/bin:/c/Program Files/Git/usr/bin:${PATH:-}"
+fi
+
 PROMPT="${1:-}"
-IMAGE_MODEL="${IMAGE_MODEL:-pollinations/flux-realism}"
-IMAGE_MODEL_FALLBACK1="${IMAGE_MODEL_FALLBACK1:-pollinations/flux}"
-IMAGE_MODEL_FALLBACK2="${IMAGE_MODEL_FALLBACK2:-pollinations/turbo}"
-IMAGE_MODEL_FALLBACK3="${IMAGE_MODEL_FALLBACK3:-pollinations/any-dark}"
+REFERENCE_IMAGE="${REFERENCE_IMAGE:-}"
+IMAGE_HEADLINE="${IMAGE_HEADLINE:-}"
+IMAGE_CONTEXT="${IMAGE_CONTEXT:-}"
+IMAGE_MODEL="${IMAGE_MODEL:-vertex/gemini-3.1-flash-lite-image}"
+IMAGE_MODEL_FALLBACK1="${IMAGE_MODEL_FALLBACK1:-vertex/gemini-2.5-flash-image}"
+IMAGE_MODEL_FALLBACK2="${IMAGE_MODEL_FALLBACK2:-vertex/gemini-3.1-flash-image}"
+IMAGE_MODEL_FALLBACK3="${IMAGE_MODEL_FALLBACK3:-pollinations/flux-realism}"
+VERTEX_IMAGE_PY="${HOME}/.openclaw/workspace-creator/skills/generate-image/generate_vertex_image.py"
 STAMP_LOGO="${STAMP_LOGO:-1}"
 OUTPUT_PATH="${OUTPUT_PATH:-/tmp/crypto-feature.jpg}"
 _slug="${PROJECT_SLUG:-crypto}"
@@ -42,7 +54,7 @@ if [ -n "$PROJECT_CFG" ] && [ -f "$PROJECT_CFG" ]; then
     LOGO_PATH="$HOME/.openclaw/$_logo_rel"
   fi
 fi
-MAX_GENERATE_RETRIES=3
+MAX_GENERATE_RETRIES=2
 WIDTH=1920
 HEIGHT=1080
 MIN_BYTES=40960
@@ -55,13 +67,27 @@ fatal() { log_error "$*"; exit 1; }
 
 rm -f "$ERROR_FILE" "$RESULT_FILE"
 [ -z "$PROMPT" ] && fatal "No prompt provided. Usage: bash generate.sh \"<prompt>\""
-[ ${#PROMPT} -gt 1000 ] && fatal "Prompt too long (${#PROMPT} chars). Max 1000 characters."
-
-FULL_PROMPT="${PROMPT}${NEGATIVE_SUFFIX}"
 
 EFFECTIVE_OUTPUT="$OUTPUT_PATH"
 [ -L "$OUTPUT_PATH" ] && EFFECTIVE_OUTPUT=$(readlink -f "$OUTPUT_PATH")
 mkdir -p "$(dirname "$EFFECTIVE_OUTPUT")" 2>/dev/null || true
+
+_media_dir="$(dirname "$EFFECTIVE_OUTPUT")"
+if [ -z "$REFERENCE_IMAGE" ] && [ -s "$_media_dir/source.jpg" ]; then
+  REFERENCE_IMAGE="$_media_dir/source.jpg"
+fi
+REMIX_NEGATIVE=", no readable text, no watermarks, no brand wordmarks, no copied layout, no clone of the reference, 8k, sharp focus, photorealistic editorial photography"
+if [ -n "$REFERENCE_IMAGE" ] && [ -s "$REFERENCE_IMAGE" ]; then
+  log_info "Using source story image as reference (not a copy): $REFERENCE_IMAGE"
+  _ctx="${IMAGE_CONTEXT:-}"
+  PROMPT="The attached image is REFERENCE ONLY for this news story${IMAGE_HEADLINE:+: $IMAGE_HEADLINE}. ${_ctx} Create a completely original 16:9 cinematic editorial photograph about that story. Borrow mood, color palette, and subject matter from the reference. Do NOT copy, paste, or recreate the reference layout, composition, wordmark, or logo. New scene, new framing. A news-site feature image, not a duplicate."
+  NEGATIVE_SUFFIX="$REMIX_NEGATIVE"
+else
+  log_info "No source story image — using headline editorial prompt (not a category coin)."
+  REFERENCE_IMAGE=""
+fi
+[ ${#PROMPT} -gt 1000 ] && fatal "Prompt too long (${#PROMPT} chars). Max 1000 characters."
+FULL_PROMPT="${PROMPT}${NEGATIVE_SUFFIX}"
 
 cleanup_failed_output() {
   if [ "${SUCCESS:-0}" -eq 1 ]; then
@@ -143,12 +169,46 @@ except Exception as e:
 PY
 }
 
+is_vertex_model() {
+  case "$1" in
+    vertex/*|google/*|gemini-*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+call_vertex() {
+  local model="$1"
+  local timeout_sec="$2"
+  local out_file="$3"
+  if [ -n "$REFERENCE_IMAGE" ] && [ -s "$REFERENCE_IMAGE" ]; then
+    python3 "$VERTEX_IMAGE_PY" \
+      --model "$model" \
+      --prompt "$FULL_PROMPT" \
+      --out "$out_file" \
+      --timeout "$timeout_sec" \
+      --aspect "16:9" \
+      --reference "$REFERENCE_IMAGE"
+  else
+    python3 "$VERTEX_IMAGE_PY" \
+      --model "$model" \
+      --prompt "$FULL_PROMPT" \
+      --out "$out_file" \
+      --timeout "$timeout_sec" \
+      --aspect "16:9"
+  fi
+}
+
 ensure_jpeg() {
   local src="$1"
   local dst="$2"
-  # Copy pristine original raw image directly without resizing or lossy re-encoding
-  cp -f "$src" "$dst"
-  log_info "Preserved raw original image directly from Pollinations (size: $(stat -c%s "$dst" 2>/dev/null || echo 0) bytes)."
+  if is_jpeg_file "$src"; then
+    cp -f "$src" "$dst"
+  elif command -v convert &>/dev/null; then
+    convert "$src" -quality 92 "$dst" 2>/dev/null || cp -f "$src" "$dst"
+  else
+    cp -f "$src" "$dst"
+  fi
+  log_info "Saved generated image ($(stat -c%s "$dst" 2>/dev/null || echo 0) bytes)."
   return 0
 }
 
@@ -181,7 +241,7 @@ if os.path.isfile(pricing_path):
         info = cfg.get(m, {})
         if info:
             name = info.get("name", name)
-            usd = float(info.get("cost_usd_per_image", 0.0))
+            usd = float(info.get("cost_usd_per_image", info.get("per_image", 0.0)))
     except Exception:
         pass
 data = {"model": m, "name": name, "cost_usd": usd}
@@ -204,31 +264,14 @@ stamp_logo() {
     return 0
   fi
 
-  if ! command -v composite &>/dev/null || ! command -v convert &>/dev/null; then
-    log_warn "ImageMagick (composite/convert) not found; skipping brand stamp."
+  local stamp_py="${HOME}/.openclaw/workspace-creator/skills/generate-image/stamp_logo.py"
+  log_info "Stamping logo from $LOGO_PATH (top-left)..."
+  if python3 "$stamp_py" --image "$EFFECTIVE_OUTPUT" --logo "$LOGO_PATH" --gravity northwest; then
+    touch "${EFFECTIVE_OUTPUT}.watermarked"
+    log_info "Logo stamped successfully."
     return 0
   fi
-
-  log_info "Stamping logo from $LOGO_PATH..."
-  local tmp_logo="/tmp/scaled-logo-$$.png"
-  local tmp_stamped="/tmp/stamped-$$.jpg"
-
-  convert "$LOGO_PATH" -resize 180x180 "$tmp_logo" 2>/dev/null || {
-    log_warn "Failed to scale logo; skipping brand stamp."
-    rm -f "$tmp_logo"
-    return 0
-  }
-
-  composite -gravity SouthEast -geometry +40+40 "$tmp_logo" "$EFFECTIVE_OUTPUT" "$tmp_stamped" 2>/dev/null || {
-    log_warn "Composite failed; keeping clean image."
-    rm -f "$tmp_logo" "$tmp_stamped"
-    return 0
-  }
-
-  mv -f "$tmp_stamped" "$EFFECTIVE_OUTPUT"
-  touch "${EFFECTIVE_OUTPUT}.watermarked"
-  rm -f "$tmp_logo"
-  log_info "Logo stamped successfully."
+  log_warn "Pillow logo stamp failed; keeping unstamped image."
   return 0
 }
 
@@ -282,15 +325,24 @@ RETRY_DELAY=5
 for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
   log_info "Generation round $attempt of $MAX_GENERATE_RETRIES..."
 
-  for model_spec in "60:$IMAGE_MODEL" "60:$IMAGE_MODEL_FALLBACK1" "60:$IMAGE_MODEL_FALLBACK2" "60:$IMAGE_MODEL_FALLBACK3"; do
+  for model_spec in "90:$IMAGE_MODEL" "120:$IMAGE_MODEL_FALLBACK1" "180:$IMAGE_MODEL_FALLBACK2" "60:$IMAGE_MODEL_FALLBACK3"; do
     timeout_sec="${model_spec%%:*}"
     model="${model_spec#*:}"
     rm -f "$TEMP_RAW"
     log_info "Trying model=$model (timeout=${timeout_sec}s)..."
 
     set +e
-    result=$(call_pollinations "$model" "$timeout_sec" "$TEMP_RAW" 2>&1)
-    rc=$?
+    if is_vertex_model "$model"; then
+      result=$(call_vertex "$model" "$timeout_sec" "$TEMP_RAW" 2>&1)
+      rc=$?
+    elif [ -n "$REFERENCE_IMAGE" ]; then
+      log_info "Skip $model — remix requires Vertex reference image"
+      rc=1
+      result="SKIP: pollinations cannot remix source.jpg"
+    else
+      result=$(call_pollinations "$model" "$timeout_sec" "$TEMP_RAW" 2>&1)
+      rc=$?
+    fi
     set -e
 
     if [ "$rc" -eq 0 ]; then
@@ -299,6 +351,10 @@ for attempt in $(seq 1 $MAX_GENERATE_RETRIES); do
       rm -f "$TEMP_RAW"
 
       stamp_logo
+      # Always write the marker after a successful generate. Logo stamp is
+      # best-effort (skipped when ImageMagick is missing); publish.sh still
+      # requires this file before it will upload.
+      touch "${EFFECTIVE_OUTPUT}.watermarked"
       if ! validate_final_image "$EFFECTIVE_OUTPUT"; then
         rm -f "$EFFECTIVE_OUTPUT" "${EFFECTIVE_OUTPUT}.watermarked"
         continue

@@ -27,7 +27,6 @@ Exit 0 on a usable read, 1 on skip.
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -36,6 +35,13 @@ import sys
 import threading
 import time
 from urllib.parse import urlparse
+
+# Windows-compatible file locking
+try:
+    import fcntl
+    HAS_FLOCK = True
+except ImportError:
+    HAS_FLOCK = False
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _RESEARCH_CHECK = os.path.join(os.path.dirname(_HERE), "research-check")
@@ -83,6 +89,21 @@ def _source_from_url(url: str) -> str:
         return "Unknown"
 
 
+_MD_IMG = re.compile(r"!\[[^\]]*\]\((https?://[^)\s]+)\)")
+_SKIP_IMG = ("1x1", "pixel", "spacer", "favicon", "sprite", "logo.svg", ".svg", "emoji")
+
+
+def first_content_image(text: str) -> str:
+    """First usable hero image URL from Jina/markdown (before images are stripped)."""
+    for m in _MD_IMG.finditer(text or ""):
+        url = m.group(1).split()[0].strip("\"'")
+        low = url.lower()
+        if any(s in low for s in _SKIP_IMG):
+            continue
+        return url
+    return ""
+
+
 def _clean_jina_markdown(text: str) -> str:
     """Strip Jina's header block + nav/ticker/ad boilerplate into readable prose."""
     if "Markdown Content:" in text:
@@ -121,11 +142,31 @@ def _throttle() -> None:
     with _THROTTLE_LOCK:
         try:
             os.makedirs(os.path.dirname(_THROTTLE_FILE), exist_ok=True)
-            with open(_THROTTLE_FILE, "a+", encoding="utf-8") as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                f.seek(0)
-                raw = f.read().strip()
-                last = float(raw or "0")
+            if HAS_FLOCK:
+                with open(_THROTTLE_FILE, "a+", encoding="utf-8") as f:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    f.seek(0)
+                    raw = f.read().strip()
+                    last = float(raw or "0")
+                    wait = MIN_INTERVAL_S - (time.time() - last)
+                    if wait > 0:
+                        time.sleep(wait)
+            else:
+                # Windows: simple locking via semaphore
+                import tempfile
+                lockfile = _THROTTLE_FILE + ".lock"
+                if os.path.exists(lockfile):
+                    with open(lockfile, "r") as f:
+                        last = float(f.read().strip() or "0")
+                    wait = MIN_INTERVAL_S - (time.time() - last)
+                    if wait > 0:
+                        time.sleep(wait)
+                # Read current time directly
+                if os.path.exists(_THROTTLE_FILE):
+                    with open(_THROTTLE_FILE, "r") as f:
+                        last = float(f.read().strip() or "0")
+                else:
+                    last = 0
                 wait = MIN_INTERVAL_S - (time.time() - last)
                 if wait > 0:
                     time.sleep(wait)
@@ -137,14 +178,25 @@ def _mark_request_time() -> None:
     with _THROTTLE_LOCK:
         try:
             os.makedirs(os.path.dirname(_THROTTLE_FILE), exist_ok=True)
-            with open(_THROTTLE_FILE, "w", encoding="utf-8") as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                f.write(str(time.time()))
+            if HAS_FLOCK:
+                with open(_THROTTLE_FILE, "w", encoding="utf-8") as f:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    f.write(str(time.time()))
+            else:
+                # Windows: simple locking via semaphore
+                import tempfile
+                lockfile = _THROTTLE_FILE + ".lock"
+                with open(lockfile, "w") as f:
+                    f.write(str(time.time()))
+                with open(_THROTTLE_FILE, "w", encoding="utf-8") as f:
+                    f.write(str(time.time()))
+                if os.path.exists(lockfile):
+                    os.remove(lockfile)
         except OSError:
             pass
 
 
-def _fetch_jina(url: str) -> tuple[str, str] | None:
+def _fetch_jina(url: str) -> tuple[str, str, str] | None:
     try:
         import requests
     except ImportError:
@@ -172,13 +224,14 @@ def _fetch_jina(url: str) -> tuple[str, str] | None:
         code = resp.status_code if resp is not None else 0
         print(f"[read_tool] jina HTTP {code}", file=sys.stderr)
         return None
+    image_url = first_content_image(resp.text)
     content = _clean_jina_markdown(resp.text)
     if _word_count(content) < MIN_WORDS or _is_challenge(content):
         return None
-    return "jina", content
+    return "jina", content, image_url
 
 
-def _fetch_trafilatura(url: str) -> tuple[str, str] | None:
+def _fetch_trafilatura(url: str) -> tuple[str, str, str] | None:
     try:
         import trafilatura
     except ImportError:
@@ -187,6 +240,7 @@ def _fetch_trafilatura(url: str) -> tuple[str, str] | None:
         downloaded = trafilatura.fetch_url(url)
         if not downloaded or _is_challenge(downloaded):
             return None
+        image_url = first_content_image(downloaded or "")
         text = trafilatura.extract(downloaded, output_format="markdown")
     except Exception:
         return None
@@ -195,7 +249,7 @@ def _fetch_trafilatura(url: str) -> tuple[str, str] | None:
     content = _clean_jina_markdown(text)
     if _word_count(content) < MIN_WORDS or _is_challenge(content):
         return None
-    return "trafilatura", content
+    return "trafilatura", content, image_url or first_content_image(text)
 
 
 def _cumulative(out_dir: str) -> tuple[int, int]:
@@ -228,13 +282,15 @@ def read_url(url: str, out_dir: str, source: str | None = None) -> dict:
     else:
         got = _fetch_jina(resolved) or _fetch_trafilatura(resolved)
         if got:
-            tier, content = got
+            tier, content = got[0], got[1]
+            image_url = got[2] if len(got) > 2 else ""
             rec = {"url": resolved, "source": source or _source_from_url(resolved),
                    "ok": True, "words": _word_count(content),
-                   "content": content, "tier": tier}
+                   "content": content, "tier": tier, "image_url": image_url or ""}
         else:
             rec = {"url": resolved, "source": source or _source_from_url(resolved),
-                   "ok": False, "words": 0, "content": "", "tier": "failed"}
+                   "ok": False, "words": 0, "content": "", "tier": "failed",
+                   "image_url": ""}
 
     digest = hashlib.sha1(resolved.encode("utf-8")).hexdigest()
     path = os.path.join(out_dir, f"{digest}.json")

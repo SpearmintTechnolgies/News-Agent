@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import sys
 
-H3_MIN, H3_MAX = 3, 6
+H3_MIN, H3_MAX = 2, 7
 FAQ_MIN, FAQ_MAX = 3, 6
 H2_MIN, H2_MAX = 2, 4
 

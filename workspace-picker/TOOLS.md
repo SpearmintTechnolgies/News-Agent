@@ -1,35 +1,20 @@
-# TOOLS.md &Mdash; Sieve's Environment
+# TOOLS.md — Sieve (Windows)
 
-You work from local files, your reasoning, and local self-validation commands.
+You only **read** `INPUT_FILE` and **write** `OUTPUT_FILE`. No web. No Telegram.
 
-## Files You Read
+## Windows
 
-| Item | Path (passed in spawn message) |
-|---|---{
-| Picker input | `INPUT_FILE" &mdash; JSON containing `target_count`, `recent_categories`, and `candidates[]` |
+- Paths look like `C:/tmp/coinnetwork-run-…/picker/picker_input.json`
+- `/tmp/...` and `/home/bhard/...` do **not** exist. Never use them.
+- Never run `python3`, `validate_picks.py`, or `exec`. Nexus validates after you write the file.
 
-## Files You Write
+## First two tool calls (mandatory)
 
-| Item | Path (passed in spawn message) |
-|---|---|
-| Picks | `OUTPUT_FILE` &mdash; JSON with the categorized + selected picks |
+1. `read` the exact `INPUT_FILE` path from the spawn message.
+2. `write` JSON to the exact `OUTPUT_FILE` path.
 
-## OpenClaw Workspace
+If `read` fails, `write` `{"status":"error","reason":"input_unreadable"}` to `OUTPUT_FILE` and stop.
 
-| Item | Path |
-|---|---{
-| **This workspace** | `~/.openclaw/workspace-picker/` |
-| **Agent sessions** | `~/.openclaw/agents/picker/sessions/` |
+## After write
 
-## Self-Validation Tool
-
-Before yielding `SUCCESS`, verify your generated output file format using the local validator in `--dry-run` mode:
- 
-```bash
-python3 /home/bhard/.openclaw/workspace-orchestrator/skills/pipeline/validate_picks.py \
-  --picks "$OUTPUT_FILE" --picker-input "$INPUT_FILE" --dry-run
-```
-
-- **If Exit Code 0 (`PICKS_VALID (DRY-RUN)`):** Your output is 100% valid. Yaelid `SUCCESS`.
-- **If Exit Code 1 (`PICKS_INVALID: <reason>`*):** Read the error reason, fix your JSON key/formatting issue in `OUTPUT_FILE`,
-  and re-run `dry-run` until valid.
+Reply with only: `SUCCESS`
