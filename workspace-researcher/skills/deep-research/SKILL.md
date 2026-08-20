@@ -108,6 +108,35 @@ Never use fallbacks as the first move. Never fabricate a second source.
   "sources_used": ["CoinDesk", "CoinTelegraph"],
   "source_urls": ["https://…/primary", "https://…/corroborating"],
   "combined_key_facts": ["Fact from source A", "Fact from source B"],
+  "sourced_facts": [
+    {
+      "id": "fact_001",
+      "text": "Fact from source A",
+      "source_url": "https://…/primary",
+      "source_domain": "example.com",
+      "source_record": "research/sources/<sha1>.json"
+    }
+  ],
   "aggregated_raw_content": "Combined clean article text. 600+ words."
 }
 ```
+
+`combined_key_facts` remains a plain `list[str]` for all existing consumers. Optional `sourced_facts` adds provenance for future verification and must not replace it.
+
+## Claim verification (orchestrator)
+
+After `validate_research` writes `research/validated.json`, FEED_DRAIN runs:
+
+```bash
+python3 ~/.openclaw/workspace-researcher/skills/deep-research/qualify_claims.py \
+  --validated "$RUN_DIR/research/validated.json" \
+  --output "$RUN_DIR/research/qualified_claims.json"
+
+python3 ~/.openclaw/workspace-researcher/skills/deep-research/verify_claims.py \
+  --validated "$RUN_DIR/research/validated.json" \
+  --sources-dir "$RUN_DIR/research/sources" \
+  --qualified "$RUN_DIR/research/qualified_claims.json" \
+  --output "$RUN_DIR/research/verification.json"
+```
+
+`qualify_claims` is additive (`sourced_facts` unchanged). Only `decision=VERIFY` claims are verified. Quill still reads `validated.json` unchanged.

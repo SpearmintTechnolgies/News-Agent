@@ -221,7 +221,7 @@ def main() -> int:
         manifest["story"] = {
             "story_id": data.get("story_id", ""),
             "headline": data.get("primary_headline", ""),
-            "chart_coin": data.get("chart_coin", "bitcoin"),
+            "chart_coin": data.get("chart_coin") or "",
             "category": data.get("category") or manifest.get("story", {}).get("category", ""),
             "wp_category_slugs": data.get("wp_category_slugs")
             or manifest.get("story", {}).get("wp_category_slugs", []),
@@ -235,9 +235,12 @@ def main() -> int:
         print(f"[WARN] Could not update manifest story: {e}", file=sys.stderr)
 
     headline = data["primary_headline"][:70]
-    chart_coin = data.get("chart_coin", "bitcoin")
+    chart_coin = data.get("chart_coin") or ""
     print(f"RESEARCH_VALID: {headline}")
-    print(f"CHART_COIN: {chart_coin}")
+    if chart_coin:
+        print(f"CHART_COIN: {chart_coin}")
+    else:
+        print("CHART_COIN: (none — skip chart)")
     return 0
 
 

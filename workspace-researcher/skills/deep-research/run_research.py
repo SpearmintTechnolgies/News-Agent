@@ -70,8 +70,20 @@ def _rank_candidates(headline: str, results: list[dict], skip_domain: str) -> li
             continue
         blob = f"{r.get('title', '')} {r.get('snippet', '')}"
         score = _overlap_score(headline, blob)
-        if score >= OVERLAP_THRESHOLD:
-            scored.append((score, r))
+        if score < OVERLAP_THRESHOLD:
+            continue
+        # Absolute-token gate: ratio alone can pass a one-token homonym
+        # (e.g. "Download Maya" vs "Maya Protocol …"). Require the same
+        # secondary-source anchor rule used at build time.
+        pseudo = {
+            "title": str(r.get("title") or ""),
+            "snippet": str(r.get("snippet") or ""),
+            "content": "",
+            "url": str(r.get("url") or ""),
+        }
+        if not brj.secondary_source_relevant(headline, pseudo):
+            continue
+        scored.append((score, r))
     scored.sort(key=lambda x: -x[0])
     return [r for _, r in scored]
 

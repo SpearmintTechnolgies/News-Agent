@@ -29,6 +29,28 @@ PY = sys.executable
 RESEARCHER = os.path.join(
     HOME, ".openclaw", "workspace-researcher", "skills", "deep-research", "run_research.py"
 )
+QUALIFY_CLAIMS = os.path.join(
+    HOME, ".openclaw", "workspace-researcher", "skills", "deep-research", "qualify_claims.py"
+)
+VERIFY_CLAIMS = os.path.join(
+    HOME, ".openclaw", "workspace-researcher", "skills", "deep-research", "verify_claims.py"
+)
+CHECK_CLAIM_CONSISTENCY = os.path.join(
+    HOME,
+    ".openclaw",
+    "workspace-researcher",
+    "skills",
+    "deep-research",
+    "check_claim_consistency.py",
+)
+AUDIT_ARTICLE_EVIDENCE = os.path.join(
+    HOME,
+    ".openclaw",
+    "workspace-researcher",
+    "skills",
+    "deep-research",
+    "audit_article_evidence.py",
+)
 WRITER_CHECK = os.path.join(
     HOME, ".openclaw", "workspace-writer", "skills", "article"
 )
@@ -79,6 +101,217 @@ def _bash(script: str, extra: list[str] | None = None, *, timeout: int = 180) ->
 
 def _size(path: str) -> int:
     return os.path.getsize(path) if os.path.isfile(path) else 0
+
+
+def _qualification_ready(validated_path: str, qualified_path: str) -> bool:
+    """True when qualified_claims.json covers all sourced_facts ids."""
+    if _size(qualified_path) < 40 or _size(validated_path) < 40:
+        return False
+    try:
+        with open(validated_path, encoding="utf-8") as f:
+            validated = json.load(f)
+        with open(qualified_path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(doc, dict) or doc.get("status") != "ok":
+        return False
+    if doc.get("qualification_version") != 1:
+        return False
+    sourced = validated.get("sourced_facts") or []
+    expected = [
+        str(x.get("id") or "")
+        for x in sourced
+        if isinstance(x, dict) and str(x.get("id") or "")
+    ]
+    claims = doc.get("claims") if isinstance(doc.get("claims"), list) else []
+    got = [str(c.get("claim_id") or "") for c in claims if isinstance(c, dict)]
+    if sorted(expected) != sorted(got):
+        return False
+    for c in claims:
+        if not isinstance(c, dict):
+            return False
+        if c.get("decision") not in ("VERIFY", "SKIP"):
+            return False
+    summary = doc.get("summary") if isinstance(doc.get("summary"), dict) else None
+    if not summary:
+        return False
+    try:
+        if int(summary.get("total", -1)) != len(claims):
+            return False
+        if int(summary.get("verify", -1)) != sum(
+            1 for c in claims if c.get("decision") == "VERIFY"
+        ):
+            return False
+        if int(summary.get("skip", -1)) != sum(
+            1 for c in claims if c.get("decision") == "SKIP"
+        ):
+            return False
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _verification_ready(
+    validated_path: str,
+    verification_path: str,
+    *,
+    qualified_path: str | None = None,
+) -> bool:
+    """True when verification.json covers VERIFY claims from qualification (or all sourced)."""
+    if _size(verification_path) < 40 or _size(validated_path) < 40:
+        return False
+    try:
+        with open(validated_path, encoding="utf-8") as f:
+            validated = json.load(f)
+        with open(verification_path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(doc, dict) or doc.get("status") != "ok":
+        return False
+    if doc.get("verification_version") != 1:
+        return False
+
+    expected: list[str] = []
+    if qualified_path and _size(qualified_path) >= 40:
+        try:
+            with open(qualified_path, encoding="utf-8") as f:
+                qual = json.load(f)
+            if isinstance(qual, dict) and qual.get("status") == "ok":
+                expected = [
+                    str(c.get("claim_id") or "")
+                    for c in (qual.get("claims") or [])
+                    if isinstance(c, dict)
+                    and c.get("decision") == "VERIFY"
+                    and c.get("claim_id")
+                ]
+        except (OSError, json.JSONDecodeError):
+            expected = []
+    if not expected and not (qualified_path and _size(qualified_path) >= 40):
+        sourced = validated.get("sourced_facts") or []
+        expected = [
+            str(x.get("id") or "")
+            for x in sourced
+            if isinstance(x, dict) and str(x.get("id") or "")
+        ]
+
+    claims = doc.get("claims") if isinstance(doc.get("claims"), list) else []
+    got = {str(c.get("claim_id") or "") for c in claims if isinstance(c, dict)}
+    if sorted(expected) != sorted(got):
+        return False
+    summary = doc.get("summary") if isinstance(doc.get("summary"), dict) else None
+    if not summary:
+        return False
+    try:
+        if int(summary.get("total", -1)) != len(claims):
+            return False
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _consistency_ready(
+    verification_path: str,
+    consistency_path: str,
+) -> bool:
+    """True when claim_consistency.json is valid for comparable verification claims."""
+    if _size(consistency_path) < 40 or _size(verification_path) < 40:
+        return False
+    try:
+        with open(verification_path, encoding="utf-8") as f:
+            verification = json.load(f)
+        with open(consistency_path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(verification, dict) or verification.get("status") != "ok":
+        return False
+    if not isinstance(doc, dict) or doc.get("status") != "ok":
+        return False
+    if doc.get("consistency_version") != 1:
+        return False
+
+    comparable = {
+        str(c.get("claim_id") or "")
+        for c in (verification.get("claims") or [])
+        if isinstance(c, dict)
+        and str(c.get("status") or "") in ("DIRECT", "CORROBORATED", "SINGLE_SOURCE")
+        and str(c.get("claim_id") or "")
+    }
+    summary = doc.get("summary") if isinstance(doc.get("summary"), dict) else None
+    issues = doc.get("issues") if isinstance(doc.get("issues"), list) else None
+    if summary is None or issues is None:
+        return False
+    try:
+        claims_compared = int(summary.get("claims_compared", -1))
+        pairs_checked = int(summary.get("pairs_checked", -1))
+        none = int(summary.get("none", -1))
+        potential = int(summary.get("potential_conflict", -1))
+        likely = int(summary.get("likely_conflict", -1))
+    except (TypeError, ValueError):
+        return False
+    if claims_compared != len(comparable):
+        return False
+    if none + potential + likely != pairs_checked:
+        return False
+    if potential + likely != len(issues):
+        return False
+    for issue in issues:
+        if not isinstance(issue, dict):
+            return False
+        if issue.get("severity") not in ("POTENTIAL_CONFLICT", "LIKELY_CONFLICT"):
+            return False
+        ids = issue.get("claim_ids")
+        if not isinstance(ids, list) or len(ids) != 2:
+            return False
+    return True
+
+
+def _article_audit_ready(article_path: str, audit_path: str) -> bool:
+    """True when article_audit.json is a valid Phase-4 audit artifact."""
+    if _size(audit_path) < 40 or _size(article_path) < 200:
+        return False
+    try:
+        with open(audit_path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(doc, dict) or doc.get("status") != "ok":
+        return False
+    if doc.get("audit_version") != 1:
+        return False
+    summary = doc.get("summary") if isinstance(doc.get("summary"), dict) else None
+    claims = doc.get("claims") if isinstance(doc.get("claims"), list) else None
+    if summary is None or claims is None:
+        return False
+    try:
+        total = int(summary.get("article_claims", -1))
+        supported = int(summary.get("supported", -1))
+        single = int(summary.get("single_source_refs", -1))
+        unmapped = int(summary.get("unmapped", -1))
+        num_mm = int(summary.get("number_mismatches", -1))
+        year_mm = int(summary.get("year_mismatches", -1))
+        conflict = int(summary.get("conflict_refs", -1))
+    except (TypeError, ValueError):
+        return False
+    if total != len(claims):
+        return False
+    if supported + single + unmapped + num_mm + year_mm + conflict != total:
+        return False
+    for row in claims:
+        if not isinstance(row, dict):
+            return False
+        if row.get("audit_status") not in (
+            "SUPPORTED",
+            "UNMAPPED",
+            "NUMBER_MISMATCH",
+            "YEAR_MISMATCH",
+            "CONFLICT_REF",
+            "SINGLE_SOURCE_REF",
+        ):
+            return False
+    return True
 
 
 def _progress(feed_job_id: int, step: str, *, failed: bool = False, note: str = "") -> None:
@@ -310,6 +543,89 @@ def continue_drain(
             return _fail(feed_job_id, project, "research", "Scout research did not validate.")
     _record_step(run_dir, "research", time.perf_counter() - t0)
 
+    # Phase 1.5 qualify → V1 verify (audit layer; SKIP/SINGLE_SOURCE do not block Quill).
+    qualified = os.path.join(run_dir, "research", "qualified_claims.json")
+    verification = os.path.join(run_dir, "research", "verification.json")
+    sources_dir = os.path.join(run_dir, "research", "sources")
+
+    print("=== STEP qualify_claims ===", flush=True)
+    t0 = time.perf_counter()
+    if _qualification_ready(validated, qualified):
+        print("QUALIFY_RESUME qualified_claims.json already present", flush=True)
+    else:
+        qq = _py(
+            QUALIFY_CLAIMS,
+            ["--validated", validated, "--output", qualified],
+            timeout=60,
+        )
+        if qq.returncode != 0 or not _qualification_ready(validated, qualified):
+            _record_step(run_dir, "qualify_claims", time.perf_counter() - t0)
+            return _fail(
+                feed_job_id,
+                project,
+                "research",
+                "Claim qualification failed to produce a valid qualified_claims.json.",
+            )
+    _record_step(run_dir, "qualify_claims", time.perf_counter() - t0)
+
+    print("=== STEP verify_claims ===", flush=True)
+    t0 = time.perf_counter()
+    if _verification_ready(validated, verification, qualified_path=qualified):
+        print("VERIFY_RESUME verification.json already present", flush=True)
+    else:
+        vv = _py(
+            VERIFY_CLAIMS,
+            [
+                "--validated",
+                validated,
+                "--sources-dir",
+                sources_dir,
+                "--qualified",
+                qualified,
+                "--output",
+                verification,
+            ],
+            timeout=300,
+        )
+        if vv.returncode != 0 or not _verification_ready(
+            validated, verification, qualified_path=qualified
+        ):
+            _record_step(run_dir, "verify_claims", time.perf_counter() - t0)
+            return _fail(
+                feed_job_id,
+                project,
+                "research",
+                "Claim verification failed to produce a valid verification.json.",
+            )
+    _record_step(run_dir, "verify_claims", time.perf_counter() - t0)
+
+    # Phase 3 cross-claim consistency (audit-only; issues do not block Quill).
+    consistency = os.path.join(run_dir, "research", "claim_consistency.json")
+    print("=== STEP check_claim_consistency ===", flush=True)
+    t0 = time.perf_counter()
+    if _consistency_ready(verification, consistency):
+        print("CONSISTENCY_RESUME claim_consistency.json already present", flush=True)
+    else:
+        cc = _py(
+            CHECK_CLAIM_CONSISTENCY,
+            [
+                "--verification",
+                verification,
+                "--output",
+                consistency,
+            ],
+            timeout=60,
+        )
+        if cc.returncode != 0 or not _consistency_ready(verification, consistency):
+            _record_step(run_dir, "check_claim_consistency", time.perf_counter() - t0)
+            return _fail(
+                feed_job_id,
+                project,
+                "research",
+                "Claim consistency check failed to produce a valid claim_consistency.json.",
+            )
+    _record_step(run_dir, "check_claim_consistency", time.perf_counter() - t0)
+
     print("=== STEP writer ===", flush=True)
     _progress(feed_job_id, "writer")
     t0 = time.perf_counter()
@@ -323,6 +639,41 @@ def continue_drain(
         _record_step(run_dir, "writer", time.perf_counter() - t0)
         return _fail(feed_job_id, project, "writer", "Article check failed after autofix.")
     _record_step(run_dir, "writer", time.perf_counter() - t0)
+
+    # Phase 4 article evidence audit (audit-only; findings do not block publish).
+    article_audit = os.path.join(run_dir, "research", "article_audit.json")
+    print("=== STEP audit_article_evidence ===", flush=True)
+    t0 = time.perf_counter()
+    if _article_audit_ready(article_final, article_audit):
+        print("ARTICLE_AUDIT_RESUME article_audit.json already present", flush=True)
+    else:
+        aa = _py(
+            AUDIT_ARTICLE_EVIDENCE,
+            [
+                "--article",
+                article_final,
+                "--verification",
+                verification,
+                "--validated",
+                validated,
+                "--consistency",
+                consistency,
+                "--qualified",
+                qualified,
+                "--output",
+                article_audit,
+            ],
+            timeout=120,
+        )
+        if aa.returncode != 0 or not _article_audit_ready(article_final, article_audit):
+            _record_step(run_dir, "audit_article_evidence", time.perf_counter() - t0)
+            return _fail(
+                feed_job_id,
+                project,
+                "writer",
+                "Article evidence audit failed to produce a valid article_audit.json.",
+            )
+    _record_step(run_dir, "audit_article_evidence", time.perf_counter() - t0)
 
     print("=== STEP image ===", flush=True)
     _progress(feed_job_id, "image")
