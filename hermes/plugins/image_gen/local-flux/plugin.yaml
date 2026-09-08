@@ -1,0 +1,5 @@
+name: local-flux
+version: 1.0.0
+description: "Local FLUX.2 Klein 9B HTTP image backend with local MemeCoinist branding."
+author: Spearmint
+kind: backend

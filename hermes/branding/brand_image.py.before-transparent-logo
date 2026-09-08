@@ -1,0 +1,109 @@
+from pathlib import Path
+from io import BytesIO
+from urllib.request import Request, urlopen
+from PIL import Image, ImageDraw
+import hashlib
+import time
+
+HOME = Path.home() / ".hermes"
+LOGO = HOME / "branding" / "logo.png"
+CACHE = HOME / "cache" / "branded_images"
+
+CACHE.mkdir(parents=True, exist_ok=True)
+
+
+def load_image(ref):
+    if not ref:
+        return None
+
+    if str(ref).startswith(("http://", "https://")):
+        req = Request(
+            ref,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urlopen(req, timeout=30) as r:
+            return Image.open(BytesIO(r.read())).convert("RGBA")
+
+    return Image.open(Path(ref)).convert("RGBA")
+
+
+def apply_logo(ref):
+    if not ref:
+        return ref
+
+    if not LOGO.exists():
+        return ref
+
+    image = load_image(ref)
+
+    if image is None:
+        return ref
+
+    width, height = image.size
+
+    # Crop only transparent padding from logo.
+    logo = Image.open(LOGO).convert("RGBA")
+    bbox = logo.getbbox()
+
+    if bbox:
+        logo = logo.crop(bbox)
+
+    # Logo = about 22% of image width.
+    target_width = max(110, int(width * 0.22))
+
+    scale = target_width / logo.width
+    target_height = max(1, int(logo.height * scale))
+
+    logo = logo.resize(
+        (target_width, target_height),
+        Image.Resampling.LANCZOS,
+    )
+
+    # Fixed top-left position.
+    margin = max(12, int(width * 0.035))
+
+    padding_x = max(8, int(width * 0.015))
+    padding_y = max(6, int(width * 0.012))
+
+    box_w = logo.width + padding_x * 2
+    box_h = logo.height + padding_y * 2
+
+    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+
+    # Semi-transparent background keeps white logo visible.
+    draw.rounded_rectangle(
+        (
+            margin,
+            margin,
+            margin + box_w,
+            margin + box_h,
+        ),
+        radius=max(8, int(width * 0.018)),
+        fill=(0, 0, 0, 135),
+    )
+
+    layer.alpha_composite(
+        logo,
+        (
+            margin + padding_x,
+            margin + padding_y,
+        ),
+    )
+
+    branded = Image.alpha_composite(image, layer)
+
+    key = hashlib.sha256(
+        str(ref).encode("utf-8")
+    ).hexdigest()[:16]
+
+    out = CACHE / f"memecoinist_{key}_{int(time.time())}.jpg"
+
+    branded.convert("RGB").save(
+        out,
+        "JPEG",
+        quality=92,
+        optimize=True,
+    )
+
+    return str(out)

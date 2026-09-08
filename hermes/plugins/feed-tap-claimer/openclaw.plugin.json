@@ -1,0 +1,9 @@
+{
+  "name": "feed-tap-claimer",
+  "version": "1.0.0",
+  "description": "Handles Telegram /new, news-card, and feed-card taps without waking the orchestrator.",
+  "main": "index.mjs",
+  "engines": {
+    "hermes": "^1.0.0"
+  }
+}

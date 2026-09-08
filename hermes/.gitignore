@@ -1,0 +1,88 @@
+# =========================
+# SECRETS
+# =========================
+.env.*
+!.env.example
+credentials/
+auth.json
+auth.lock
+*.pem
+*.key
+*.p12
+*service-account*.json
+
+# =========================
+# PYTHON / VENV
+# =========================
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+hermes-agent/
+
+# =========================
+# RUNTIME / STATE
+# =========================
+logs/
+cache/
+image_cache/
+tmp/
+temp/
+sessions/
+terminal-sessions/
+memories/
+state/
+cron/
+*.db
+*.db-shm
+*.db-wal
+*.lock
+*.pid
+
+# =========================
+# GENERATED / BACKUPS
+# =========================
+*.bak
+*.backup
+backups/
+config.yaml.bak*
+config.yaml.before-*
+config.yaml.pre-*
+
+# =========================
+# LOCAL / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+.update_check
+
+# =========================
+# GENERATED MEDIA
+# =========================
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.avif
+*.mp4
+
+# =========================
+# NESTED / WORKSPACE REPOS
+# =========================
+workspace/
+workspace-*/
+profiles/
+workspace-orchestrator/
+workspace-telegram/
+workspace.before-*/
+plugins/*/.git/
+
+# =========================
+# LOCAL PLATFORM / BINARIES
+# =========================
+node/
+bin/

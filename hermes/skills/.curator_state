@@ -1,0 +1,9 @@
+{
+  "last_report_path": "/home/Rupesh/.hermes/logs/curator/20260905-123111",
+  "last_run_at": "2026-09-05T12:31:11.316924+00:00",
+  "last_run_duration_seconds": 1.854256,
+  "last_run_summary": "auto: no changes; llm: skipped (consolidation off)",
+  "last_run_summary_shown_at": null,
+  "paused": false,
+  "run_count": 1
+}

@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "installed": {
+    "openclaw-migration": {
+      "source": "official",
+      "identifier": "official/migration/openclaw-migration",
+      "trust_level": "builtin",
+      "scan_verdict": "safe",
+      "content_hash": "sha256:7a3d53d3b78915ba",
+      "install_path": "migration/openclaw-migration",
+      "files": [
+        "SKILL.md",
+        "scripts/openclaw_to_hermes.py"
+      ],
+      "metadata": {},
+      "scan_provenance": {
+        "source": "official",
+        "source_url": "official/migration/openclaw-migration",
+        "bundle_hash": "sha256:7a3d53d3b78915ba75638b161834e8206dd7db4579bc83e72544a94d3a496fd0",
+        "scanner_version": "skills-guard-v2",
+        "verdict": "safe",
+        "trust_level": "builtin",
+        "findings": [
+          {
+            "pattern_id": "agent_config_ref",
+            "severity": "low",
+            "category": "persistence",
+            "file": "scripts/openclaw_to_hermes.py",
+            "line": 1286,
+            "match": "self.record(\"workspace-agents\", \"workspace/AGENTS.md\", \"\", \"skipped\", \"Source file not found\")",
+            "description": "references agent config files (informational; only modification intent is scored)"
+          },
+          {
+            "pattern_id": "agent_config_ref",
+            "severity": "low",
+            "category": "persistence",
+            "file": "scripts/openclaw_to_hermes.py",
+            "line": 1478,
+            "match": "# OpenClaw's AGENTS.md, MEMORY.md, etc.",
+            "description": "references agent config files (informational; only modification intent is scored)"
+          },
+          {
+            "pattern_id": "hermes_config_ref",
+            "severity": "low",
+            "category": "persistence",
+            "file": "scripts/openclaw_to_hermes.py",
+            "line": 3099,
+            "match": "\"- Review `~/.hermes/config.yaml` for any adjustments\",",
+            "description": "references Hermes configuration files (informational; only modification intent is scored)"
+          },
+          {
+            "pattern_id": "hermes_config_ref",
+            "severity": "low",
+            "category": "persistence",
+            "file": "scripts/openclaw_to_hermes.py",
+            "line": 3266,
+            "match": "print(\"    1. Review ~/.hermes/config.yaml\")",
+            "description": "references Hermes configuration files (informational; only modification intent is scored)"
+          }
+        ],
+        "rules": [
+          "agent_config_ref",
+          "hermes_config_ref"
+        ],
+        "scanned_at": "2026-08-29T11:33:56.999317+00:00",
+        "summary": "openclaw-migration: safe — 4 finding(s) in persistence",
+        "fresh": true
+      },
+      "installed_at": "2026-08-29T11:34:01.383589+00:00",
+      "updated_at": "2026-08-29T11:34:01.383616+00:00"
+    }
+  }
+}

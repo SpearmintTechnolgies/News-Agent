@@ -1,0 +1,13 @@
+{
+  "updated_at": "2026-09-08T12:29:00.955344",
+  "platforms": {
+    "telegram": [
+      {
+        "id": "-1003736953686",
+        "name": "Spearmint News Agent",
+        "type": "group",
+        "thread_id": null
+      }
+    ]
+  }
+}
