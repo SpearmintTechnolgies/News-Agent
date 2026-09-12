@@ -7,7 +7,7 @@
 #   bash ~/.openclaw/workspace-orchestrator/skills/pipeline/init_run.sh [<project_slug>]
 #   source /tmp/<project>-run-env.sh
 #
-# `<project_slug>` defaults to `coinography` (or value of $PROJECT_SLUG env if
+# `<project_slug>` defaults to `coinnetwork` (or value of $PROJECT_SLUG env if
 # set). It must correspond to a file at ~/.openclaw/projects/<slug>.json.
 #
 # After sourcing the env file the shell has:
@@ -15,7 +15,7 @@
 #   $RUN_DIR           -- /tmp/<project>-run-20260604-120000
 #   $CRYPTO_RUN_DIR    -- same as RUN_DIR (legacy alias kept for compat)
 #   $PIPELINE_MANIFEST -- $RUN_DIR/manifest.json
-#   $PROJECT_SLUG      -- e.g. coinography
+#   $PROJECT_SLUG      -- e.g. coinnetwork
 #   $PROJECT_CONFIG    -- absolute path to projects/<slug>.json
 #
 # The run-bundle layout (unchanged from before, just under a project-prefixed dir):
@@ -33,10 +33,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Windows: `python3` must be CPython, not the Microsoft Store stub (exit 49).
+if [[ -x "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" ]]; then
+  python3() { "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" "$@"; }
+  export -f python3
+fi
+if [[ -x "/c/Program Files/Git/bin/bash.exe" ]]; then
+  export PATH="/c/Program Files/Git/bin:/c/Program Files/Git/usr/bin:$PATH"
+fi
+
 # --------------------------------------------------------------------------
 # 1. Resolve project slug (arg > env > default)
 # --------------------------------------------------------------------------
-PROJECT_SLUG_INPUT="${1:-${PROJECT_SLUG:-coinography}}"
+PROJECT_SLUG_INPUT="${1:-${PROJECT_SLUG:-coinnetwork}}"
 
 # Validate the project exists; project_config.py prints a clear error if not.
 PROJECT_CONFIG_PATH="${HOME}/.openclaw/projects/${PROJECT_SLUG_INPUT}.json"
@@ -54,7 +63,9 @@ PROJECT_SLUG="$(python3 "${SCRIPT_DIR}/project_config.py" --slug "$PROJECT_SLUG_
 # suffix. Nothing parses RUN_ID as a strict timestamp; it is only used in paths
 # and labels.
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$-${RANDOM}"
-RUN_DIR="/tmp/${PROJECT_SLUG}-run-${RUN_ID}"
+RUN_ROOT="${HOME}/.openclaw/runs"
+mkdir -p "${RUN_ROOT}"
+RUN_DIR="${RUN_ROOT}/${PROJECT_SLUG}-run-${RUN_ID}"
 
 # --------------------------------------------------------------------------
 # 2. Create nested directory tree + empty placeholder files
@@ -134,10 +145,40 @@ PYEOF
 # 4. Symlinks: legacy /tmp paths -> run-bundle files
 # --------------------------------------------------------------------------
 _symlink() {
+  # Create legacy /tmp path pointing at a run-bundle file.
+  # On Linux: real symlink. On Windows Git Bash (no symlink privilege): mklink / hardlink /
+  # empty placeholder so init_run never aborts under set -e.
   local legacy="$1"
   local target="$2"
+  mkdir -p "$(dirname "$legacy")" "$(dirname "$target")" 2>/dev/null || true
+  if [[ ! -e "$target" ]]; then
+    touch "$target" 2>/dev/null || true
+  fi
   rm -f "$legacy" 2>/dev/null || true
-  ln -sf "$target" "$legacy"
+  # Prefer native symlinks when available (Linux / MSYS with privilege)
+  if ln -sf "$target" "$legacy" 2>/dev/null; then
+    return 0
+  fi
+  # Windows cmd mklink (file symlink; may work with Developer Mode)
+  if command -v cygpath >/dev/null 2>&1 && command -v cmd.exe >/dev/null 2>&1; then
+    local w_legacy w_target
+    w_legacy="$(cygpath -w "$legacy" 2>/dev/null || true)"
+    w_target="$(cygpath -w "$target" 2>/dev/null || true)"
+    if [[ -n "$w_legacy" && -n "$w_target" ]]; then
+      if cmd.exe //c "mklink \"$w_legacy\" \"$w_target\"" >/dev/null 2>&1; then
+        return 0
+      fi
+    fi
+  fi
+  # Hardlink when same volume and target is a regular file
+  if [[ -f "$target" ]] && ln -f "$target" "$legacy" 2>/dev/null; then
+    return 0
+  fi
+  # Last resort: placeholder + sidecar pointer (scripts prefer RUN_DIR when env is sourced)
+  : > "$legacy" 2>/dev/null || true
+  printf '%s\n' "$target" > "${legacy}.target" 2>/dev/null || true
+  echo "[INIT] WARN: could not symlink $legacy -> $target (using placeholder; prefer RUN_DIR paths)" >&2
+  return 0
 }
 
 # Project-prefixed symlinks (new, canonical for non-coinography projects)
@@ -243,12 +284,15 @@ echo "$ENV_FILE_RUN" > "${RUN_DIR}/.run_env_path"
 
 # Backward-compat env file path
 cp -f "$ENV_FILE_PROJECT" "/tmp/crypto-run-env.sh"
+cp -f "$ENV_FILE_PROJECT" "${RUN_ROOT}/${PROJECT_SLUG}-run-env.sh"
+echo "${RUN_DIR}" > "${RUN_ROOT}/${PROJECT_SLUG}-active-run"
 
 # --------------------------------------------------------------------------
 # 6. Prune old run dirs (per-project + legacy) older than 7 days
 # --------------------------------------------------------------------------
 find /tmp -maxdepth 1 -name "${PROJECT_SLUG}-run-*" -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 find /tmp -maxdepth 1 -name 'crypto-run-*'          -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+find "${RUN_ROOT}" -maxdepth 1 -name "${PROJECT_SLUG}-run-*" -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 # Prune stale run-unique env files (left behind by old runs).
 find /tmp -maxdepth 1 -name "${PROJECT_SLUG}-run-env-*.sh" -type f -mtime +7 -delete 2>/dev/null || true
 

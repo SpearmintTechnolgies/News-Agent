@@ -11,7 +11,7 @@ Resolution order:
   2. PROJECT_CONFIG env var (absolute path to projects/<slug>.json).
   3. PROJECT_SLUG env var (resolved to ~/.openclaw/projects/<slug>.json).
   4. manifest.json's `project` field (resolved to projects/<slug>.json).
-  5. Fallback default slug 'coinography' (backward compat).
+  5. Fallback default slug 'coinnetwork' (active test site; coinography kept for later).
 
 Usage:
     from project_config import load_project_config, project_root
@@ -22,7 +22,7 @@ Usage:
                                         # ~/.openclaw/
 
 CLI:
-    python3 project_config.py --slug coinography --field wordpress.url
+    python3 project_config.py --slug coinnetwork --field wordpress.url
 """
 from __future__ import annotations
 
@@ -32,7 +32,8 @@ import os
 import sys
 from typing import Any, Optional
 
-DEFAULT_PROJECT_SLUG = "coinography"
+# Active test publishing target. Switch to "coinography" when ready for main site.
+DEFAULT_PROJECT_SLUG = "coinnetwork"
 
 
 def openclaw_root() -> str:
@@ -186,7 +187,8 @@ def load_project_config(
     return ProjectConfig(data, source)
 
 
-def list_available_projects() -> list[str]:
+def list_project_slugs_on_disk() -> list[str]:
+    """All project JSON basenames (except _template / underscore-prefixed)."""
     pdir = projects_dir()
     if not os.path.isdir(pdir):
         return []
@@ -194,6 +196,28 @@ def list_available_projects() -> list[str]:
     for fn in sorted(os.listdir(pdir)):
         if fn.endswith(".json") and not fn.startswith("_"):
             out.append(fn[:-5])
+    return out
+
+
+def list_available_projects(*, include_disabled: bool = False) -> list[str]:
+    """Project slugs that scanners/schedulers should treat as active.
+
+    Set ``"enabled": false`` on a project JSON to keep the file (e.g. main site
+    parked while testing) without auto pool-scan / --all feed. Explicit
+    ``--slug coinography`` still loads via load_project_config.
+    """
+    out = []
+    for slug in list_project_slugs_on_disk():
+        if include_disabled:
+            out.append(slug)
+            continue
+        try:
+            cfg = load_project_config(slug=slug)
+        except (FileNotFoundError, ValueError):
+            continue
+        if cfg.get("enabled", True) is False:
+            continue
+        out.append(slug)
     return out
 
 
@@ -209,12 +233,13 @@ def resolve_project_for_chat(chat_id: str) -> Optional[str]:
     """Return the project slug bound to a Telegram group chat id, if any.
 
     Inverts ``telegram.group_id`` from each project config. Returns ``None``
-    when the chat is not bound (e.g. DMs or unknown groups).
+    when the chat is not bound (e.g. DMs or unknown groups). Includes
+    disabled projects so a parked main-site group still routes correctly.
     """
     cid = _normalize_chat_id(chat_id)
     if not cid:
         return None
-    for slug in list_available_projects():
+    for slug in list_project_slugs_on_disk():
         try:
             cfg = load_project_config(slug=slug)
         except (FileNotFoundError, ValueError):
@@ -251,7 +276,7 @@ def assert_project_matches_manifest(cfg: ProjectConfig, manifest_path: str) -> N
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Inspect a project config")
-    p.add_argument("--slug", help="Project slug (defaults to env / manifest / coinography)")
+    p.add_argument("--slug", help="Project slug (defaults to env / manifest / coinnetwork)")
     p.add_argument("--path", help="Explicit project config path (overrides --slug)")
     p.add_argument("--field", help="Dotted key to print (e.g. wordpress.url). If omitted, prints full JSON.")
     p.add_argument(

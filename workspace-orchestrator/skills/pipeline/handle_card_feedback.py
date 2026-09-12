@@ -26,14 +26,17 @@ from editorial_db import (
     claim_feed_card_index,
     clear_edit_session,
     count_queued_jobs,
+    drainer_active,
     enqueue_feed_job,
     get_edit_session_by_prompt,
     get_feed_card,
+    get_latest_feed_job_for_card,
     get_latest_version,
     init_db,
     lookup_by_alert_id,
     lookup_by_message_id,
     lookup_by_run_id,
+    mark_feed_job,
     mark_pool,
     record_editorial_action,
     record_rating,
@@ -169,9 +172,36 @@ def send_message(
         payload["reply_to_message_id"] = str(reply_to_message_id)
     if reply_markup:
         payload["reply_markup"] = json.dumps(reply_markup)
-    result = telegram_request(token, "sendMessage", payload)
+    try:
+        result = telegram_request(token, "sendMessage", payload)
+    except RuntimeError as exc:
+        # WP/WSL errors often contain "<3>..." which breaks Telegram HTML parse_mode.
+        if "can't parse entities" not in str(exc).lower():
+            raise
+        payload.pop("parse_mode", None)
+        payload["text"] = re.sub(r"<[^>]*>", "", text)
+        result = telegram_request(token, "sendMessage", payload)
     msg = result.get("result") or {}
     return msg.get("message_id")
+
+
+def _resolve_bash() -> str:
+    """Prefer Git Bash on Windows — bare `bash` often hits broken WSL bash.exe."""
+    for key in ("OPENCLAW_BASH", "GIT_BASH"):
+        env = (os.environ.get(key) or "").strip().strip('"')
+        if env and os.path.isfile(env):
+            return env
+    home = os.path.expanduser("~")
+    candidates = [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files\Git\usr\bin\bash.exe",
+        os.path.join(home, r"AppData\Local\Programs\Git\bin\bash.exe"),
+        os.path.join(home, ".openclaw", "bin", "bash.cmd"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return "bash"
 
 
 def send_document(
@@ -487,7 +517,7 @@ def run_wp_action(args: list[str], project: str | None = None) -> tuple[bool, st
         full_args.extend(["--project", project])
     try:
         result = subprocess.run(
-            ["bash", WP_ACTIONS, *full_args],
+            [_resolve_bash(), WP_ACTIONS, *full_args],
             capture_output=True,
             text=True,
             timeout=120,
@@ -507,7 +537,7 @@ def run_wp_ensure_image(args: list[str], project: str | None = None) -> tuple[bo
         full_args.extend(["--project", project])
     try:
         result = subprocess.run(
-            ["bash", WP_ACTIONS, *full_args],
+            [_resolve_bash(), WP_ACTIONS, *full_args],
             capture_output=True,
             text=True,
             timeout=120,
@@ -629,7 +659,7 @@ def handle_draft_yes(
     )
     if not ok:
         if token and chat_id:
-            send_message(token, chat_id, f"Unpublish failed: {msg}", reply_to_message_id=reply_id)
+            send_message(token, chat_id, f"Unpublish failed: {html_escape(msg)}", reply_to_message_id=reply_id)
         return f"DRAFT_FAILED: {msg}"
     set_wp_status(article.id, "draft", db_path)
     record_editorial_action(article.id, "draft", user_id=user_id, source=source, raw_payload=raw, db_path=db_path)
@@ -791,7 +821,12 @@ def handle_publish_yes(
     )
     if not ok:
         if token and chat_id:
-            send_message(token, chat_id, f"Publish failed: {msg}", reply_to_message_id=reply_id)
+            send_message(
+                token,
+                chat_id,
+                f"Publish failed: {html_escape(msg)}",
+                reply_to_message_id=reply_id,
+            )
         return f"PUBLISH_FAILED: {msg}"
     set_wp_status(article.id, "publish", db_path)
     set_wp_author(article.id, author_id, db_path)
@@ -951,7 +986,7 @@ def handle_edit_apply(
         os.unlink(tmp_path)
     if not ok:
         if token and chat_id:
-            send_message(token, chat_id, f"Apply failed: {msg}", reply_to_message_id=reply_id)
+            send_message(token, chat_id, f"Apply failed: {html_escape(msg)}", reply_to_message_id=reply_id)
         return f"EDIT_FAILED: {msg}"
     save_article_version(
         article.id,
@@ -999,18 +1034,36 @@ def handle_edit_cancel(
     return f"EDIT_CANCELLED: {article.alert_id}"
 
 
-FEED_GO_DIR = "/tmp"
+FEED_GO_DIR = os.path.join(os.path.expanduser("~"), ".openclaw", "runs", "feed-go")
 
 
 def _feed_go_path(feed_id: str, candidate_index: int) -> str:
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", feed_id)
+    os.makedirs(FEED_GO_DIR, exist_ok=True)
     return os.path.join(FEED_GO_DIR, f"openclaw-feed-go-{safe}-{int(candidate_index)}.json")
 
 
 def _try_dispatch_feed_jobs() -> None:
     try:
+        ensure = os.path.join(_SCRIPT_DIR, "ensure_scheduler.py")
+        subprocess.run(
+            [sys.executable, ensure],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            cwd=_SCRIPT_DIR,
+        )
+    except Exception as e:
+        print(f"SCHEDULER_WARN: {e}", file=sys.stderr)
+    try:
         script = os.path.join(_SCRIPT_DIR, "dispatch_feed_jobs.py")
-        subprocess.run([sys.executable, script], capture_output=True, text=True, timeout=90)
+        subprocess.run(
+            [sys.executable, script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_SCRIPT_DIR,
+        )
     except Exception as e:
         print(f"DISPATCH_WARN: {e}", file=sys.stderr)
 
@@ -1046,6 +1099,81 @@ def handle_feed_go(
         return f"FEED_SELECT_INVALID: {feed_id} idx={candidate_index}"
 
     if not claim_feed_card_index(feed_id, candidate_index, db_path=db_path):
+        existing = get_latest_feed_job_for_card(
+            feed_id, candidate_index, db_path=db_path
+        )
+        if existing and existing.status in ("queued", "running"):
+            live = drainer_active(
+                existing.project,
+                stale_minutes=float(os.environ.get("DRAINER_LEASE_STALE_MIN", "45")),
+                db_path=db_path,
+            )
+            if existing.status == "running" and live:
+                if token and chat_id:
+                    try:
+                        import drain_progress as progress
+
+                        progress.notify(
+                            existing.id,
+                            "sieve",
+                            headline=existing.headline,
+                            project=existing.project,
+                            chat_id=chat_id,
+                            reply_to_message_id=reply_id,
+                            note="Already running — wait for this board to update.",
+                        )
+                    except Exception:
+                        send_message(
+                            token,
+                            chat_id,
+                            "This story is already running — wait for the draft card.",
+                            reply_to_message_id=reply_id,
+                        )
+                return f"FEED_GO_IN_FLIGHT: {feed_id} idx={candidate_index} job_id={existing.id}"
+            _try_dispatch_feed_jobs()
+            if token and chat_id:
+                try:
+                    import drain_progress as progress
+
+                    progress.notify(
+                        existing.id,
+                        "queued",
+                        headline=existing.headline,
+                        project=existing.project,
+                        chat_id=chat_id,
+                        reply_to_message_id=reply_id,
+                        note="Worker stalled — restarted. This board will update as steps finish.",
+                    )
+                except Exception as e:
+                    print(f"PROGRESS_WARN: {e}", file=sys.stderr)
+                    send_message(
+                        token,
+                        chat_id,
+                        "Worker stalled — restarted the queue for this story.\n"
+                        f"{html_escape(str(existing.headline or ''))}\n"
+                        "<i>The draft card will arrive when Sieve → Scout → Quill → Pixel finish.</i>",
+                        reply_to_message_id=reply_id,
+                    )
+            return f"FEED_GO_REDISPATCH: {feed_id} idx={candidate_index} job_id={existing.id}"
+        if existing and existing.status == "failed":
+            mark_feed_job(existing.id, "queued", db_path=db_path)
+            _try_dispatch_feed_jobs()
+            if token and chat_id:
+                try:
+                    import drain_progress as progress
+
+                    progress.notify(
+                        existing.id,
+                        "queued",
+                        headline=existing.headline,
+                        project=existing.project,
+                        chat_id=chat_id,
+                        reply_to_message_id=reply_id,
+                        note="Previous run failed — queued again.",
+                    )
+                except Exception as e:
+                    print(f"PROGRESS_WARN: {e}", file=sys.stderr)
+            return f"FEED_GO_REQUEUE_FAILED: {feed_id} idx={candidate_index} job_id={existing.id}"
         if token and chat_id:
             send_message(
                 token,
@@ -1099,14 +1227,28 @@ def handle_feed_go(
             print(f"FEED_EDIT_WARN: {e}", file=sys.stderr)
 
         pos_text = f" (position {position} in queue)" if position > 1 else ""
-        send_message(
-            token,
-            chat_id,
-            f"Queued on <b>{html_escape(card.project)}</b>{pos_text}:\n"
-            f"{html_escape(headline)}\n"
-            f"<i>A running worker will pick this up automatically.</i>",
-            reply_to_message_id=reply_id,
-        )
+        try:
+            import drain_progress as progress
+
+            progress.notify(
+                int(job_id),
+                "queued",
+                headline=headline,
+                project=card.project,
+                chat_id=chat_id,
+                reply_to_message_id=reply_id,
+                note=pos_text.strip(),
+            )
+        except Exception as e:
+            print(f"PROGRESS_WARN: {e}", file=sys.stderr)
+            send_message(
+                token,
+                chat_id,
+                f"Queued on <b>{html_escape(card.project)}</b>{pos_text}:\n"
+                f"{html_escape(headline)}\n"
+                "<i>Sieve → Scout → Quill → Pixel. This chat will get step updates.</i>",
+                reply_to_message_id=reply_id,
+            )
 
     _try_dispatch_feed_jobs()
     return (
@@ -1131,7 +1273,8 @@ def main() -> int:
     args = parser.parse_args()
 
     init_db(args.db_path)
-    chat_id = str(args.chat_id or "").strip()
+    # Orchestrator often passes telegram:-100...; Bot API needs the numeric id.
+    chat_id = pc._normalize_chat_id(args.chat_id or "")
     token = "" if args.no_reply else load_bot_token()
     reply_id: int | None = None
     if args.reply_to_message_id:

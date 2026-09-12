@@ -1,0 +1,12 @@
+openclaw-data/
+docker/news-agent-deploy/
+logs/
+browser/
+node_modules/
+agents/
+sawan/
+.pytest_cache/
+extra-non-related-web-resources-for-reference/
+**/__pycache__/
+**/*.pyc
+.git/

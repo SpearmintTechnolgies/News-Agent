@@ -5,13 +5,36 @@ Each `projects/<slug>.json` defines a publishing target (a WordPress site). The 
 ## Run syntax
 
 ```
-run pipeline N                  # defaults to coinography (back-compat)
+run pipeline N                  # defaults to coinnetwork (active test site)
 run pipeline <slug> N           # run pipeline N times for project <slug>
+                                # e.g. run pipeline coinography 1 for the main site
 ```
 
 The orchestrator parses `<slug>` in Step 0.4, validates `projects/<slug>.json`, and locks it into `manifest.json` for the whole run.
 
-## Add a new site in 4 steps
+**Active defaults (2026 testing):** `coinnetwork` → https://coinnetwork.info is the default when no slug is given. `coinography` → https://coinography.com remains configured but with `"enabled": false` so pool scan / `--all` feed skip it until you re-enable for production.
+
+## Add a new site (recommended: automated onboarding)
+
+The deterministic onboarding engine collects everything below, verifies WordPress live, curates categories/authors, writes all config + credentials, and patches `openclaw.json` — with zero LLM involvement. Two ways to run it:
+
+**Telegram (no terminal needed):** send `/onboard` from an existing bound project group (e.g. the Coinography group). No `@bot` mention is required — the command is registered as a plugin command and bypasses the mention gate. The bot replies with a prerequisites brief, then walks through the rest step by step. For free-text answers, **reply to the bot's message** (required in `requireMention: true` groups). At the **logo/watermark** step, reply with a transparent PNG sent as **File** (paperclip → File) or **Photo**. Owner-only; handled by the `project-onboarder` plugin without waking the orchestrator.
+
+**Terminal wizard:** the same flow includes a logo step — provide a local path to a `.png` file when prompted. The wizard saves it to `assets/logo-{slug}.png` and sets `creator.logo_path` in the project JSON.
+
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/onboard_project.py wizard
+```
+
+Either path writes `projects/<slug>.json`, `credentials/wp/<slug>.pass`, `state/recent_topics-<slug>.json`, then prints (or applies, on confirmation) the exact `openclaw.json` patch and restarts the gateway. See [`ONBOARDING_CHECKLIST.md`](ONBOARDING_CHECKLIST.md) for the full field-by-field reference and the manual fallback procedure.
+
+Verify any project (new or existing) at any time:
+```bash
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/validate_project_config.py --slug <slug> --openclaw-sync --scanner-ready --live
+python3 ~/.openclaw/workspace-orchestrator/skills/pipeline/onboard_project.py verify --slug <slug>
+```
+
+## Add a new site manually (fallback — 4 steps)
 
 ### 1. Copy the template
 
@@ -88,3 +111,7 @@ See `AGENT_PIPELINE_REGISTRY.md` → **Projects** section for the field-by-field
 1. Stop running `run pipeline <slug> N` for it.
 2. Archive the config + credentials (move out of `projects/` and `credentials/wp/`).
 3. Existing DB rows tagged with that `project` slug stay — they're history, not active runs.
+
+## Parking a site (e.g. main while testing)
+
+Set `"enabled": false` in `projects/<slug>.json`. Keep the file and credentials. Pool scan and `--all` feed skip it; explicit `run pipeline <slug> N` still works. To go live on Coinography again: set `"enabled": true`, set `DEFAULT_PROJECT_SLUG = "coinography"` in `project_config.py`, and prefer the Coinography Telegram group.

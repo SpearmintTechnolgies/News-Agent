@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import threading
 import time
@@ -69,8 +70,20 @@ def _rank_candidates(headline: str, results: list[dict], skip_domain: str) -> li
             continue
         blob = f"{r.get('title', '')} {r.get('snippet', '')}"
         score = _overlap_score(headline, blob)
-        if score >= OVERLAP_THRESHOLD:
-            scored.append((score, r))
+        if score < OVERLAP_THRESHOLD:
+            continue
+        # Absolute-token gate: ratio alone can pass a one-token homonym
+        # (e.g. "Download Maya" vs "Maya Protocol …"). Require the same
+        # secondary-source anchor rule used at build time.
+        pseudo = {
+            "title": str(r.get("title") or ""),
+            "snippet": str(r.get("snippet") or ""),
+            "content": "",
+            "url": str(r.get("url") or ""),
+        }
+        if not brj.secondary_source_relevant(headline, pseudo):
+            continue
+        scored.append((score, r))
     scored.sort(key=lambda x: -x[0])
     return [r for _, r in scored]
 
@@ -84,12 +97,22 @@ def _meets_target(out_dir: str) -> bool:
     return words >= PROSE_MIN_WORDS and sources >= MIN_SOURCES
 
 
+_EXTRA_STOP = frozenset({
+    "the", "a", "an", "and", "or", "for", "of", "to", "in", "on", "as",
+    "new", "select",
+})
+
+
 def _extra_query(headline: str, pick: dict[str, Any]) -> str:
-    parts = headline.split()
-    asset = str(pick.get("primary_asset") or "").strip()
-    if asset and asset.lower() not in headline.lower():
-        parts.append(asset)
-    return " ".join(parts[:12])
+    """Keyword query that is not identical to the headline (DDG + GNews)."""
+    tokens = [
+        t for t in re.findall(r"[A-Za-z][A-Za-z0-9%-]*", headline or "")
+        if t.lower() not in _EXTRA_STOP
+    ]
+    q = " ".join(tokens[:8]).strip()
+    if not q:
+        q = search_tool._sanitize_query(headline) if headline else ""
+    return q or (headline or "").strip()
 
 
 def _corroborating_urls(pick: dict[str, Any]) -> list[tuple[str, str]]:
@@ -243,16 +266,22 @@ def run_research(
     if state.can_continue():
         _read_batch(state, _corroborating_urls(pick))
 
-    # Extra search round
+    # Extra search round (always runs — do not skip when query == headline)
     if extra_search and state.can_continue() and headline:
         q = _extra_query(headline, pick)
-        if q != headline:
-            extra_results = search_tool.search(q, max_results=6)
-            batch = [
-                (str(c.get("url") or "").strip(), str(c.get("domain") or "").strip())
-                for c in _rank_candidates(headline, extra_results, pick_domain)
-            ]
-            _read_batch(state, batch)
+        extra_results = search_tool.search(q, max_results=6)
+        ranked = _rank_candidates(headline, extra_results, pick_domain)
+        if not ranked:
+            ranked = [
+                c for c in extra_results
+                if _domain(str(c.get("url") or "")) != pick_domain
+            ][:4]
+        batch = [
+            (str(c.get("url") or "").strip(),
+             str(c.get("domain") or c.get("title") or "").strip())
+            for c in ranked
+        ]
+        _read_batch(state, batch)
 
     code, doc = brj.build(input_file, pick_index, out_dir, output_file)
     words, sources = _cumulative(out_dir)

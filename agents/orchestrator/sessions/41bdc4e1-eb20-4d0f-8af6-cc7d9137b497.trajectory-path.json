@@ -1,0 +1,6 @@
+{
+  "traceSchema": "openclaw-trajectory-pointer",
+  "schemaVersion": 1,
+  "sessionId": "41bdc4e1-eb20-4d0f-8af6-cc7d9137b497",
+  "runtimeFile": "/home/bhard/.openclaw/agents/orchestrator/sessions/41bdc4e1-eb20-4d0f-8af6-cc7d9137b497.trajectory.jsonl"
+}

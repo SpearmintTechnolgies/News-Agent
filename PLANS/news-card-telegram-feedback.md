@@ -163,7 +163,7 @@ Deterministic core — orchestrator runs via bash; script owns DB + Telegram rep
 ```bash
 python3 handle_card_feedback.py \
   --payload "oc_r:20260522-101746:8" \
-  --chat-id "YOUR_TELEGRAM_NEWS_GROUP_ID" \
+  --chat-id "-1003760909509" \
   --user-id "5691449303" \
   --username "editor" \
   --reply-to-message-id "197" \

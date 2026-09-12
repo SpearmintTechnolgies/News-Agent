@@ -13,7 +13,7 @@
 # Pipeline cleanup: strips META block, Sources footer, Word Count line, and thinking blocks
 # before publishing so only clean article content reaches WordPress.
 #
-# Output (run-scoped — safe for concurrent coinography + memecoinist runs):
+# Output (run-scoped — safe for concurrent coinography + coinnetwork runs):
 #   Exit 0 → $RUN_DIR/publish/wp-url.txt + wordpress.json (canonical)
 #            /tmp/${PROJECT_SLUG}-wp-result.txt + .json (per-slug)
 #            /tmp/wp-result.txt (legacy best-effort only)
@@ -21,6 +21,13 @@
 # =============================================================================
 
 set -euo pipefail
+
+# Windows: python3 must be CPython, not the Microsoft Store stub (exit 49).
+if [[ -x "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" ]]; then
+  python3() { "/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311/python.exe" "$@"; }
+  export -f python3
+  export PATH="/c/Users/Aditya Singh/AppData/Local/Programs/Python/Python311:/c/Program Files/Git/bin:/c/Program Files/Git/usr/bin:${PATH:-}"
+fi
 
 # --- SG Captcha WAF Bypass Wrapper --------------------------------------------
 curl() {
@@ -36,7 +43,7 @@ export -f curl 2>/dev/null || true
 #   2. $PROJECT_SLUG env
 #   3. $PROJECT_CONFIG env (path to projects/<slug>.json)
 #   4. $PIPELINE_MANIFEST's "project" field
-#   5. fallback: "coinography"
+#   5. fallback: "coinnetwork"
 #
 # To override the project from the CLI, add `--project <slug>` to the
 # argument list (parsed below).
@@ -172,11 +179,13 @@ META_FILE="/tmp/${PROJECT_SLUG_RESOLVED}-wp-meta.txt"
 # IDs by validate_picks.py and carried through validated.json as
 # wp_category_ids. Read them here; fall back to the project's
 # fallback_category_id when absent (legacy runs, single-story path, or errors).
-VALIDATED_JSON="${VALIDATED_JSON:-/tmp/${PROJECT_SLUG_RESOLVED}-research.json}"
-# Run-scoped fallback first (concurrency-safe); legacy global only as last resort.
-if [ ! -f "$VALIDATED_JSON" ]; then
-  if [[ -n "$RUN_DIR" && -f "${RUN_DIR}/research/validated.json" ]]; then
-    VALIDATED_JSON="${RUN_DIR}/research/validated.json"
+# Prefer this run's validated.json. A stale /tmp/<slug>-research.json from an
+# older story would otherwise steal categories (fallback News).
+if [[ -n "$RUN_DIR" && -f "${RUN_DIR}/research/validated.json" ]]; then
+  VALIDATED_JSON="${RUN_DIR}/research/validated.json"
+elif [ -z "${VALIDATED_JSON:-}" ] || [ ! -f "${VALIDATED_JSON:-}" ]; then
+  if [ -f "/tmp/${PROJECT_SLUG_RESOLVED}-research.json" ]; then
+    VALIDATED_JSON="/tmp/${PROJECT_SLUG_RESOLVED}-research.json"
   else
     VALIDATED_JSON="/tmp/research.json"
   fi
@@ -189,7 +198,7 @@ import wp_category_resolve as wcr
 
 vjson = os.environ.get("VJSON", "")
 fb = os.environ.get("FB", "17").strip() or "17"
-project = os.environ.get("PROJECT", "coinography")
+project = os.environ.get("PROJECT", "coinnetwork")
 ids = []
 slugs = []
 try:
@@ -550,16 +559,19 @@ fi
 # =============================================================================
 log_info "Converting clean article to HTML..."
 
-if command -v pandoc &>/dev/null; then
+MD_TO_HTML="${SCRIPT_DIR_PUBLISH}/md_to_html.py"
+if command -v pandoc &>/dev/null && pandoc -v >/dev/null 2>&1; then
   if timeout 20s pandoc "$CLEAN_MD" -t html -o "$HTML_PATH" 2>/dev/null; then
     log_info "Pandoc conversion successful."
+  elif python3 "$MD_TO_HTML" "$CLEAN_MD" -o "$HTML_PATH"; then
+    log_info "Pandoc failed; Python Markdown→HTML used."
   else
-    log_error "Pandoc failed or timed out. Using raw content fallback."
-    cp "$CLEAN_MD" "$HTML_PATH"
+    fatal "Markdown→HTML conversion failed (pandoc and md_to_html.py)."
   fi
+elif python3 "$MD_TO_HTML" "$CLEAN_MD" -o "$HTML_PATH"; then
+  log_info "Markdown→HTML via md_to_html.py (no pandoc)."
 else
-  log_error "Pandoc not installed. Using raw markdown as content."
-  cp "$CLEAN_MD" "$HTML_PATH"
+  fatal "Markdown→HTML conversion failed. Install pandoc or Python markdown."
 fi
 
 # Strip H1 from body only when it differs from post title (avoid wrong duplicate)
@@ -829,8 +841,22 @@ else
   log_info "Live post:     $POST_URL"
 fi
 
-# Write structured JSON result for orchestrator (run-scoped + per-slug paths)
-python3 - <<PYEOF
+# Write structured JSON via env (never interpolate titles into Python — apostrophes/quotes crash the heredoc).
+export WP_JSON_PROJECT="$PROJECT_SLUG_RESOLVED"
+export WP_JSON_CATEGORY_IDS="${CATEGORY_IDS:-}"
+export WP_JSON_POST_ID="$POST_ID"
+export WP_JSON_POST_URL="$POST_URL"
+export WP_JSON_POST_STATUS="$POST_STATUS"
+export WP_JSON_MEDIA_ID="$MEDIA_ID"
+export WP_JSON_SOURCES_STRIPPED="${SOURCES_STRIPPED:-0}"
+export WP_JSON_POST_TITLE="${POST_TITLE:-}"
+export WP_JSON_SEO_TITLE="${EXTRACTED_TITLE:-}"
+export WP_JSON_FOCUS_KEYWORD="${FOCUS_KEYWORD:-}"
+export WP_JSON_SECONDARY_KEYWORDS="${SECONDARY_KEYWORDS:-}"
+export WP_JSON_RANK_MATH_FOCUS="${RANK_MATH_FOCUS_KEYWORD:-}"
+export WP_JSON_RESULT_JSON="${RESULT_JSON:-}"
+export WP_JSON_WP_PATH="${WP_JSON_PATH:-}"
+python3 - <<'PYEOF'
 import json
 import os
 import sys
@@ -838,8 +864,9 @@ import sys
 sys.path.insert(0, os.path.expanduser("~/.openclaw/workspace-orchestrator/skills/pipeline"))
 import project_config as pc
 
-project = "${PROJECT_SLUG_RESOLVED}"
-category_ids = [int(x) for x in "${CATEGORY_IDS}".split(",") if x.strip()]
+project = os.environ.get("WP_JSON_PROJECT") or ""
+raw_ids = os.environ.get("WP_JSON_CATEGORY_IDS") or ""
+category_ids = [int(x) for x in raw_ids.split(",") if x.strip()]
 wp_category_slugs = []
 wp_category_names = []
 try:
@@ -860,42 +887,45 @@ try:
 except Exception:
     pass
 
+media_id = int(os.environ.get("WP_JSON_MEDIA_ID") or "0")
 result = {
-  "status": "ok",
-  "post_id": "${POST_ID}",
-  "draft_url": "${POST_URL}",
-  "post_status": "${POST_STATUS}",
-  "feature_image_uploaded": ${MEDIA_ID} != 0,
-  "meta_stripped": True,
-  "sources_footer_stripped": "${SOURCES_STRIPPED}" == "1",
-  "rank_math_applied": True,
-  "content_format": "gutenberg_blocks",
-  "article_headline": """${POST_TITLE}""",
-  "seo_title": """${EXTRACTED_TITLE}""",
-  "focus_keyword": """${FOCUS_KEYWORD}""",
-  "secondary_keywords": """${SECONDARY_KEYWORDS}""",
-  "rank_math_focus_keyword": """${RANK_MATH_FOCUS_KEYWORD}""",
-  "wp_category_ids": category_ids,
-  "wp_category_slugs": wp_category_slugs,
-  "wp_category_names": wp_category_names,
+    "status": "ok",
+    "post_id": os.environ.get("WP_JSON_POST_ID") or "",
+    "draft_url": os.environ.get("WP_JSON_POST_URL") or "",
+    "post_status": os.environ.get("WP_JSON_POST_STATUS") or "",
+    "feature_image_uploaded": media_id != 0,
+    "meta_stripped": True,
+    "sources_footer_stripped": os.environ.get("WP_JSON_SOURCES_STRIPPED") == "1",
+    "rank_math_applied": True,
+    "content_format": "gutenberg_blocks",
+    "article_headline": os.environ.get("WP_JSON_POST_TITLE") or "",
+    "seo_title": os.environ.get("WP_JSON_SEO_TITLE") or "",
+    "focus_keyword": os.environ.get("WP_JSON_FOCUS_KEYWORD") or "",
+    "secondary_keywords": os.environ.get("WP_JSON_SECONDARY_KEYWORDS") or "",
+    "rank_math_focus_keyword": os.environ.get("WP_JSON_RANK_MATH_FOCUS") or "",
+    "wp_category_ids": category_ids,
+    "wp_category_slugs": wp_category_slugs,
+    "wp_category_names": wp_category_names,
 }
 
 paths = [
-    "${RESULT_JSON}",
-    "${WP_JSON_PATH}",
-    "/tmp/wp-result.json",  # legacy best-effort only
+    os.environ.get("WP_JSON_RESULT_JSON") or "",
+    os.environ.get("WP_JSON_WP_PATH") or "",
+    "/tmp/wp-result.json",
 ]
 for path in paths:
     if not path:
         continue
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2)
+            json.dump(result, f, indent=2, ensure_ascii=False)
     except OSError:
         pass
 
-print(json.dumps(result, indent=2))
+print(json.dumps(result, indent=2, ensure_ascii=False))
 PYEOF
 
 # =============================================================================

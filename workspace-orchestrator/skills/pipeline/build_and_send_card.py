@@ -13,6 +13,7 @@ import argparse
 import json
 import mimetypes
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -32,6 +33,24 @@ TELEGRAM_CONFIG = os.path.expanduser(
     "~/.openclaw/workspace-orchestrator/config/telegram_card_config.json"
 )
 TELEGRAM_CAPTION_MAX = 1024
+TELEGRAM_TEXT_MAX = 4096
+DEFAULT_USD_INR_RATE = 95.4
+COST_AGENT_ORDER = (
+    "picker",
+    "researcher",
+    "writer",
+    "creator",
+    "orchestrator",
+    "chart-generator",
+)
+COST_AGENT_LABELS = {
+    "picker": "Sieve (picker)",
+    "researcher": "Scout (researcher)",
+    "writer": "Quill (writer)",
+    "creator": "Pixel (creator)",
+    "orchestrator": "Nexus (orchestrator)",
+    "chart-generator": "Chart generator",
+}
 
 
 def load_json(path: str, default: dict | None = None) -> dict:
@@ -163,6 +182,73 @@ def format_cost_usd(cost_usd: float | None) -> str:
     return f"~${value:.3f}"
 
 
+def load_usd_inr_rate() -> float:
+    env = str(os.environ.get("COST_USD_INR_RATE") or "").strip()
+    if env:
+        try:
+            rate = float(env)
+            if rate > 0:
+                return rate
+        except ValueError:
+            pass
+    tg_cfg = load_json(TELEGRAM_CONFIG)
+    try:
+        rate = float(tg_cfg.get("usd_inr_rate") or 0)
+        if rate > 0:
+            return rate
+    except (TypeError, ValueError):
+        pass
+    return DEFAULT_USD_INR_RATE
+
+
+def format_exact_usd(cost_usd: float | None) -> str:
+    value = float(cost_usd or 0)
+    if abs(value) < 1e-12:
+        return "$0.00"
+    text = f"{value:.6f}".rstrip("0").rstrip(".")
+    if "." not in text:
+        text += ".00"
+    elif len(text.split(".", 1)[1]) == 1:
+        text += "0"
+    return f"${text}"
+
+
+def format_inr(cost_usd: float | None, rate: float) -> str:
+    inr = float(cost_usd or 0) * float(rate or 0)
+    if abs(inr) < 1e-12:
+        return "₹0.00"
+    if abs(inr) < 0.01:
+        text = f"{inr:.4f}".rstrip("0").rstrip(".")
+        return f"₹{text}"
+    return f"₹{inr:.2f}"
+
+
+def format_token_count_exact(total: int | None) -> str:
+    return f"{int(total or 0):,}"
+
+
+def cost_agent_label(agent: str) -> str:
+    return COST_AGENT_LABELS.get(agent, agent_display_name(agent))
+
+
+def attribution_incomplete(card: dict) -> bool:
+    """True only when Quill tokens are missing.
+
+    Scout is a zero-LLM script (`run_research.py`). Image-only is still incomplete.
+    """
+    by_agent = card.get("by_agent") if isinstance(card.get("by_agent"), dict) else {}
+    writer = by_agent.get("writer") if isinstance(by_agent.get("writer"), dict) else {}
+    writer_tokens = int(writer.get("tokens_total") or 0)
+    writer_cost = float(writer.get("cost_usd") or 0)
+    tokens_total = int(card.get("tokens_total") or 0)
+    if writer_tokens > 0 or writer_cost > 0:
+        return False
+    image_usd = float(card.get("image_cost_usd") or 0)
+    if image_usd > 0 and tokens_total <= 0:
+        return True
+    return tokens_total <= 0
+
+
 def format_duration(seconds: int | None) -> str:
     s = int(seconds or 0)
     if s <= 0:
@@ -248,6 +334,19 @@ def build_run_cost_lines(card: dict, remaining_budget: int) -> list[str]:
         if len("\n".join(lines + [note])) <= remaining_budget:
             lines.append(note)
 
+    image_cost = card.get("image_cost") if isinstance(card.get("image_cost"), dict) else {}
+    image_cost_usd = card.get("image_cost_usd")
+    if image_cost_usd is None and image_cost:
+        image_cost_usd = image_cost.get("cost_usd")
+    if image_cost_usd is not None and float(image_cost_usd or 0) > 0:
+        model_name = short_model_label(
+            str(image_cost.get("model_name") or image_cost.get("model") or "Image")
+        )
+        image_line = f"- Image ({model_name}): {format_cost_usd(float(image_cost_usd))}"
+        candidate = "\n".join(lines + [image_line])
+        if len(candidate) <= remaining_budget:
+            lines.append(image_line)
+
     return lines
 
 
@@ -288,6 +387,8 @@ def load_tokens_for_run(run_dir: str) -> dict[str, Any]:
             "by_agent": {},
             "by_model": {},
             "cost_usd": None,
+            "image_cost": {},
+            "image_cost_usd": None,
             "duration_seconds": None,
             "pricing_available": False,
         }
@@ -300,9 +401,17 @@ def load_tokens_for_run(run_dir: str) -> dict[str, Any]:
         "by_agent": by_agent,
         "by_model": by_model,
         "cost_usd": float(data["cost_usd"]) if data.get("cost_usd") is not None else None,
+        "image_cost": data.get("image_cost") if isinstance(data.get("image_cost"), dict) else {},
+        "image_cost_usd": float(data["image_cost_usd"])
+        if data.get("image_cost_usd") is not None
+        else None,
         "duration_seconds": int(data["duration_seconds"])
         if data.get("duration_seconds") is not None
         else None,
+        "wall_seconds": int(data["wall_seconds"])
+        if data.get("wall_seconds") is not None
+        else None,
+        "steps": data.get("steps") if isinstance(data.get("steps"), dict) else {},
         "pricing_available": bool(data.get("pricing_available")),
     }
 
@@ -541,6 +650,177 @@ def send_telegram_card(
     return msg.get("message_id")
 
 
+def _cost_share(part: float, total: float) -> str:
+    if total <= 0 or part <= 0:
+        return ""
+    pct = round(100.0 * part / total)
+    if pct <= 0:
+        return ""
+    return f" · {pct}%"
+
+
+def build_story_cost_html(card: dict) -> str:
+    rate = load_usd_inr_rate()
+    headline = truncate(str(card.get("headline") or card.get("seo_title") or "Untitled"), 140)
+    total_usd = float(card.get("cost_usd") or 0)
+    tokens_in = int(card.get("tokens_in") or 0)
+    tokens_out = int(card.get("tokens_out") or 0)
+    tokens_total = int(card.get("tokens_total") or 0)
+    image_cost = card.get("image_cost") if isinstance(card.get("image_cost"), dict) else {}
+    image_usd = card.get("image_cost_usd")
+    if image_usd is None:
+        image_usd = image_cost.get("cost_usd")
+    image_usd = float(image_usd or 0)
+    incomplete = attribution_incomplete(card)
+    steps = card.get("steps") if isinstance(card.get("steps"), dict) else {}
+    wall = card.get("wall_seconds")
+    if not wall:
+        wall = sum(
+            int((row or {}).get("duration_seconds") or 0)
+            for row in steps.values()
+            if isinstance(row, dict)
+        ) or card.get("duration_seconds")
+
+    lines = ["<b>Story cost</b>"]
+    if headline:
+        lines.append(html_escape(headline))
+    lines.append("")
+
+    if incomplete:
+        lines.append(
+            "Attribution incomplete — Quill tokens were not recorded. "
+            "This is <b>not</b> the full story bill."
+        )
+        lines.append("")
+        if image_usd > 0:
+            model_name = short_model_label(
+                str(image_cost.get("model_name") or image_cost.get("model") or "Image")
+            )
+            lines.append(
+                f"Image only ({html_escape(model_name)}): "
+                f"<b>{format_inr(image_usd, rate)}</b> ({format_exact_usd(image_usd)})"
+            )
+        elif tokens_total <= 0 and total_usd <= 0:
+            lines.append("No cost recorded for this run.")
+        else:
+            lines.append(
+                f"Recorded: <b>{format_inr(total_usd, rate)}</b> "
+                f"({format_exact_usd(total_usd)}) — do not treat as the story bill."
+            )
+        lines.append(f"FX ₹{rate:.2f}/USD")
+        return "\n".join(lines)
+
+    lines.append(
+        f"<b>{format_inr(total_usd, rate)}</b>  ·  {format_exact_usd(total_usd)}"
+    )
+    meta = []
+    dur = format_duration(wall)
+    if dur:
+        meta.append(dur)
+    if tokens_total > 0:
+        meta.append(f"{format_token_count_exact(tokens_total)} tok")
+    if tokens_in or tokens_out:
+        meta.append(
+            f"{format_token_count_exact(tokens_in)} in / {format_token_count_exact(tokens_out)} out"
+        )
+    if meta:
+        lines.append(" · ".join(meta))
+    if not card.get("pricing_available"):
+        lines.append("<i>Catalog prices were $0 — USD may understate Vertex list cost.</i>")
+    lines.append("")
+
+    by_agent = card.get("by_agent") if isinstance(card.get("by_agent"), dict) else {}
+
+    def _step_secs(key: str, agent: str | None = None) -> int:
+        row = steps.get(key) if isinstance(steps.get(key), dict) else {}
+        secs = int(row.get("duration_seconds") or 0)
+        if secs:
+            return secs
+        if agent:
+            usage = by_agent.get(agent) if isinstance(by_agent.get(agent), dict) else {}
+            return int(usage.get("duration_seconds") or 0)
+        return 0
+
+    picker = by_agent.get("picker") if isinstance(by_agent.get("picker"), dict) else {}
+    writer = by_agent.get("writer") if isinstance(by_agent.get("writer"), dict) else {}
+    creator = by_agent.get("creator") if isinstance(by_agent.get("creator"), dict) else {}
+    picker_cost = float(picker.get("cost_usd") or 0)
+    writer_cost = float(writer.get("cost_usd") or 0)
+    creator_llm = max(0.0, float(creator.get("cost_usd") or 0) - image_usd)
+
+    sieve_d = format_duration(_step_secs("sieve", "picker") or picker.get("duration_seconds"))
+    scout_d = format_duration(_step_secs("research", "researcher"))
+    quill_d = format_duration(_step_secs("writer", "writer"))
+    pixel_d = format_duration(_step_secs("image", "creator"))
+
+    sieve_line = f"Sieve  {format_inr(picker_cost, rate)} ({format_exact_usd(picker_cost)})"
+    if sieve_d:
+        sieve_line += f" · {sieve_d}"
+    sieve_line += _cost_share(picker_cost, total_usd)
+    lines.append(sieve_line)
+
+    scout_line = f"Scout  {format_inr(0, rate)} ($0.00) · script, no LLM"
+    if scout_d:
+        scout_line = f"Scout  {format_inr(0, rate)} ($0.00) · {scout_d} · script, no LLM"
+    lines.append(scout_line)
+
+    quill_line = f"Quill  {format_inr(writer_cost, rate)} ({format_exact_usd(writer_cost)})"
+    if quill_d:
+        quill_line += f" · {quill_d}"
+    quill_line += _cost_share(writer_cost, total_usd)
+    lines.append(quill_line)
+
+    pixel_usd = creator_llm + image_usd
+    pixel_line = f"Pixel  {format_inr(pixel_usd, rate)} ({format_exact_usd(pixel_usd)})"
+    if pixel_d:
+        pixel_line += f" · {pixel_d}"
+    if image_usd > 0:
+        model_name = short_model_label(
+            str(image_cost.get("model_name") or image_cost.get("model") or "image")
+        )
+        pixel_line += f" · {html_escape(model_name)}"
+    pixel_line += _cost_share(pixel_usd, total_usd)
+    lines.append(pixel_line)
+
+    orch = by_agent.get("orchestrator") if isinstance(by_agent.get("orchestrator"), dict) else {}
+    orch_cost = float(orch.get("cost_usd") or 0)
+    if orch_cost > 0:
+        lines.append(
+            f"Nexus  {format_inr(orch_cost, rate)} ({format_exact_usd(orch_cost)})"
+            + _cost_share(orch_cost, total_usd)
+        )
+
+    lines.append("")
+    lines.append(f"FX ₹{rate:.2f}/USD")
+    text = "\n".join(lines)
+    if len(text) > TELEGRAM_TEXT_MAX:
+        text = text[: TELEGRAM_TEXT_MAX - 1] + "…"
+    return text
+
+
+def send_story_cost_message(
+    token: str,
+    chat_id: str,
+    card: dict,
+    reply_to_message_id: int | None = None,
+) -> int | None:
+    text = build_story_cost_html(card)
+    payload: dict[str, str] = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": "true",
+    }
+    if reply_to_message_id:
+        payload["reply_to_message_id"] = str(int(reply_to_message_id))
+    result = telegram_request(token, "sendMessage", data=payload)
+    msg = result.get("result") or {}
+    message_id = msg.get("message_id")
+    if message_id:
+        print(f"COST_MESSAGE_SENT: {card.get('run_id')} message_id={message_id}")
+    return message_id
+
+
 def edit_message_reply_markup(
     token: str, chat_id: str, message_id: int, reply_markup: str | None
 ) -> dict:
@@ -580,7 +860,7 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
 
     run_id = manifest.get("run_id", "")
     run_dir = manifest.get("run_dir", "")
-    project_slug = str(manifest.get("project") or "coinography")
+    project_slug = str(manifest.get("project") or "coinnetwork")
     project_name = project_slug.title()
     project_card_prefix = ""
     wp_categories: list[dict] = []
@@ -640,7 +920,10 @@ def build_card_from_manifest(manifest_path: str) -> tuple[dict, str, str | None]
         "category_display": category_display,
         "sources_count": sources_count,
         "wp_url": wp_url,
-        "wp_post_id": str(wp.get("post_id") or ""),
+        "wp_post_id": str(
+            wp.get("post_id")
+            or (re.search(r"[?&]p=(\d+)", wp_url).group(1) if wp_url and re.search(r"[?&]p=(\d+)", wp_url) else "")
+        ),
         "wp_status": str(wp.get("post_status") or "draft"),
         "drive_url": extract_drive_url(drive),
         "image_path": image_path if image_path and os.path.isfile(image_path) else None,
@@ -690,6 +973,13 @@ def main() -> int:
             token, chat_id, caption, image_path, reply_markup=reply_markup
         )
         card["telegram_message_id"] = message_id
+        if message_id:
+            try:
+                card["telegram_cost_message_id"] = send_story_cost_message(
+                    token, chat_id, card, reply_to_message_id=message_id
+                )
+            except Exception as cost_err:
+                print(f"COST_MESSAGE_WARN: {cost_err}", file=sys.stderr)
 
         try:
             init_db()

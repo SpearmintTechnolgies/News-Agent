@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-02T09:52:57.589Z",
+  "reason": "gateway.startup_failed",
+  "process": {
+    "pid": 2746,
+    "platform": "linux",
+    "arch": "x64",
+    "node": "22.22.2",
+    "uptimeMs": 7476
+  },
+  "host": {
+    "hostname": "<redacted-hostname>"
+  },
+  "error": {
+    "name": "Error"
+  },
+  "snapshot": {
+    "generatedAt": "2026-05-02T09:52:57.589Z",
+    "capacity": 1000,
+    "count": 0,
+    "dropped": 0,
+    "events": [],
+    "summary": {
+      "byType": {}
+    }
+  }
+}

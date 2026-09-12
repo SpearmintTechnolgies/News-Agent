@@ -1,0 +1,473 @@
+{
+  "agent:news-scanner:main:heartbeat": {
+    "sessionId": "795e2edc-4b4b-4cbd-840c-2ed0e8c07b9e",
+    "updatedAt": 1785329021983,
+    "systemSent": true,
+    "heartbeatIsolatedBaseSessionKey": "agent:news-scanner:main",
+    "abortedLastRun": false,
+    "chatType": "direct",
+    "skillsSnapshot": {
+      "prompt": "\n\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nWhen a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.\n\n<available_skills>\n  <skill>\n    <name>chart-generator</name>\n    <description>Generates a factual crypto price chart PNG from CoinGecko live data.</description>\n    <location>~/.openclaw/skills/chart-generator/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>clawhub</name>\n    <description>Search, install, update, sync, or publish agent skills with the ClawHub CLI and registry.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>coding-agent</name>\n    <description>Delegate feature work, PR review, refactors, or iterative coding to background Codex, Claude Code, or Pi agents.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>gog</name>\n    <description>Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/gog/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>healthcheck</name>\n    <description>Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>mcporter</name>\n    <description>List, configure, authenticate, call, and inspect MCP servers/tools with mcporter over HTTP or stdio.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>node-connect</name>\n    <description>Diagnose OpenClaw Android, iOS, or macOS node pairing, QR/setup code, route, auth, and connection failures.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>skill-creator</name>\n    <description>Create, edit, improve, tidy, review, audit, or restructure AgentSkills and SKILL.md files.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow</name>\n    <description>Coordinate multi-step detached tasks as one durable TaskFlow job with owner context, state, waits, and child tasks.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>taskflow-inbox-triage</name>\n    <description>Example TaskFlow pattern for inbox triage, intent routing, waiting on replies, and later summaries.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>tmux</name>\n    <description>Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>video-frames</name>\n    <description>Extract frames or short clips from videos using ffmpeg.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/video-frames/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>weather</name>\n    <description>Get current weather, rain, temperature, and forecasts for locations or travel planning.</description>\n    <location>~/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md</location>\n  </skill>\n</available_skills>",
+      "skills": [
+        {
+          "name": "chart-generator"
+        },
+        {
+          "name": "clawhub",
+          "requiredEnv": []
+        },
+        {
+          "name": "coding-agent",
+          "requiredEnv": []
+        },
+        {
+          "name": "gog",
+          "requiredEnv": []
+        },
+        {
+          "name": "healthcheck"
+        },
+        {
+          "name": "mcporter",
+          "requiredEnv": []
+        },
+        {
+          "name": "node-connect"
+        },
+        {
+          "name": "skill-creator"
+        },
+        {
+          "name": "taskflow"
+        },
+        {
+          "name": "taskflow-inbox-triage"
+        },
+        {
+          "name": "tmux",
+          "requiredEnv": []
+        },
+        {
+          "name": "video-frames",
+          "requiredEnv": []
+        },
+        {
+          "name": "weather",
+          "requiredEnv": []
+        }
+      ],
+      "resolvedSkills": [
+        {
+          "name": "chart-generator",
+          "description": "Generates a factual crypto price chart PNG from CoinGecko live data.",
+          "filePath": "/home/bhard/.openclaw/skills/chart-generator/SKILL.md",
+          "baseDir": "/home/bhard/.openclaw/skills/chart-generator",
+          "source": "openclaw-managed",
+          "sourceInfo": {
+            "path": "/home/bhard/.openclaw/skills/chart-generator/SKILL.md",
+            "source": "openclaw-managed",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.openclaw/skills/chart-generator"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "clawhub",
+          "description": "Search, install, update, sync, or publish agent skills with the ClawHub CLI and registry.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/clawhub",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/clawhub/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/clawhub"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "coding-agent",
+          "description": "Delegate feature work, PR review, refactors, or iterative coding to background Codex, Claude Code, or Pi agents.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/coding-agent",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/coding-agent/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/coding-agent"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "gog",
+          "description": "Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/gog/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/gog",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/gog/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/gog"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "healthcheck",
+          "description": "Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/healthcheck",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/healthcheck/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/healthcheck"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "mcporter",
+          "description": "List, configure, authenticate, call, and inspect MCP servers/tools with mcporter over HTTP or stdio.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/mcporter",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/mcporter/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/mcporter"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "node-connect",
+          "description": "Diagnose OpenClaw Android, iOS, or macOS node pairing, QR/setup code, route, auth, and connection failures.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/node-connect",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/node-connect/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/node-connect"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "skill-creator",
+          "description": "Create, edit, improve, tidy, review, audit, or restructure AgentSkills and SKILL.md files.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/skill-creator",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/skill-creator/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/skill-creator"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "taskflow",
+          "description": "Coordinate multi-step detached tasks as one durable TaskFlow job with owner context, state, waits, and child tasks.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "taskflow-inbox-triage",
+          "description": "Example TaskFlow pattern for inbox triage, intent routing, waiting on replies, and later summaries.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/taskflow-inbox-triage"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "tmux",
+          "description": "Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/tmux",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/tmux/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/tmux"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "video-frames",
+          "description": "Extract frames or short clips from videos using ffmpeg.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/video-frames/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/video-frames",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/video-frames/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/video-frames"
+          },
+          "disableModelInvocation": false
+        },
+        {
+          "name": "weather",
+          "description": "Get current weather, rain, temperature, and forecasts for locations or travel planning.",
+          "filePath": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md",
+          "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/weather",
+          "source": "openclaw-bundled",
+          "sourceInfo": {
+            "path": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/weather/SKILL.md",
+            "source": "openclaw-bundled",
+            "scope": "project",
+            "origin": "top-level",
+            "baseDir": "/home/bhard/.npm-global/lib/node_modules/openclaw/skills/weather"
+          },
+          "disableModelInvocation": false
+        }
+      ],
+      "version": 0
+    },
+    "status": "done",
+    "startedAt": 1785329010009,
+    "systemPromptReport": {
+      "source": "run",
+      "generatedAt": 1785329009960,
+      "sessionId": "795e2edc-4b4b-4cbd-840c-2ed0e8c07b9e",
+      "sessionKey": "agent:news-scanner:main:heartbeat",
+      "provider": "bedrock-mantle",
+      "model": "qwen.qwen3-coder-next",
+      "workspaceDir": "/home/bhard/.openclaw/workspace-news-scanner",
+      "bootstrapMaxChars": 50000,
+      "bootstrapTotalMaxChars": 300000,
+      "bootstrapTruncation": {
+        "warningMode": "once",
+        "warningShown": false,
+        "truncatedFiles": 0,
+        "nearLimitFiles": 0,
+        "totalNearLimit": false
+      },
+      "sandbox": {
+        "mode": "off",
+        "sandboxed": false
+      },
+      "systemPrompt": {
+        "chars": 14696,
+        "projectContextChars": 1442,
+        "nonProjectContextChars": 13254
+      },
+      "injectedWorkspaceFiles": [
+        {
+          "name": "HEARTBEAT.md",
+          "path": "/home/bhard/.openclaw/workspace-news-scanner/HEARTBEAT.md",
+          "missing": false,
+          "rawChars": 279,
+          "injectedChars": 279,
+          "truncated": false
+        }
+      ],
+      "skills": {
+        "promptChars": 3796,
+        "entries": [
+          {
+            "name": "chart-generator",
+            "blockChars": 220
+          },
+          {
+            "name": "clawhub",
+            "blockChars": 253
+          },
+          {
+            "name": "coding-agent",
+            "blockChars": 286
+          },
+          {
+            "name": "gog",
+            "blockChars": 232
+          },
+          {
+            "name": "healthcheck",
+            "blockChars": 280
+          },
+          {
+            "name": "mcporter",
+            "blockChars": 266
+          },
+          {
+            "name": "node-connect",
+            "blockChars": 281
+          },
+          {
+            "name": "skill-creator",
+            "blockChars": 266
+          },
+          {
+            "name": "taskflow",
+            "blockChars": 281
+          },
+          {
+            "name": "taskflow-inbox-triage",
+            "blockChars": 291
+          },
+          {
+            "name": "tmux",
+            "blockChars": 255
+          },
+          {
+            "name": "video-frames",
+            "blockChars": 229
+          },
+          {
+            "name": "weather",
+            "blockChars": 251
+          }
+        ]
+      },
+      "tools": {
+        "listChars": 0,
+        "schemaChars": 7524,
+        "entries": [
+          {
+            "name": "read",
+            "summaryChars": 298,
+            "schemaChars": 304,
+            "propertiesCount": 3
+          },
+          {
+            "name": "edit",
+            "summaryChars": 326,
+            "schemaChars": 834,
+            "propertiesCount": 2
+          },
+          {
+            "name": "write",
+            "summaryChars": 127,
+            "schemaChars": 225,
+            "propertiesCount": 2
+          },
+          {
+            "name": "exec",
+            "summaryChars": 446,
+            "schemaChars": 1096,
+            "propertiesCount": 12
+          },
+          {
+            "name": "process",
+            "summaryChars": 322,
+            "schemaChars": 961,
+            "propertiesCount": 12
+          },
+          {
+            "name": "sessions_list",
+            "summaryChars": 225,
+            "schemaChars": 432,
+            "propertiesCount": 9
+          },
+          {
+            "name": "sessions_history",
+            "summaryChars": 180,
+            "schemaChars": 161,
+            "propertiesCount": 3
+          },
+          {
+            "name": "sessions_send",
+            "summaryChars": 208,
+            "schemaChars": 274,
+            "propertiesCount": 5
+          },
+          {
+            "name": "sessions_spawn",
+            "summaryChars": 466,
+            "schemaChars": 1559,
+            "propertiesCount": 19
+          },
+          {
+            "name": "sessions_yield",
+            "summaryChars": 97,
+            "schemaChars": 60,
+            "propertiesCount": 1
+          },
+          {
+            "name": "subagents",
+            "summaryChars": 105,
+            "schemaChars": 191,
+            "propertiesCount": 4
+          },
+          {
+            "name": "session_status",
+            "summaryChars": 336,
+            "schemaChars": 89,
+            "propertiesCount": 2
+          },
+          {
+            "name": "web_search",
+            "summaryChars": 88,
+            "schemaChars": 455,
+            "propertiesCount": 4
+          },
+          {
+            "name": "web_fetch",
+            "summaryChars": 129,
+            "schemaChars": 374,
+            "propertiesCount": 3
+          },
+          {
+            "name": "memory_search",
+            "summaryChars": 385,
+            "schemaChars": 260,
+            "propertiesCount": 4
+          },
+          {
+            "name": "memory_get",
+            "summaryChars": 239,
+            "schemaChars": 249,
+            "propertiesCount": 4
+          }
+        ]
+      }
+    },
+    "inputTokens": 25062,
+    "outputTokens": 102,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "estimatedCostUsd": 0.0126534,
+    "totalTokensFresh": true,
+    "totalTokens": 8438,
+    "sessionFile": "/home/bhard/.openclaw/agents/news-scanner/sessions/795e2edc-4b4b-4cbd-840c-2ed0e8c07b9e.jsonl",
+    "modelProvider": "bedrock-mantle",
+    "model": "qwen.qwen3-coder-next",
+    "contextTokens": 131072,
+    "providerOverride": "bedrock-mantle",
+    "modelOverride": "qwen.qwen3-coder-next",
+    "modelOverrideSource": "auto",
+    "endedAt": 1785329020979,
+    "runtimeMs": 10970
+  }
+}

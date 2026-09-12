@@ -43,7 +43,7 @@ Then restart it normally.
 
 ## Pool scheduler (scanner + daily feed)
 
-The approve-title-first flow runs `pool_scheduler.py` as a long-lived Python process (scanner every 30m, daily feed card, 48h idle watchdog). It uses **zero LLM tokens**.
+The approve-title-first flow runs `pool_scheduler.py` as a long-lived Python process (scanner every 30m, feed cards every 3h with 00:00–06:00 IST quiet hours, 48h idle watchdog). It uses **zero LLM tokens**.
 
 **Start or ensure it is running (WSL / dev):**
 ```bash
@@ -109,4 +109,4 @@ pgrep -af pool_scheduler.py
 ### 3. Google Drive `gog` Authentication Failure
 - **Where it happens:** During Press (Publisher) execution.
 - **Cause:** `gog` is trying to prompt for a password interactively.
-- **Fix:** Ensure the Publisher's SOUL contains `GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD"` immediately preceding the `gog drive upload` command.
+- **Fix:** Ensure the Publisher's SOUL contains `GOG_KEYRING_PASSWORD="sawan"` immediately preceding the `gog drive upload` command.

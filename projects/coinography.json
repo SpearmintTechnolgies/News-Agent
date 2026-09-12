@@ -1,8 +1,9 @@
 {
   "slug": "coinography",
+  "enabled": false,
   "callback_code": "cog",
   "name": "Coinography",
-  "description": "General crypto news site covering regulation, ETFs, hacks, L1/L2 protocols, exchanges, stablecoins, adoption, and market movement.",
+  "description": "Main production crypto news site (https://coinography.com). Parked for testing — set enabled=true and DEFAULT_PROJECT_SLUG=coinography when quality is proven on coinnetwork.",
   "wordpress": {
     "url": "https://coinography.com",
     "user": "renu@coinography.com",
@@ -353,8 +354,8 @@
   },
   "telegram": {
     "account": "news",
-    "group_id": "YOUR_TELEGRAM_NEWS_GROUP_ID",
-    "group_name": "news-agent",
+    "group_id": "",
+    "group_name": "Spearmint News Agent (parked — set group when re-enabling coinography)",
     "card_prefix": "[Coinography]"
   },
   "research": {
@@ -433,13 +434,13 @@
   "creator": {
     "image_style_hint": "Cinematic crypto editorial, photorealistic 3D coin renders or brand logo compositions, dark studio background, dramatic lighting, no humans.",
     "image_aspect": "16:9",
-    "image_size": "1024x576",
+    "image_size": "1920x1080",
     "logo_path": "assets/logo.png"
   },
   "publisher": {
     "drive_doc_prefix": "Crypto News",
     "drive_parent_id": "1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx",
-    "drive_account": "YOUR_GOOGLE_ACCOUNT@gmail.com"
+    "drive_account": "bhardwaj0sawan@gmail.com"
   },
   "authors": [
     {

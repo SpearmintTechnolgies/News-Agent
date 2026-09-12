@@ -21,19 +21,16 @@ Exit 1 + prints WP_CATEGORIES_ERROR: <reason>
 from __future__ import annotations
 
 import argparse
-import base64
-import html
 import json
 import os
 import sys
 import tempfile
-import urllib.error
-import urllib.request
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 
 import project_config as pc  # noqa: E402
+from wp_rest_client import fetch_categories, WpAuthError, WpRequestError  # noqa: E402
 
 
 def atomic_write_json(path: str, data: dict) -> None:
@@ -45,59 +42,12 @@ def atomic_write_json(path: str, data: dict) -> None:
     os.replace(tmp, path)
 
 
-def fetch_categories(base_url: str, user: str, password: str) -> list[dict]:
-    """Fetch all categories (paginated, 100/page) from the WP REST API."""
-    api = f"{base_url.rstrip('/')}/wp-json/wp/v2/categories"
-    token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode("ascii")
-    out: list[dict] = []
-    page = 1
-    while True:
-        url = f"{api}?per_page=100&page={page}&hide_empty=false&_fields=id,name,slug,count"
-        req = urllib.request.Request(
-            url,
-            headers={"Authorization": f"Basic {token}", "Accept": "application/json"},
-            method="GET",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = resp.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as e:
-            # WP returns 400 rest_post_invalid_page_number when paging past the end.
-            if e.code == 400 and page > 1:
-                break
-            body = e.read().decode("utf-8", errors="replace")[:300]
-            raise RuntimeError(f"HTTP {e.code} fetching categories (page {page}): {body}") from e
-        except (urllib.error.URLError, TimeoutError) as e:
-            raise RuntimeError(f"request failed (page {page}): {e}") from e
-
-        try:
-            batch = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"invalid JSON on page {page}: {raw[:200]}") from e
-
-        if not isinstance(batch, list) or not batch:
-            break
-        for c in batch:
-            out.append(
-                {
-                    "id": int(c.get("id")),
-                    "name": html.unescape(str(c.get("name") or "")).strip(),
-                    "slug": str(c.get("slug") or "").strip(),
-                    "count": int(c.get("count") or 0),
-                }
-            )
-        if len(batch) < 100:
-            break
-        page += 1
-    return out
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--slug",
         default=None,
-        help="Project slug (defaults to env / manifest / coinography)",
+        help="Project slug (defaults to env / manifest / coinnetwork)",
     )
     parser.add_argument(
         "--dry-run",

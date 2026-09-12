@@ -25,7 +25,7 @@ ARTICLE_DOCX="/tmp/${PROJECT_SLUG}-article.docx"
 echo "Project=$PROJECT_SLUG prefix='$DRIVE_PREFIX' parent=$DRIVE_PARENT account=$DRIVE_ACCT"
 ```
 
-For Coinography this yields prefix="Crypto News", parent="1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx", account="YOUR_GOOGLE_ACCOUNT@gmail.com" — exactly today's hardcoded values.
+For Coinography this yields prefix="Crypto News", parent="1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx", account="bhardwaj0sawan@gmail.com" — exactly today's hardcoded values.
 
 ### Step 1: Save the Article with Image Reference
 
@@ -43,7 +43,7 @@ ls -lh "$ARTICLE_DOCX"
 ### Step 3: Upload .docx to Google Drive (with image preserved)
 
 ```bash
-GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD" gog drive upload "$ARTICLE_DOCX" \
+GOG_KEYRING_PASSWORD="sawan" gog drive upload "$ARTICLE_DOCX" \
   --name "${DRIVE_PREFIX} - $(date +%Y-%m-%d)" \
   --parent "$DRIVE_PARENT" \
   --json --no-input --account "$DRIVE_ACCT"
@@ -61,7 +61,7 @@ Parse the `webViewLink` from the JSON response.
 ```
 
 ## Rules
-- Always prefix gog commands with `GOG_KEYRING_PASSWORD="YOUR_GOG_KEYRING_PASSWORD"`.
+- Always prefix gog commands with `GOG_KEYRING_PASSWORD="sawan"`.
 - Always use `--account "$DRIVE_ACCT"` with every gog command (resolved from project config).
 - Always use `--json` and `--no-input` flags.
 - Do NOT use `--convert` for .docx files — it strips embedded images.

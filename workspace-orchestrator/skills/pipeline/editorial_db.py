@@ -157,6 +157,21 @@ CREATE TABLE IF NOT EXISTS pipeline_state (
   updated_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (project, key)
 );
+
+-- Deterministic /onboard flow state (project-onboarder plugin + onboard_project.py
+-- engine). One row per (chat_id, user_id) — mirrors edit_sessions above. Never
+-- touches any other table; safe to drop independently.
+CREATE TABLE IF NOT EXISTS onboard_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  step TEXT NOT NULL,
+  answers_json TEXT NOT NULL DEFAULT '{}',
+  prompt_message_id INTEGER,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(chat_id, user_id)
+);
 """
 
 GLOBAL_PROJECT = "_global"
@@ -302,6 +317,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_project ON articles(project, created_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_picked_project ON picked_stories(project, pick_run_id)")
     conn.execute("UPDATE articles SET wp_status = 'draft' WHERE wp_status IS NULL")
+    if not _column_exists(conn, "feed_jobs", "current_step"):
+        conn.execute("ALTER TABLE feed_jobs ADD COLUMN current_step TEXT")
+    if not _column_exists(conn, "feed_jobs", "step_updated_at"):
+        conn.execute("ALTER TABLE feed_jobs ADD COLUMN step_updated_at TEXT")
 
 
 def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
@@ -313,14 +332,21 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
 
 def _row_to_article(row: sqlite3.Row) -> Article:
     keys = row.keys()
+    wp_url = row["wp_url"]
+    wp_post_id = row["wp_post_id"]
+    if not wp_post_id and wp_url:
+        import re as _re
+        _m = _re.search(r"[?&]p=(\d+)", wp_url)
+        if _m:
+            wp_post_id = _m.group(1)
     return Article(
         id=row["id"],
         run_id=row["run_id"],
         alert_id=row["alert_id"],
         story_id=row["story_id"],
         headline=row["headline"],
-        wp_url=row["wp_url"],
-        wp_post_id=row["wp_post_id"],
+        wp_url=wp_url,
+        wp_post_id=wp_post_id,
         telegram_group=row["telegram_group"],
         telegram_message_id=row["telegram_message_id"],
         card_sent_at=row["card_sent_at"],
@@ -1504,30 +1530,144 @@ def mark_feed_job(
         conn.commit()
 
 
+def set_feed_job_step(
+    job_id: int, step: str, *, db_path: str = DEFAULT_DB_PATH
+) -> None:
+    """Record the live drain step so Telegram / DB agree on what is running."""
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE feed_jobs
+            SET current_step = ?, step_updated_at = datetime('now'), updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (str(step or "").strip() or None, int(job_id)),
+        )
+        conn.commit()
+
+
 def reclaim_stale_jobs(
     stale_hours: float, *, db_path: str = DEFAULT_DB_PATH
 ) -> int:
-    """Mark long-running jobs failed so the dispatcher can continue."""
+    """Requeue long-running jobs with no artifacts so a new drainer can start.
+
+    Dead Windows drains used to stay ``running`` + hold the lease, blocking the
+    queue. First timeout requeues (retry). Very old rows still fail.
+    """
     init_db(db_path)
+    seconds = max(60, int(float(stale_hours) * 3600))
+    fail_seconds = max(seconds * 3, 3600)
+    requeued = 0
+    failed = 0
+    projects: set[str] = set()
     with _connect(db_path) as conn:
-        cur = conn.execute(
+        rows = conn.execute(
             """
-            UPDATE feed_jobs
-            SET status = 'failed', updated_at = datetime('now')
-            WHERE status = 'running'
-              AND started_at IS NOT NULL
-              AND datetime(started_at) <= datetime('now', ?)
-            """,
-            (f"-{int(stale_hours * 3600)} seconds",),
-        )
+            SELECT id, project, started_at FROM feed_jobs
+            WHERE status = 'running' AND started_at IS NOT NULL
+            """
+        ).fetchall()
+        for row in rows:
+            job_id = int(row["id"])
+            project = str(row["project"] or "")
+            if running_job_has_progress(project, db_path=db_path):
+                continue
+            age = conn.execute(
+                "SELECT CAST((julianday('now') - julianday(?)) * 86400 AS INTEGER)",
+                (row["started_at"],),
+            ).fetchone()[0]
+            age_s = int(age or 0)
+            if age_s < seconds:
+                continue
+            projects.add(project)
+            if age_s >= fail_seconds:
+                conn.execute(
+                    "UPDATE feed_jobs SET status = 'failed', updated_at = datetime('now') WHERE id = ?",
+                    (job_id,),
+                )
+                failed += 1
+            else:
+                conn.execute(
+                    "UPDATE feed_jobs SET status = 'queued', updated_at = datetime('now') WHERE id = ?",
+                    (job_id,),
+                )
+                requeued += 1
         conn.commit()
-        return int(cur.rowcount)
+    for project in projects:
+        if project:
+            clear_drainer_lease(project, db_path=db_path)
+    return requeued + failed
+
+
+def running_job_has_progress(
+    project: str, *, db_path: str = DEFAULT_DB_PATH
+) -> bool:
+    """True if the latest run dir for this project has real picker/research output."""
+    roots = [
+        r"C:\tmp",
+        os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp"),
+        "/tmp",
+    ]
+    # picker_input is written by bootstrap in seconds — not proof a worker is alive.
+    markers = (
+        ("picker", "picks.json"),
+        ("research", "raw.json"),
+        ("research", "validated.json"),
+        ("article", "final.md"),
+    )
+    seen: set[str] = set()
+    dirs: list[str] = []
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        try:
+            names = os.listdir(root)
+        except OSError:
+            continue
+        prefix = f"{project}-run-"
+        for name in names:
+            if not name.startswith(prefix):
+                continue
+            path = os.path.realpath(os.path.join(root, name))
+            if path in seen or not os.path.isdir(path):
+                continue
+            seen.add(path)
+            dirs.append(path)
+    dirs.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    if not dirs:
+        return False
+    run_dir = dirs[0]
+    for parts in markers:
+        fp = os.path.join(run_dir, *parts)
+        try:
+            if os.path.isfile(fp) and os.path.getsize(fp) > 80:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def get_feed_job(job_id: int, *, db_path: str = DEFAULT_DB_PATH) -> FeedJob | None:
     init_db(db_path)
     with _connect(db_path) as conn:
         row = conn.execute("SELECT * FROM feed_jobs WHERE id = ?", (int(job_id),)).fetchone()
+    return _row_to_feed_job(row) if row else None
+
+
+def get_latest_feed_job_for_card(
+    feed_id: str, candidate_index: int, *, db_path: str = DEFAULT_DB_PATH
+) -> FeedJob | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM feed_jobs
+            WHERE feed_id = ? AND candidate_index = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (str(feed_id), int(candidate_index)),
+        ).fetchone()
     return _row_to_feed_job(row) if row else None
 
 
@@ -1584,7 +1724,12 @@ def drainer_active(
     stale_minutes: float = DEFAULT_DRAINER_LEASE_STALE_MIN,
     db_path: str = DEFAULT_DB_PATH,
 ) -> bool:
-    """True when a drainer lease exists and was refreshed within ``stale_minutes``."""
+    """True when a live drain is actually running for this project.
+
+    A lease alone is not enough. Failed Sieve used to re-stamp the lease from
+    the Telegram board while the job sat ``queued`` — dispatcher then skipped
+    the project for 45 minutes with no worker.
+    """
     project = _require_project(project)
     init_db(db_path)
     with _connect(db_path) as conn:
@@ -1602,7 +1747,13 @@ def drainer_active(
     age = row["age_min"]
     if age is None:
         return False
-    return float(age) <= float(stale_minutes)
+    age_min = float(age)
+    if age_min > float(stale_minutes):
+        return False
+    if project in running_projects(db_path=db_path):
+        return True
+    # Drain Popen stamps the lease a few seconds before claim_next_feed_job.
+    return age_min <= 2.0
 
 
 def clear_drainer_lease(project: str, *, db_path: str = DEFAULT_DB_PATH) -> None:
@@ -1655,3 +1806,95 @@ def published_today(project: str, *, db_path: str = DEFAULT_DB_PATH) -> int:
             (project,),
         ).fetchone()
     return int(row["c"]) if row else 0
+
+
+# ---------------------------------------------------------------------------
+# onboard_sessions — deterministic /onboard flow state (project-onboarder
+# plugin + onboard_project.py). Mirrors edit_sessions; fully independent
+# table, safe to clear/drop without touching any other data.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class OnboardSession:
+    id: int
+    chat_id: str
+    user_id: str
+    step: str
+    answers_json: str
+    prompt_message_id: int | None
+
+
+def _row_to_onboard_session(row: sqlite3.Row) -> OnboardSession:
+    return OnboardSession(
+        id=row["id"],
+        chat_id=row["chat_id"],
+        user_id=row["user_id"],
+        step=row["step"],
+        answers_json=row["answers_json"],
+        prompt_message_id=row["prompt_message_id"],
+    )
+
+
+def get_onboard_session(
+    chat_id: str, user_id: str, *, db_path: str = DEFAULT_DB_PATH
+) -> OnboardSession | None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM onboard_sessions WHERE chat_id = ? AND user_id = ?",
+            (str(chat_id), str(user_id)),
+        ).fetchone()
+    return _row_to_onboard_session(row) if row else None
+
+
+def get_any_onboard_session_for_chat(
+    chat_id: str, *, db_path: str = DEFAULT_DB_PATH
+) -> OnboardSession | None:
+    """Return the most recent onboarding session in a chat, regardless of user.
+
+    Used by the plugin to decide whether a plain (non-reply) text message in
+    a launch group should be treated as an onboarding answer.
+    """
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM onboard_sessions WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
+            (str(chat_id),),
+        ).fetchone()
+    return _row_to_onboard_session(row) if row else None
+
+
+def upsert_onboard_session(
+    chat_id: str,
+    user_id: str,
+    step: str,
+    *,
+    answers_json: str = "{}",
+    prompt_message_id: int | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO onboard_sessions (chat_id, user_id, step, answers_json, prompt_message_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(chat_id, user_id) DO UPDATE SET
+              step = excluded.step,
+              answers_json = excluded.answers_json,
+              prompt_message_id = excluded.prompt_message_id,
+              updated_at = datetime('now')
+            """,
+            (str(chat_id), str(user_id), step, answers_json, prompt_message_id),
+        )
+        conn.commit()
+
+
+def clear_onboard_session(chat_id: str, user_id: str, *, db_path: str = DEFAULT_DB_PATH) -> None:
+    init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "DELETE FROM onboard_sessions WHERE chat_id = ? AND user_id = ?",
+            (str(chat_id), str(user_id)),
+        )
+        conn.commit()

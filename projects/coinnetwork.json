@@ -1,0 +1,529 @@
+{
+  "slug": "coinnetwork",
+  "enabled": true,
+  "callback_code": "cnw",
+  "name": "Coinnetwork",
+  "description": "Active test publishing target (https://coinnetwork.info). Default project for pipeline runs until Coinography is re-enabled for production.",
+  "wordpress": {
+    "url": "https://coinnetwork.info",
+    "user": "wizardtokenofficial@gmail.com",
+    "app_password_ref": "credentials/wp/coinnetwork.pass",
+    "default_status": "draft",
+    "fallback_category_id": 5,
+    "picker_category_slugs": [
+      "adoption",
+      "altcoin101",
+      "altcoins",
+      "analysis",
+      "avax",
+      "binance",
+      "bitcoin",
+      "blockchain",
+      "bnb",
+      "business",
+      "creation",
+      "cryptopedia",
+      "daos-101",
+      "defi",
+      "dogecoin101",
+      "ethereum",
+      "explained",
+      "fashion",
+      "fight-the-fud",
+      "food",
+      "funding101",
+      "gadget",
+      "hodlers-digest",
+      "how-to-crypto",
+      "innovation-circle",
+      "interview",
+      "lifestyle",
+      "magazine",
+      "market",
+      "market-analysis",
+      "market-news",
+      "meme-coin",
+      "metaverse101",
+      "music",
+      "nfts",
+      "opinion",
+      "policy-regulations",
+      "polygon",
+      "price-indexes",
+      "project-spotlight",
+      "regulation101",
+      "shiba-inu",
+      "shiba-inu-coin",
+      "solana",
+      "sports",
+      "stellar",
+      "tech",
+      "tether",
+      "trading101",
+      "travel",
+      "world"
+    ],
+    "picker_category_note": "Curated allow-list of slugs the Picker may assign as a PRIMARY category. Hand-maintained; survives re-runs of sync_wp_categories.py (which only rewrites `categories`). `news` (id 5) is intentionally excluded here and used only as fallback_category_id.",
+    "categories": [
+      {
+        "id": 1,
+        "name": "Uncategorized",
+        "slug": "uncategorized",
+        "count": 1
+      },
+      {
+        "id": 5,
+        "name": "News",
+        "slug": "news",
+        "count": 367
+      },
+      {
+        "id": 6,
+        "name": "Bitcoin",
+        "slug": "bitcoin",
+        "count": 39
+      },
+      {
+        "id": 7,
+        "name": "Ethereum",
+        "slug": "ethereum",
+        "count": 30
+      },
+      {
+        "id": 8,
+        "name": "Altcoin News",
+        "slug": "altcoins",
+        "count": 42
+      },
+      {
+        "id": 9,
+        "name": "Blockchain",
+        "slug": "blockchain",
+        "count": 18
+      },
+      {
+        "id": 10,
+        "name": "Business",
+        "slug": "business",
+        "count": 2
+      },
+      {
+        "id": 11,
+        "name": "Policy & Regulations",
+        "slug": "policy-regulations",
+        "count": 5
+      },
+      {
+        "id": 12,
+        "name": "NFTs",
+        "slug": "nfts",
+        "count": 38
+      },
+      {
+        "id": 13,
+        "name": "DeFi",
+        "slug": "defi",
+        "count": 19
+      },
+      {
+        "id": 14,
+        "name": "Adoption",
+        "slug": "adoption",
+        "count": 4
+      },
+      {
+        "id": 15,
+        "name": "Market",
+        "slug": "market",
+        "count": 250
+      },
+      {
+        "id": 16,
+        "name": "Market News",
+        "slug": "market-news",
+        "count": 284
+      },
+      {
+        "id": 17,
+        "name": "Price Indexes",
+        "slug": "price-indexes",
+        "count": 1
+      },
+      {
+        "id": 18,
+        "name": "Market Analysis",
+        "slug": "market-analysis",
+        "count": 8
+      },
+      {
+        "id": 19,
+        "name": "Top 10 Cryptocurrencies",
+        "slug": "top-10-cryptocurrencies",
+        "count": 5
+      },
+      {
+        "id": 20,
+        "name": "People",
+        "slug": "people",
+        "count": 1
+      },
+      {
+        "id": 21,
+        "name": "Top 100 2022",
+        "slug": "top-100-2022",
+        "count": 0
+      },
+      {
+        "id": 22,
+        "name": "Top 100 2021",
+        "slug": "top-100-2021",
+        "count": 0
+      },
+      {
+        "id": 23,
+        "name": "Top 100 2020",
+        "slug": "top-100-2020",
+        "count": 0
+      },
+      {
+        "id": 24,
+        "name": "Opinion",
+        "slug": "opinion",
+        "count": 2
+      },
+      {
+        "id": 25,
+        "name": "Expert Take",
+        "slug": "expert-take",
+        "count": 0
+      },
+      {
+        "id": 26,
+        "name": "Innovation Circle",
+        "slug": "innovation-circle",
+        "count": 0
+      },
+      {
+        "id": 27,
+        "name": "Cryptopedia",
+        "slug": "cryptopedia",
+        "count": 15
+      },
+      {
+        "id": 28,
+        "name": "Explained",
+        "slug": "explained",
+        "count": 1
+      },
+      {
+        "id": 29,
+        "name": "How to Crypto",
+        "slug": "how-to-crypto",
+        "count": 3
+      },
+      {
+        "id": 32,
+        "name": "Dogecoin",
+        "slug": "dogecoin101",
+        "count": 22
+      },
+      {
+        "id": 33,
+        "name": "Altcoin",
+        "slug": "altcoin101",
+        "count": 21
+      },
+      {
+        "id": 35,
+        "name": "Trading101",
+        "slug": "trading101",
+        "count": 1
+      },
+      {
+        "id": 38,
+        "name": "Metaverse",
+        "slug": "metaverse101",
+        "count": 6
+      },
+      {
+        "id": 39,
+        "name": "DAOs",
+        "slug": "daos-101",
+        "count": 1
+      },
+      {
+        "id": 40,
+        "name": "Funding",
+        "slug": "funding101",
+        "count": 1
+      },
+      {
+        "id": 41,
+        "name": "Regulation101",
+        "slug": "regulation101",
+        "count": 0
+      },
+      {
+        "id": 42,
+        "name": "Fight the FUD",
+        "slug": "fight-the-fud",
+        "count": 1
+      },
+      {
+        "id": 43,
+        "name": "Shiba Inu Coin",
+        "slug": "shiba-inu-coin",
+        "count": 5
+      },
+      {
+        "id": 342,
+        "name": "Project Spotlight",
+        "slug": "project-spotlight",
+        "count": 12
+      },
+      {
+        "id": 395,
+        "name": "Creation",
+        "slug": "creation",
+        "count": 0
+      },
+      {
+        "id": 396,
+        "name": "Fashion",
+        "slug": "fashion",
+        "count": 0
+      },
+      {
+        "id": 397,
+        "name": "Food",
+        "slug": "food",
+        "count": 0
+      },
+      {
+        "id": 398,
+        "name": "Gadget",
+        "slug": "gadget",
+        "count": 0
+      },
+      {
+        "id": 399,
+        "name": "Lifestyle",
+        "slug": "lifestyle",
+        "count": 0
+      },
+      {
+        "id": 400,
+        "name": "Music",
+        "slug": "music",
+        "count": 0
+      },
+      {
+        "id": 401,
+        "name": "Sports",
+        "slug": "sports",
+        "count": 0
+      },
+      {
+        "id": 402,
+        "name": "Tech",
+        "slug": "tech",
+        "count": 2
+      },
+      {
+        "id": 403,
+        "name": "Travel",
+        "slug": "travel",
+        "count": 0
+      },
+      {
+        "id": 404,
+        "name": "World",
+        "slug": "world",
+        "count": 14
+      },
+      {
+        "id": 451,
+        "name": "BNB",
+        "slug": "bnb",
+        "count": 19
+      },
+      {
+        "id": 452,
+        "name": "Solana",
+        "slug": "solana",
+        "count": 13
+      },
+      {
+        "id": 453,
+        "name": "Polygon",
+        "slug": "polygon",
+        "count": 3
+      },
+      {
+        "id": 454,
+        "name": "Avax News",
+        "slug": "avax",
+        "count": 1
+      },
+      {
+        "id": 482,
+        "name": "Meme Coin",
+        "slug": "meme-coin",
+        "count": 23
+      },
+      {
+        "id": 483,
+        "name": "Shiba Inu",
+        "slug": "shiba-inu",
+        "count": 13
+      },
+      {
+        "id": 497,
+        "name": "Tether",
+        "slug": "tether",
+        "count": 4
+      },
+      {
+        "id": 515,
+        "name": "Stellar",
+        "slug": "stellar",
+        "count": 1
+      },
+      {
+        "id": 517,
+        "name": "Binance",
+        "slug": "binance",
+        "count": 17
+      },
+      {
+        "id": 581,
+        "name": "Hodler\u2019s Digest",
+        "slug": "hodlers-digest",
+        "count": 0
+      },
+      {
+        "id": 582,
+        "name": "Magazine",
+        "slug": "magazine",
+        "count": 0
+      },
+      {
+        "id": 583,
+        "name": "Analysis",
+        "slug": "analysis",
+        "count": 2
+      },
+      {
+        "id": 584,
+        "name": "Interview",
+        "slug": "interview",
+        "count": 0
+      }
+    ]
+  },
+  "telegram": {
+    "account": "news",
+    "group_id": "-1003736953686",
+    "group_name": "Spearmint News Agent",
+    "card_prefix": "[Coinnetwork]"
+  },
+  "research": {
+    "rss_feeds": [
+      {
+        "source": "CoinDesk",
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"
+      },
+      {
+        "source": "CoinTelegraph",
+        "url": "https://cointelegraph.com/rss"
+      },
+      {
+        "source": "Decrypt",
+        "url": "https://decrypt.co/feed"
+      },
+      {
+        "source": "Google News",
+        "url": "https://news.google.com/rss/search?q=cryptocurrency+OR+blockchain+OR+ethereum+OR+solana+OR+altcoin+OR+%22digital+assets%22+OR+XRP+OR+cardano+-dogecoin+-shiba+-pepe+-floki+-bonk+-wif+-memecoin+-%22meme+coin%22&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "source": "BeInCrypto",
+        "url": "https://beincrypto.com/feed/"
+      },
+      {
+        "source": "The Block",
+        "url": "https://www.theblock.co/rss.xml"
+      },
+      {
+        "source": "CryptoSlate",
+        "url": "https://cryptoslate.com/feed/"
+      },
+      {
+        "source": "CryptoFox",
+        "url": "https://cryptofox.news/rss/markets/"
+      },
+      {
+        "source": "CryptoFox",
+        "url": "https://cryptofox.news/rss/regulation/"
+      }
+    ],
+    "source_priority_order": [
+      "CoinDesk",
+      "CoinTelegraph",
+      "Decrypt",
+      "The Block",
+      "BeInCrypto",
+      "CryptoSlate",
+      "CryptoFox",
+      "Google News"
+    ],
+    "exclude_keywords": [
+      "dogecoin",
+      "shiba",
+      "pepe",
+      "floki",
+      "bonk",
+      "wif",
+      "memecoin",
+      "meme coin"
+    ],
+    "exclude_keywords_note": "Deprioritize/skip memecoin price pumps unless seriously covered by 2+ priority sources.",
+    "headline_scan_target_count": 10,
+    "max_age_hours": 24
+  },
+  "picker": {
+    "diversity_window_hours": 72
+  },
+  "writer": {
+    "template_path": "workspace-writer/templates/COINOGRAPHY_TEMPLATE.md",
+    "min_body_words": 1000,
+    "max_body_words": 1200,
+    "sync_max_body_words": 1300,
+    "voice_hint": "Authoritative, neutral, fact-driven crypto news voice."
+  },
+  "creator": {
+    "image_style_hint": "Cinematic crypto editorial, photorealistic 3D coin renders or brand logo compositions, dark studio background, dramatic lighting, no humans.",
+    "image_aspect": "16:9",
+    "image_size": "1920x1080",
+    "logo_path": "assets/logo_Coinnetwork.png"
+  },
+  "publisher": {
+    "drive_doc_prefix": "Coinnetwork News",
+    "drive_parent_id": "1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx",
+    "drive_account": "bhardwaj0sawan@gmail.com"
+  },
+  "authors": [
+    {
+      "id": 1,
+      "label": "Renu Sharma",
+      "name": "Renu Sharma"
+    },
+    {
+      "id": 2,
+      "label": "Marcus Webb",
+      "name": "Marcus Webb"
+    }
+  ],
+  "state": {
+    "recent_topics_file": "workspace-orchestrator/state/recent_topics-coinnetwork.json"
+  }
+}

@@ -6,7 +6,7 @@
 #   1. $PROJECT_SLUG (env)
 #   2. $PROJECT_CONFIG (env, abs path to projects/<slug>.json)
 #   3. $PIPELINE_MANIFEST's "project" field
-#   4. fallback: "coinography"
+#   4. fallback: "coinnetwork"
 #
 # Usage examples:
 #   source ~/.openclaw/workspace-orchestrator/skills/pipeline/project_config.sh
@@ -42,7 +42,7 @@ project_cfg_resolve_slug() {
       return 0
     fi
   fi
-  echo "coinography"
+  echo "coinnetwork"
 }
 
 project_cfg_field() {

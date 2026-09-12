@@ -1,0 +1,122 @@
+# News Agent daily start — launch Docker Desktop if needed, then compose up -d
+$ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
+
+function Get-DockerExe {
+    $cmd = Get-Command docker -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $candidates = @(
+        "$Env:ProgramFiles\Docker\Docker\resources\bin\docker.exe",
+        "${Env:ProgramFiles(x86)}\Docker\Docker\resources\bin\docker.exe",
+        "$Env:LOCALAPPDATA\Programs\Docker\Docker\resources\bin\docker.exe"
+    )
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+    throw "docker CLI not found. Install Docker Desktop or add docker to PATH."
+}
+
+function Test-DockerReady {
+    $docker = Get-DockerExe
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        & $docker info *> $null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
+function Find-DockerDesktopExe {
+    $candidates = @(
+        "$Env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+        "${Env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe",
+        "$Env:LOCALAPPDATA\Docker\Docker Desktop.exe",
+        "$Env:LOCALAPPDATA\Programs\Docker\Docker\Docker Desktop.exe"
+    )
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+    $found = Get-ChildItem -Path "$Env:LOCALAPPDATA\Programs" -Filter "Docker Desktop.exe" `
+        -Recurse -ErrorAction SilentlyContinue -Depth 6 | Select-Object -First 1
+    if ($found) { return $found.FullName }
+    return $null
+}
+
+function Start-DockerDesktopIfNeeded {
+    if (Test-DockerReady) {
+        Write-Host "Docker is already running."
+        return
+    }
+
+    $docker = Get-DockerExe
+    Write-Host "Docker daemon is not running. Starting Docker Desktop..."
+    Write-Host "  docker CLI: $docker"
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    & $docker desktop start 2>&1 | Out-Null
+    $cliStart = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $prev
+
+    if ($cliStart) {
+        Write-Host "Sent 'docker desktop start'."
+    } else {
+        $exe = Find-DockerDesktopExe
+        if ($exe) {
+            Write-Host "Launching Docker Desktop.exe:"
+            Write-Host "  $exe"
+            Start-Process -FilePath $exe | Out-Null
+        } else {
+            throw "Could not start Docker Desktop automatically. Open Docker Desktop from the Start menu, wait until the whale icon is steady, then run this again."
+        }
+    }
+
+    $deadline = (Get-Date).AddSeconds(240)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 5
+        if (Test-DockerReady) {
+            Write-Host "Docker is ready."
+            return
+        }
+        Write-Host "Waiting for Docker Desktop..."
+    }
+    throw "Docker Desktop did not become ready within 4 minutes. Open it manually, wait until ready, then run this again."
+}
+
+$deployDir = (Get-Location).Path
+Write-Host "Deploy folder: $deployDir"
+
+if (-not (Test-Path ".env")) {
+    Write-Host ""
+    Write-Host "ERROR: No .env file in deploy folder."
+    Write-Host "  $deployDir"
+    Write-Host "Run deploy.bat once for first-time setup, then use start.bat daily."
+    exit 1
+}
+
+try {
+    Start-DockerDesktopIfNeeded
+} catch {
+    Write-Host ""
+    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+
+$docker = Get-DockerExe
+Write-Host "Starting News Agent + Bifrost containers..."
+& $docker compose up -d
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: docker compose up failed (exit $LASTEXITCODE)" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
+Write-Host "News Agent is running."
+Write-Host "OpenClaw UI:  http://localhost:18789"
+Write-Host "Bifrost UI:   http://localhost:8888"
+Write-Host ""
+& $docker compose ps

@@ -310,7 +310,7 @@
   },
   "telegram": {
     "account": "news",
-    "group_id": "YOUR_TELEGRAM_NEWS_GROUP_ID",
+    "group_id": "-1004488104862",
     "group_name": "memecoinist-news_agent",
     "card_prefix": "[MemeCoinist]"
   },
@@ -499,13 +499,13 @@
   "creator": {
     "image_style_hint": "Vibrant 3D render of memecoin character or coin logo, electric neon background, bold cinematic composition, no humans.",
     "image_aspect": "16:9",
-    "image_size": "1024x576",
+    "image_size": "1920x1080",
     "logo_path": "assets/logo-memecoinist.png"
   },
   "publisher": {
     "drive_doc_prefix": "Memecoin News",
     "drive_parent_id": "1DiEijL14zMSnuIqycvdoxAIjOgRvxCDx",
-    "drive_account": "YOUR_GOOGLE_ACCOUNT@gmail.com"
+    "drive_account": "bhardwaj0sawan@gmail.com"
   },
   "authors": [
     {

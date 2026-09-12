@@ -1,0 +1,28 @@
+---
+description: Follow Sawan's OpenClaw pipeline — never substitute Nexus/Scout/Quill/Pixel
+alwaysApply: true
+---
+
+# Sawan's approach only
+
+This repo is Sawan's OpenClaw newsroom. Cursor is **maintenance**, not the newsroom.
+
+## Never do this (what broke Cardano cost)
+
+- Write or rewrite the article in this chat
+- Write `research/raw.json`, `validated.json`, or `picks.json` by hand
+- Run picker / research / write / image / `publish.sh` / `finalize_story.py` as a substitute for Nexus
+- Invent Telegram authors or narrate `oc_pub_a` — that is `handle_card_feedback.py`
+
+## Do this instead
+
+- Stories run **only** via Nexus: spawn `picker` → `researcher` → `writer` → `creator`, then bash `publish.sh` (draft) + `finalize_story.py`
+- If FEED_DRAIN / a worker dies: **fix the pipeline** (Git Bash, drain script, publish JSON, Telegram handler). Then tell the user to tap **Run this story** again
+- Telegram buttons: one `handle_card_feedback.py` exec, then stop
+- Full cost = `$RUN_DIR/publish/tokens.json` after a **Sawan-style** run. Image-only means workers did not run — do not report it as the story bill
+
+## Allowed here
+
+- Repair scripts, bash/Windows PATH, WP JSON writer, drain/cron, docs
+- Read logs/DB to diagnose
+- Do **not** complete the story yourself to "save time"

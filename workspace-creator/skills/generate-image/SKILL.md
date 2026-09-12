@@ -1,7 +1,7 @@
 # Skill: generate-image
 
 ## What This Skill Does
-Generates a photorealistic editorial feature image using **Pollinations.ai** (`flux` primary, `zimage` fallback), saves it locally, and optionally watermarks it with the brand logo.
+Generates a photorealistic editorial feature image using **Vertex Nano Banana** (Gemini image models), with Pollinations FLUX as last-resort fallback. Saves a 16:9 JPEG and optionally watermarks it with the brand logo.
 
 ## How to Invoke
 
@@ -11,21 +11,28 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "<YOUR PROM
 
 **Example:**
 ```bash
-bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Photorealistic 3D gold Bitcoin coin on black reflective surface, warm studio lighting, red candlestick chart softly glowing in background, cinematic crypto editorial, photorealistic, studio lighting, dark background, sharp focus"
+OUTPUT_PATH="$RUN_DIR/media/feature.jpg" PROJECT_SLUG="coinnetwork" \
+IMAGE_HEADLINE="Robinhood Turns to Bitstamp as UK Crypto Trading Begins" \
+REFERENCE_IMAGE="$RUN_DIR/media/source.jpg" \
+  bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Remix the source news photo. Same subject and setting, fresh 16:9 cinematic editorial."
 ```
 
 ## Environment Variables (optional)
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `POLLINATIONS_API_KEY` | (from openclaw.json env) | Secret key (`sk_...`) from enter.pollinations.ai — **required** |
-| `POLLINATIONS_BASE_URL` | `https://gen.pollinations.ai` | Pollinations API base |
-| `IMAGE_MODEL` | `flux` | Primary (~0.00175 pollen/image) |
-| `IMAGE_MODEL_FALLBACK` | `zimage` | Fallback if primary fails |
+| `IMAGE_MODEL` | `vertex/gemini-3.1-flash-lite-image` | Nano Banana 2 Lite (primary) |
+| `IMAGE_MODEL_FALLBACK1` | `vertex/gemini-2.5-flash-image` | Legacy Nano Banana |
+| `IMAGE_MODEL_FALLBACK2` | `vertex/gemini-3.1-flash-image` | Nano Banana 2 (slower) |
+| `IMAGE_MODEL_FALLBACK3` | `pollinations/flux-realism` | Last-resort fallback |
 | `OUTPUT_PATH` | `/tmp/crypto-feature.jpg` | Save path (orchestrator sets per run) |
 | `PROJECT_CONFIG` | — | Project JSON path (resolves `creator.logo_path`) |
 | `PROJECT_SLUG` | `crypto` | Per-run slug for result/error file names |
 | `STAMP_LOGO` | `1` | Set `0` to skip logo composite |
+| `REFERENCE_IMAGE` | auto `media/source.jpg` | Source story hero to remix |
+| `IMAGE_HEADLINE` | — | Story headline when remixing |
+
+Auth comes from `~/.openclaw/gcp/.env.vertex` (`GOOGLE_CLOUD_API_KEY`, `VERTEX_PROJECT_ID`). Do not pass keys on the command line.
 
 ## Return Values
 
@@ -35,31 +42,30 @@ bash ~/.openclaw/workspace-creator/skills/generate-image/generate.sh "Photoreali
 | `1` (failure) | Something went wrong | `cat /tmp/<slug>-image-error.log` |
 
 ## What the Script Handles Automatically
-- Pollinations `GET /image/{prompt}?model=flux&width=1024&height=576` (direct binary response)
-- Primary `flux` then `zimage` fallback per retry round
-- Editorial negative constraints appended to prompt (no text overlay/humans/clipart)
-- Up to 3 retry rounds with exponential backoff
-- Symlink-safe write via `OUTPUT_PATH` (default `/tmp/crypto-feature.jpg`)
-- Per-project logo stamp from `PROJECT_CONFIG` → `creator.logo_path` (100px, bottom-right)
+- Vertex `generateContent` → Nano Banana 2 Lite, then legacy Nano Banana, then Nano Banana 2
+- Pollinations FLUX only if all Vertex models fail
+- Editorial negative constraints appended to prompt (no text overlay)
+- JPEG 16:9, optional logo stamp
 - Writes `${OUTPUT_PATH}.watermarked` marker (required by `publish.sh`)
-- **Post-stamp validation:** final JPEG must be ≥40 KB with valid JPEG magic bytes (same gate as WordPress upload); optional quality re-encode if logo stamp shrinks the file slightly
-- Expect **~3–10 seconds** per successful generation
+- Writes `$RUN_DIR/publish/image-cost.json` for Telegram card cost footer
+- **Post-stamp validation:** final JPEG must be ≥40 KB with valid JPEG magic bytes
 
 ## What YOU Must Do (Your Only Job)
-1. Read `HEADLINE`, `CATEGORY`, and `SCENE_HINT` from the orchestrator spawn message (not from files).
-2. Craft an **article-specific** editorial prompt using SOUL.md rules.
-3. Call this script with `OUTPUT_PATH`, `PROJECT_CONFIG`, and `PROJECT_SLUG` set.
+1. Read `HEADLINE`, `SCENE_HINT`, and `SOURCE_IMAGE` from the spawn message.
+2. Prompt must use the **source story photo as reference only** (mood, palette, subject). Create a new original image. Not a copy of the source. Not a generic 3D coin.
+3. Call this script with `OUTPUT_PATH`, `PROJECT_CONFIG`, `PROJECT_SLUG`, `IMAGE_HEADLINE`, and `REFERENCE_IMAGE` when SOURCE_IMAGE is set. `generate.sh` also auto-uses `$RUN_DIR/media/source.jpg`.
 4. Return the `SAVE_TO` path on exit 0, or `IMAGE_FAILED:` + error log on exit 1.
 
 ## Important Notes
 - The prompt must be under 1000 characters.
-- Do NOT request readable text overlays, headlines, or typography in the image — describe symbols and shapes instead (Bitcoin B emblem, brand circles, coin renders).
-- The image will always be saved to `/tmp/crypto-feature.jpg` (1024×576 resolution).
-- Do NOT call Pollinations or any image API directly — always use this script.
+- Do NOT request readable text overlays, headlines, or typography in the image.
+- Do NOT call Vertex or Pollinations directly — always use this script.
 
 ---
 
 ## Scene Reference
+
+**Source photo wins.** If `SOURCE_IMAGE` / `media/source.jpg` exists, remix that image. Use the tables below only when there is no source photo.
 
 Read this when crafting a prompt (kept here instead of SOUL so it is loaded only when needed).
 

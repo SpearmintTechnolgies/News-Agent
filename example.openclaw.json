@@ -1,556 +1,434 @@
 {
-  "env": {
-    "GOOGLE_CLOUD_PROJECT": "YOUR_GCP_PROJECT_ID",
-    "GOOGLE_CLOUD_LOCATION": "us-central1",
-    "BIFROST_BASE_URL": "http://YOUR_BIFROST_HOST:8888/v1",
-    "AWS_BEARER_TOKEN_BEDROCK": "YOUR_AWS_BEARER_TOKEN_BEDROCK",
-    "POLLINATIONS_API_KEY": "YOUR_POLLINATIONS_API_KEY",
-    "JINA_API_KEY": "jina_b9dc1d5925ae456b81b1023540dddf6f9AJHBL01hhtNoVZSiBLlfqX0SAkZ"
-  },
-  "agents": {
-    "defaults": {
-      "workspace": "/home/USER/.openclaw/workspace",
-      "models": {},
-      "thinkingDefault": "medium",
-      "model": {
-        "primary": "local-bifrost/minimax.minimax-m2.5",
-        "fallbacks": [
-          "local-bifrost/moonshotai.kimi-k2.5",
-          "local-bifrost/mistral.mistral-large-3-675b-instruct",
-          "local-bifrost/zai.glm-4.7-flash"
-        ]
+    "env": {
+      "GOOGLE_CLOUD_PROJECT": "project-133cdfbf-a67a-492b-91c",
+      "GOOGLE_CLOUD_LOCATION": "us-central1",
+      "BIFROST_BASE_URL": "http://172.30.176.1:8888/v1",
+      "AWS_BEARER_TOKEN_BEDROCK": "ABSKQmVkcm9ja0FQSUtleS1iZHM5LWF0LTk3MjQ2MTIxODAzNDpHU1NHeFFmZlpNM2I5NTZidlNvdEZ4SkNIbzJZUWlGZTdVdWRPQTM3QmVoZ214SzVUc1pOUURrODdsMD0="
+    },
+    "agents": {
+      "defaults": {
+        "workspace": "/home/bhard/.openclaw/workspace",
+        "models": {},
+        "thinkingDefault": "medium",
+        "model": {
+          "primary": "local-bifrost/gemini-3.5-flash",
+          "fallbacks": [
+            "local-bifrost/gemini-3.1-pro-preview",
+            "local-bifrost/gemini-2.5-pro",
+            "local-bifrost/gemini-2.5-flash"
+          ]
+        },
+        "contextInjection": "always",
+        "bootstrapMaxChars": 50000,
+        "bootstrapTotalMaxChars": 300000
       },
-      "contextInjection": "always",
-      "bootstrapMaxChars": 50000,
-      "bootstrapTotalMaxChars": 300000,
-      "compaction": {
-        "mode": "safeguard"
+      "list": [
+        {
+          "id": "main",
+          "workspace": "/home/bhard/.openclaw/workspace",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "orchestrator",
+          "workspace": "/home/bhard/.openclaw/workspace-orchestrator",
+          "model": {
+            "primary": "local-bifrost/gemini-3.1-pro-preview"
+          },
+          "subagents": {
+            "allowAgents": [
+              "researcher",
+              "writer",
+              "chart-generator",
+              "creator",
+              "publisher",
+              "wp-publisher"
+            ]
+          },
+          "tools": {
+            "profile": "coding",
+            "alsoAllow": [
+              "agents_list",
+              "nodes",
+              "message",
+              "gateway",
+              "browser",
+              "canvas",
+              "tts",
+              "sessions_spawn",
+              "sessions_yield",
+              "subagents"
+            ]
+          }
+        },
+        {
+          "id": "researcher",
+          "workspace": "/home/bhard/.openclaw/workspace-researcher",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          },
+          "tools": {
+            "deny": [
+              "web_search",
+              "web_fetch"
+            ]
+          }
+        },
+        {
+          "id": "writer",
+          "workspace": "/home/bhard/.openclaw/workspace-writer",
+          "model": {
+            "primary": "local-bifrost/gemini-2.5-pro"
+          }
+        },
+        {
+          "id": "creator",
+          "workspace": "/home/bhard/.openclaw/workspace-creator",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "publisher",
+          "workspace": "/home/bhard/.openclaw/workspace-publisher",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "wp-publisher",
+          "workspace": "/home/bhard/.openclaw/workspace-wp-publisher",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "chart-generator",
+          "workspace": "/home/bhard/.openclaw/workspace-chart-generator",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "bl-orchestrator",
+          "workspace": "/home/bhard/.openclaw/workspace-bl-orchestrator",
+          "model": {
+            "primary": "local-bifrost/gemini-3.1-pro-preview"
+          },
+          "subagents": {
+            "allowAgents": [
+              "bl-finder",
+              "bl-scanner",
+              "bl-content"
+            ]
+          },
+          "tools": {
+            "profile": "coding",
+            "alsoAllow": [
+              "agents_list",
+              "nodes",
+              "message",
+              "gateway",
+              "browser",
+              "canvas",
+              "tts",
+              "sessions_spawn",
+              "sessions_yield",
+              "subagents"
+            ]
+          }
+        },
+        {
+          "id": "bl-finder",
+          "workspace": "/home/bhard/.openclaw/workspace-bl-finder",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "bl-scanner",
+          "workspace": "/home/bhard/.openclaw/workspace-bl-scanner",
+          "model": {
+            "primary": "local-bifrost/gemini-3.5-flash"
+          }
+        },
+        {
+          "id": "bl-content",
+          "workspace": "/home/bhard/.openclaw/workspace-bl-content",
+          "model": {
+            "primary": "local-bifrost/gemini-2.5-pro"
+          },
+          "tools": {
+            "deny": [
+              "image_generate"
+            ]
+          }
+        }
+      ]
+    },
+    "models": {
+      "mode": "replace",
+      "providers": {
+        "local-bifrost": {
+          "baseUrl": "http://172.30.176.1:8888/v1",
+          "api": "openai-completions",
+          "apiKey": "dummy",
+          "models": [
+            {
+              "id": "gemini-3.1-pro-preview",
+              "name": "Gemini 3.1 Pro (Bifrost Vertex)",
+              "contextWindow": 200000,
+              "maxTokens": 32768,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "reasoning": true
+            },
+            {
+              "id": "gemini-3.5-flash",
+              "name": "Gemini 3.5 Flash (Bifrost Vertex)",
+              "contextWindow": 128000,
+              "maxTokens": 16384,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "reasoning": true
+            },
+            {
+              "id": "gemini-2.5-pro",
+              "name": "Gemini 2.5 Pro (Bifrost Vertex)",
+              "contextWindow": 200000,
+              "maxTokens": 32768,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "reasoning": true
+            },
+            {
+              "id": "gemini-2.5-flash",
+              "name": "Gemini 2.5 Flash (Bifrost Vertex)",
+              "contextWindow": 128000,
+              "maxTokens": 16384,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "reasoning": true
+            }
+          ]
+        }
       }
     },
-    "list": [
-      {
-        "id": "main",
-        "workspace": "/home/USER/.openclaw/workspace",
-        "model": {
-          "primary": "local-bifrost/zai.glm-4.7-flash",
-          "fallbacks": [
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        }
+    "gateway": {
+      "mode": "local",
+      "auth": {
+        "mode": "token",
+        "token": "web-interface-token"
       },
-      {
-        "id": "orchestrator",
-        "workspace": "/home/USER/.openclaw/workspace-orchestrator",
-        "model": {
-          "primary": "local-bifrost/minimax.minimax-m2.5",
-          "fallbacks": [
-            "local-bifrost/moonshotai.kimi-k2.5",
-            "local-bifrost/nvidia.nemotron-super-3-120b",
-            "local-bifrost/zai.glm-4.7-flash"
-          ]
-        },
-        "subagents": {
-          "allowAgents": [
-            "researcher",
-            "picker",
-            "writer",
-            "chart-generator",
-            "creator"
-          ],
-          "requireAgentId": true
-        },
-        "tools": {
-          "profile": "coding",
-          "alsoAllow": [
-            "agents_list",
-            "nodes",
-            "message",
-            "gateway",
-            "browser",
-            "canvas",
-            "tts",
-            "sessions_spawn",
-            "sessions_yield",
-            "subagents"
-          ]
-        }
+      "port": 18789,
+      "bind": "loopback",
+      "tailscale": {
+        "mode": "off",
+        "resetOnExit": false
       },
-      {
-        "id": "researcher",
-        "workspace": "/home/USER/.openclaw/workspace-researcher",
-        "thinkingDefault": "medium",
-        "model": {
-          "primary": "local-bifrost/minimax.minimax-m2.5",
-          "fallbacks": [
-            "local-bifrost/nvidia.nemotron-super-3-120b",
-            "local-bifrost/deepseek.v3.2",
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        },
-        "tools": {
-          "deny": [
-            "web_search",
-            "web_fetch"
-          ]
-        }
+      "controlUi": {
+        "allowInsecureAuth": true
       },
-      {
-        "id": "picker",
-        "workspace": "/home/USER/.openclaw/workspace-picker",
-        "model": {
-          "primary": "local-bifrost/minimax.minimax-m2.5",
-          "fallbacks": [
-            "local-bifrost/nvidia.nemotron-super-3-120b",
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        },
-        "tools": {
-          "deny": [
-            "web_search",
-            "web_fetch"
-          ]
-        }
-      },
-      {
-        "id": "writer",
-        "workspace": "/home/USER/.openclaw/workspace-writer",
-        "thinkingDefault": "medium",
-        "model": {
-          "primary": "local-bifrost/zai.glm-5",
-          "fallbacks": [
-            "local-bifrost/minimax.minimax-m2.5",
-            "local-bifrost/nvidia.nemotron-super-3-120b",
-            "local-bifrost/moonshotai.kimi-k2.5",
-            "local-bifrost/mistral.mistral-large-3-675b-instruct",
-            "local-bifrost/zai.glm-4.7",
-            "local-bifrost/deepseek.v3.2"
-          ]
-        }
-      },
-      {
-        "id": "creator",
-        "workspace": "/home/USER/.openclaw/workspace-creator",
-        "thinkingDefault": "low",
-        "model": {
-          "primary": "local-bifrost/minimax.minimax-m2.5",
-          "fallbacks": [
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        },
-        "tools": {
-          "deny": [
-            "image_generate",
-            "web_search",
-            "web_fetch",
-            "browser"
-          ]
-        }
-      },
-      {
-        "id": "publisher",
-        "workspace": "/home/USER/.openclaw/workspace-publisher",
-        "model": {
-          "primary": "local-bifrost/zai.glm-4.7-flash",
-          "fallbacks": [
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        }
-      },
-      {
-        "id": "wp-publisher",
-        "workspace": "/home/USER/.openclaw/workspace-wp-publisher",
-        "model": {
-          "primary": "local-bifrost/zai.glm-4.7-flash",
-          "fallbacks": [
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        },
-        "tools": {
-          "deny": [
-            "web_search",
-            "web_fetch",
-            "browser"
-          ]
-        }
-      },
-      {
-        "id": "chart-generator",
-        "workspace": "/home/USER/.openclaw/workspace-chart-generator",
-        "model": {
-          "primary": "local-bifrost/zai.glm-4.7-flash",
-          "fallbacks": [
-            "local-bifrost/qwen.qwen3-next-80b-a3b"
-          ]
-        }
-      }
-    ]
-  },
-  "models": {
-    "mode": "replace",
-    "providers": {
-      "local-bifrost": {
-        "baseUrl": "http://YOUR_BIFROST_HOST:8888/v1",
-        "api": "openai-completions",
-        "apiKey": "dummy",
-        "models": [
-          {
-            "id": "moonshotai.kimi-k2.5",
-            "name": "Kimi K2.5 (Bedrock)",
-            "contextWindow": 256000,
-            "maxTokens": 16384,
-            "input": [
-              "text",
-              "image"
-            ],
-            "cost": {
-              "input": 0.6,
-              "output": 3.0,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "minimax.minimax-m2.5",
-            "name": "MiniMax M2.5 (Bedrock)",
-            "contextWindow": 196608,
-            "maxTokens": 8192,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.3,
-              "output": 1.2,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "mistral.mistral-large-3-675b-instruct",
-            "name": "Mistral Large 3 675B (Bedrock)",
-            "contextWindow": 256000,
-            "maxTokens": 16384,
-            "input": [
-              "text",
-              "image"
-            ],
-            "cost": {
-              "input": 0.5,
-              "output": 1.5,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "qwen.qwen3-next-80b-a3b",
-            "name": "Qwen3 Next 80B (Bedrock)",
-            "contextWindow": 256000,
-            "maxTokens": 16384,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.15,
-              "output": 1.2,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "deepseek.v3.2",
-            "name": "DeepSeek V3.2 (Bedrock)",
-            "contextWindow": 128000,
-            "maxTokens": 16384,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.62,
-              "output": 1.85,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "zai.glm-4.7-flash",
-            "name": "GLM 4.7 Flash (Bedrock)",
-            "contextWindow": 203000,
-            "maxTokens": 4096,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.07,
-              "output": 0.4,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "zai.glm-4.7",
-            "name": "GLM 4.7 (Bedrock)",
-            "contextWindow": 204800,
-            "maxTokens": 16384,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.6,
-              "output": 2.2,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "zai.glm-5",
-            "name": "GLM 5 (Bedrock)",
-            "contextWindow": 200000,
-            "maxTokens": 32768,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 1.0,
-              "output": 3.2,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "qwen.qwen3-coder-30b-a3b-v1:0",
-            "name": "Qwen3 Coder 30B (Bedrock)",
-            "contextWindow": 256000,
-            "maxTokens": 8192,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.1545,
-              "output": 0.618,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "qwen.qwen3-coder-next",
-            "name": "Qwen3 Coder Next (Bedrock)",
-            "contextWindow": 256000,
-            "maxTokens": 16384,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.5,
-              "output": 1.2,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          },
-          {
-            "id": "nvidia.nemotron-super-3-120b",
-            "name": "Nemotron 3 Super 120B (Bedrock)",
-            "contextWindow": 256000,
-            "maxTokens": 32768,
-            "input": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.15,
-              "output": 0.65,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "reasoning": true
-          }
+      "nodes": {
+        "denyCommands": [
+          "camera.snap",
+          "camera.clip",
+          "screen.record",
+          "contacts.add",
+          "calendar.add",
+          "reminders.add",
+          "sms.send",
+          "sms.search"
         ]
       }
-    }
-  },
-  "commands": {
-    "ownerAllowFrom": [
-      "telegram:YOUR_TELEGRAM_USER_ID"
-    ]
-  },
-  "gateway": {
-    "mode": "local",
+    },
+    "session": {
+      "dmScope": "per-channel-peer"
+    },
+    "tools": {
+      "profile": "coding",
+      "exec": {
+        "security": "full",
+        "ask": "off"
+      },
+      "web": {
+        "search": {
+          "provider": "searxng",
+          "enabled": true,
+          "openaiCodex": {}
+        },
+        "fetch": {
+          "enabled": true
+        }
+      }
+    },
     "auth": {
-      "mode": "token",
-      "token": "YOUR_OPENCLAW_GATEWAY_AUTH_TOKEN"
-    },
-    "port": 18789,
-    "bind": "loopback",
-    "tailscale": {
-      "mode": "off",
-      "resetOnExit": false
-    },
-    "controlUi": {
-      "allowInsecureAuth": true
-    },
-    "nodes": {
-      "denyCommands": [
-        "camera.snap",
-        "camera.clip",
-        "screen.record",
-        "contacts.add",
-        "calendar.add",
-        "reminders.add",
-        "sms.send",
-        "sms.search"
-      ]
-    }
-  },
-  "session": {
-    "dmScope": "per-channel-peer"
-  },
-  "browser": {
-    "enabled": true,
-    "defaultProfile": "openclaw",
-    "headless": true,
-    "noSandbox": true,
-    "executablePath": "/home/USER/.openclaw/bin/chromium"
-  },
-  "tools": {
-    "profile": "coding",
-    "exec": {
-      "security": "full",
-      "ask": "off"
-    },
-    "web": {
-      "search": {
-        "provider": "searxng",
-        "enabled": true,
-        "openaiCodex": {}
-      },
-      "fetch": {
-        "enabled": true
-      }
-    }
-  },
-  "plugins": {
-    "entries": {
-      "searxng": {
-        "enabled": true,
-        "config": {
-          "webSearch": {
-            "baseUrl": "https://paulgo.io"
-          }
+      "profiles": {
+        "openrouter:default": {
+          "provider": "openrouter",
+          "mode": "api_key"
         }
-      },
-      "amazon-bedrock": {
-        "enabled": false
-      },
-      "browser": {
-        "enabled": true
-      },
-      "memory-core": {
-        "config": {
-          "dreaming": {
-            "enabled": false
-          }
-        }
-      },
-      "feed-tap-claimer": {
-        "enabled": true
       }
     },
-    "load": {
-      "paths": [
-        "/home/USER/.openclaw/plugins/feed-tap-claimer"
-      ]
-    },
-    "installs": {
-      "feed-tap-claimer": {
-        "source": "path",
-        "sourcePath": "/home/USER/.openclaw/plugins/feed-tap-claimer",
-        "installPath": "/home/USER/.openclaw/plugins/feed-tap-claimer",
-        "version": "1.0.0",
-        "installedAt": "2026-06-19T13:39:15.074Z"
-      }
-    }
-  },
-  "hooks": {
-    "internal": {
-      "enabled": true,
+    "plugins": {
       "entries": {
-        "session-memory": {
+        "searxng": {
+          "enabled": true,
+          "config": {
+            "webSearch": {
+              "baseUrl": "https://paulgo.io"
+            }
+          }
+        },
+        "amazon-bedrock": {
+          "enabled": false
+        },
+        "openrouter": {
           "enabled": true
         },
-        "boot-md": {
+        "browser": {
           "enabled": true
         }
       }
-    }
-  },
-  "wizard": {
-    "lastRunAt": "2026-05-29T10:47:11.431Z",
-    "lastRunVersion": "2026.4.23",
-    "lastRunCommand": "configure",
-    "lastRunMode": "local"
-  },
-  "meta": {
-    "lastTouchedVersion": "2026.4.23",
-    "lastTouchedAt": "2026-06-19T13:41:25.285Z"
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "defaultAccount": "news",
-      "groupPolicy": "open",
-      "accounts": {
-        "news": {
-          "name": "News Agent",
-          "botToken": "YOUR_TELEGRAM_NEWS_BOT_TOKEN_FROM_BOTFATHER",
-          "groupPolicy": "open",
-          "allowFrom": [
-            "YOUR_TELEGRAM_USER_ID"
-          ],
-          "groupAllowFrom": [
-            "YOUR_TELEGRAM_USER_ID"
-          ],
-          "groups": {
-            "YOUR_TELEGRAM_NEWS_GROUP_ID": {
-              "requireMention": true
-            },
-            "*": {
-              "requireMention": true
+    },
+    "hooks": {
+      "internal": {
+        "enabled": true,
+        "entries": {
+          "session-memory": {
+            "enabled": true
+          },
+          "boot-md": {
+            "enabled": true
+          }
+        }
+      }
+    },
+    "wizard": {
+      "lastRunAt": "2026-05-29T10:47:11.431Z",
+      "lastRunVersion": "2026.4.23",
+      "lastRunCommand": "configure",
+      "lastRunMode": "local"
+    },
+    "meta": {
+      "lastTouchedVersion": "2026.4.23",
+      "lastTouchedAt": "2026-05-29T10:47:11.651Z"
+    },
+    "channels": {
+      "telegram": {
+        "enabled": true,
+        "defaultAccount": "news",
+        "botToken": "telegram_bot_token",
+        "groupPolicy": "open",
+        "groups": {
+          "-1003760909509": {
+            "requireMention": true
+          },
+          "*": {
+            "requireMention": true
+          }
+        },
+        "accounts": {
+          "news": {
+            "name": "News Agent",
+            "botToken": "telegram_bot_token",
+            "groupPolicy": "open",
+            "groups": {
+              "-1003760909509": {
+                "requireMention": true
+              },
+              "*": {
+                "requireMention": true
+              }
+            }
+          },
+          "backlink": {
+            "name": "Backlink Agent",
+            "botToken": "bot token for backlink agent",
+            "groupPolicy": "open",
+            "groups": {
+              "-5291081154": {
+                "requireMention": true
+              },
+              "*": {
+                "requireMention": true
+              }
             }
           }
         }
       }
-    }
-  },
-  "bindings": [
-    {
-      "agentId": "orchestrator",
-      "match": {
-        "channel": "telegram",
-        "accountId": "news",
-        "peer": {
-          "kind": "group",
-          "id": "YOUR_TELEGRAM_NEWS_GROUP_ID"
+    },
+    "bindings": [
+      {
+        "agentId": "orchestrator",
+        "match": {
+          "channel": "telegram",
+          "accountId": "news",
+          "peer": {
+            "kind": "group",
+            "id": "-1003760909509"
+          }
+        }
+      },
+      {
+        "agentId": "orchestrator",
+        "match": {
+          "channel": "telegram",
+          "accountId": "news"
+        }
+      },
+      {
+        "agentId": "bl-orchestrator",
+        "match": {
+          "channel": "telegram",
+          "accountId": "backlink",
+          "peer": {
+            "kind": "group",
+            "id": "-5291081154"
+          }
+        }
+      },
+      {
+        "agentId": "bl-orchestrator",
+        "match": {
+          "channel": "telegram",
+          "accountId": "backlink"
         }
       }
-    },
-    {
-      "agentId": "orchestrator",
-      "match": {
-        "channel": "telegram",
-        "accountId": "news"
+    ],
+    "skills": {
+      "install": {
+        "nodeManager": "npm"
       }
     }
-  ],
-  "skills": {
-    "install": {
-      "nodeManager": "npm"
-    }
   }
-}
+  

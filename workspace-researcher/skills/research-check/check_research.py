@@ -186,7 +186,15 @@ def run_deep_research_checks(
         ))
         return results
 
-    missing = [k for k in RESEARCH_REQUIRED_FIELDS if not data.get(k)]
+    missing = []
+    for k in RESEARCH_REQUIRED_FIELDS:
+        if k == "chart_coin":
+            # Present key with empty string is valid (Unknown / no chartable asset).
+            if "chart_coin" not in data or data.get("chart_coin") is None:
+                missing.append(k)
+            continue
+        if not data.get(k):
+            missing.append(k)
     if missing:
         results.append(("required_fields", False, f"missing/empty fields: {missing}"))
     else:

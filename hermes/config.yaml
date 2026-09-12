@@ -1,0 +1,435 @@
+model:
+  default: google/gemini-2.5-flash
+  provider: vertex
+agent:
+  max_turns: 3
+  api_max_retries: 0
+terminal:
+  cwd: /home/Rupesh/.hermes/workspace
+browser:
+  cloud_provider: local
+display:
+  tool_progress: 'off'
+  tool_progress_command: false
+  interim_assistant_messages: false
+  platforms:
+    telegram:
+      tool_progress: 'off'
+      interim_assistant_messages: false
+      cleanup_progress: true
+telegram:
+  enabled: true
+  defaultAccount: news
+  groupPolicy: open
+  accounts:
+    news:
+      name: News Agent
+      botToken: ${TELEGRAM_BOT_TOKEN}
+      groupPolicy: open
+      allowFrom:
+      - 5337250772
+      groupAllowFrom:
+      - 5337250772
+      groups:
+        '-1003760909509':
+          requireMention: true
+          systemPrompt: PROJECT_SLUG=coinography. You operate EXCLUSIVELY for the
+            Coinography project in this group. Never ask which project; never act
+            on memecoinist here.
+        '-1004488104862':
+          requireMention: true
+          systemPrompt: PROJECT_SLUG=memecoinist. You operate EXCLUSIVELY for the
+            MemeCoinist project in this group. Never ask which project; never act
+            on coinography here.
+        '-1003963851656':
+          requireMention: true
+          systemPrompt: PROJECT_SLUG=coinnetwork. You operate EXCLUSIVELY for the
+            Coinnetwork project in this group. Never ask which project; never act
+            on coinography or memecoinist here.
+        '*':
+          requireMention: true
+      requireMention: true
+  require_mention: true
+plugins:
+  entries:
+    searxng:
+      enabled: true
+      config:
+        webSearch:
+          baseUrl: https://paulgo.io
+    amazon-bedrock:
+      enabled: false
+    browser:
+      enabled: false
+    memory-core:
+      config:
+        dreaming:
+          enabled: false
+    feed-tap-claimer:
+      enabled: true
+    project-onboarder:
+      enabled: true
+  load:
+    paths:
+    - /home/Rupesh/.hermes/plugins/feed-tap-claimer
+    - /home/Rupesh/.hermes/plugins/project-onboarder
+  enabled:
+  - image_gen/local-flux
+kanban:
+  orchestrator_profile: orchestrator
+  default_assignee: orchestrator
+tools:
+  profile: coding
+  exec:
+    security: full
+    ask: false
+  web:
+    search:
+      provider: searxng
+      enabled: true
+      openaiCodex: {}
+    fetch:
+      enabled: true
+network:
+  force_ipv4: true
+computer_use:
+  backend: cua
+vertex:
+  project_id: ayush-api-506812
+_config_version: 39
+models:
+  mode: replace
+  providers:
+    vertex:
+      baseUrl: https://us-central1-aiplatform.googleapis.com/v1
+      api: vertex
+      models:
+      - id: vertex/gemini-2.5-flash
+        name: Gemini 2.5 Flash (Vertex)
+        contextWindow: 1048576
+        maxTokens: 65536
+        input:
+        - text
+        - image
+        cost:
+          input: 0.1
+          output: 0.4
+          cacheRead: 0
+          cacheWrite: 0
+        reasoning: true
+        compat:
+          supportsUsageInStreaming: true
+      - id: vertex/gemini-2.5-pro
+        name: Gemini 2.5 Pro (Vertex)
+        contextWindow: 1048576
+        maxTokens: 65536
+        input:
+        - text
+        - image
+        cost:
+          input: 1.25
+          output: 5.0
+          cacheRead: 0
+          cacheWrite: 0
+        reasoning: true
+        compat:
+          supportsUsageInStreaming: true
+      - id: vertex/gemini-2.5-flash-lite
+        name: Gemini 2.5 Flash-Lite (Vertex)
+        contextWindow: 1048576
+        maxTokens: 65536
+        input:
+        - text
+        - image
+        cost:
+          input: 0.1
+          output: 0.4
+          cacheRead: 0
+          cacheWrite: 0
+        reasoning: true
+        compat:
+          supportsUsageInStreaming: true
+agents:
+  defaults:
+    workspace: /home/Rupesh/.hermes/workspace-telegram
+    thinkingDefault: minimal
+    model:
+      primary: vertex/gemini-2.5-flash-lite
+      fallbacks: []
+    contextInjection: never
+    bootstrapMaxChars: 1
+    bootstrapTotalMaxChars: 1
+    compaction:
+      mode: safeguard
+  list:
+  - id: orchestrator
+    workspace: /home/rupesh/.hermes/workspace-orchestrator
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    subagents:
+      allowAgents:
+      - researcher
+      - picker
+      - writer
+      - chart-generator
+      - creator
+      requireAgentId: true
+    tools:
+      profile: coding
+      alsoAllow:
+      - agents_list
+      - sessions_spawn
+      - sessions_yield
+      - subagents
+    thinkingDefault: low
+  - id: researcher
+    workspace: /home/rupesh/.hermes/workspace-researcher
+    thinkingDefault: low
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    tools:
+      deny:
+      - web_search
+      - web_fetch
+  - id: picker
+    workspace: /home/rupesh/.hermes/workspace-picker
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    tools:
+      deny:
+      - web_search
+      - web_fetch
+    thinkingDefault: low
+  - id: writer
+    workspace: /home/rupesh/.hermes/workspace-writer
+    thinkingDefault: medium
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+  - id: creator
+    workspace: /home/rupesh/.hermes/workspace-creator
+    thinkingDefault: low
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    tools:
+      deny:
+      - web_search
+      - web_fetch
+      - browser
+  - id: publisher
+    workspace: /home/rupesh/.hermes/workspace-publisher
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    thinkingDefault: low
+  - id: wp-publisher
+    workspace: /home/rupesh/.hermes/workspace-wp-publisher
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    tools:
+      deny:
+      - web_search
+      - web_fetch
+      - browser
+    thinkingDefault: low
+  - id: chart-generator
+    workspace: /home/rupesh/.hermes/workspace-chart-generator
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    thinkingDefault: low
+  - id: main
+    workspace: /home/Rupesh/.hermes/workspace-telegram
+    model:
+      primary: vertex/gemini-2.5-flash-lite
+      fallbacks: []
+    thinkingDefault: minimal
+    contextInjection: never
+  - id: news-scanner
+    workspace: /home/rupesh/.hermes/workspace-news-scanner
+    model:
+      primary: vertex/gemini-2.5-flash
+      fallbacks: []
+    heartbeat:
+      every: 30m
+      lightContext: true
+      isolatedSession: true
+      target: none
+      activeHours:
+        start: 06:00
+        end: '24:00'
+        timezone: Asia/Kolkata
+    tools:
+      profile: coding
+    thinkingDefault: low
+bindings:
+- agentId: main
+  match:
+    channel: telegram
+    accountId: news
+    peer:
+      kind: group
+      id: '-1003760909509'
+- agentId: main
+  match:
+    channel: telegram
+    accountId: news
+    peer:
+      kind: group
+      id: '-1004488104862'
+- agentId: main
+  match:
+    channel: telegram
+    accountId: news
+    peer:
+      kind: group
+      id: '-1003963851656'
+- agentId: main
+  match:
+    channel: telegram
+    accountId: news
+session_reset:
+  mode: idle
+  idle_minutes: 15
+platform_toolsets:
+  cli:
+  - browser
+  - clarify
+  - code_execution
+  - computer_use
+  - cronjob
+  - delegation
+  - file
+  - image_gen
+  - memory
+  - session_search
+  - skills
+  - terminal
+  - todo
+  - tts
+  - vision
+  - web
+  telegram:
+  - web
+  - terminal
+known_plugin_toolsets:
+  cli:
+  - a2a
+  - spotify
+  telegram:
+  - a2a
+  - spotify
+known_builtin_toolsets:
+  cli:
+  - browser
+  - clarify
+  - code_execution
+  - computer_use
+  - context_engine
+  - cronjob
+  - delegation
+  - discord
+  - discord_admin
+  - file
+  - homeassistant
+  - image_gen
+  - memory
+  - session_search
+  - skills
+  - spotify
+  - stt
+  - terminal
+  - todo
+  - tts
+  - video
+  - video_gen
+  - vision
+  - web
+  - x_search
+  - yuanbao
+  telegram:
+  - browser
+  - clarify
+  - code_execution
+  - computer_use
+  - context_engine
+  - cronjob
+  - delegation
+  - discord
+  - discord_admin
+  - file
+  - homeassistant
+  - image_gen
+  - memory
+  - session_search
+  - skills
+  - spotify
+  - stt
+  - terminal
+  - todo
+  - tts
+  - video
+  - video_gen
+  - vision
+  - web
+  - x_search
+  - yuanbao
+platforms:
+  telegram:
+    enabled: true
+    home_channel:
+      platform: telegram
+      chat_id: '-1003736953686'
+      name: Spearmint News Agent
+      user_id: '6385625823'
+group_sessions_per_user: true
+skills:
+  platform_disabled:
+    telegram:
+    - airtable
+    - architecture_diagram
+    - arxiv
+    - ascii_art
+    - ascii_video
+    - baoyu_infographic
+    - blocked_page_recovery
+    - blogwatcher
+    - box
+    - chart_generator
+    - claude_code
+    - codex
+    - computer-use
+    - creative_ideation
+    - draw_your_font
+    - excalidraw
+    - gif-search
+    - github
+    - github-pr-workflow
+    - google_meet
+    - humanizer
+    - kanban-video-orchestrator
+    - manim-video
+    - meme-generation
+    - p5js
+    - pixel-art
+    - popular-web-designs
+    - pretext
+    - simple-english
+    - social-media-content-calendar
+    - songwriting-and-ai-music
+    - spotify
+    - tldraw-offline
+    - unreal-mcp
+image_gen:
+  provider: local-flux
+  model: flux-2-klein-9b-local
+quick_commands:
+  top5:
+    type: exec
+    command: nohup /home/Rupesh/.hermes/hermes-agent/venv/bin/python /home/Rupesh/.hermes/scripts/top5_direct.py
+      >> /home/Rupesh/.hermes/logs/top5_direct.log 2>&1 & echo 'TOP5 started'

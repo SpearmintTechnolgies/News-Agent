@@ -1,26 +1,20 @@
-# TOOLS.md — Sieve's Environment
+# TOOLS.md — Sieve (Windows)
 
-You have **no external tools**. You work entirely from local files and your own reasoning.
+You only **read** `INPUT_FILE` and **write** `OUTPUT_FILE`. No web. No Telegram.
 
-## Files You Read
+## Windows
 
-| Item | Path (passed in spawn message) |
-|---|---|
-| Picker input | `INPUT_FILE` — JSON containing `target_count`, `recent_categories`, and `candidates[]` |
+- Paths look like `C:/tmp/coinnetwork-run-…/picker/picker_input.json`
+- `/tmp/...` and `/home/bhard/...` do **not** exist. Never use them.
+- Never run `python3`, `validate_picks.py`, or `exec`. Nexus validates after you write the file.
 
-## Files You Write
+## First two tool calls (mandatory)
 
-| Item | Path (passed in spawn message) |
-|---|---|
-| Picks | `OUTPUT_FILE` — JSON with the categorized + selected picks |
+1. `read` the exact `INPUT_FILE` path from the spawn message.
+2. `write` JSON to the exact `OUTPUT_FILE` path.
 
-## OpenClaw Workspace
+If `read` fails, `write` `{"status":"error","reason":"input_unreadable"}` to `OUTPUT_FILE` and stop.
 
-| Item | Path |
-|---|---|
-| **This workspace** | `~/.openclaw/workspace-picker/` |
-| **Agent sessions** | `~/.openclaw/agents/picker/sessions/` |
+## After write
 
-## Skills
-
-This workspace ships no skill scripts — your only skill is reasoning and writing valid JSON. The orchestrator validates your output via `validate_picks.py`; if your JSON is malformed or violates the contract, you'll be re-spawned with the validator error.
+Reply with only: `SUCCESS`

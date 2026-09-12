@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_auto_run.py — 48h idle watchdog for the approve-title-first flow.
+"""check_auto_run.py — 24h idle watchdog for the approve-title-first flow.
 
 Pure Python, NO LLM. Runs as an OpenClaw cron `--command` job (hourly) so it
 costs ZERO tokens when nothing is due. Logic:
@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+os.environ["PATH"] = "/home/bhard/.npm-global/bin:" + os.environ.get("PATH", "")
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -34,7 +35,7 @@ sys.path.insert(0, HERE)
 import editorial_db as db  # noqa: E402
 import project_config as pc  # noqa: E402
 
-IDLE_HOURS = 48.0
+IDLE_HOURS = 24.0
 MAX_PER_DAY = 4
 FIRE_COOLDOWN_HOURS = 6.0  # don't re-fire while a batch is likely still running
 FIRE_KEY = "last_auto_fire_at"
@@ -98,7 +99,7 @@ def main() -> int:
         work.append({"project": slug, "count": min(remaining, pool_n)})
 
     if not work:
-        print("AUTO_NONE: idle>=48h but no project has quota+pool", file=sys.stderr)
+        print("AUTO_NONE: idle>=24h but no project has quota+pool", file=sys.stderr)
         print("NO_REPLY")
         return 0
 

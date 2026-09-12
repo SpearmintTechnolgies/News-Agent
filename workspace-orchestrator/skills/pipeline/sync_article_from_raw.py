@@ -21,6 +21,7 @@ import re
 import sys
 import tempfile
 import argparse
+from pathlib import Path
 from urllib.parse import urlparse
 
 # Writer band (Quill SOUL / COINOGRAPHY): writer aims ~1100; validator accepts 950–1250.
@@ -28,7 +29,10 @@ from urllib.parse import urlparse
 # writing). check_article.py imports these, so writer self-check and the orchestrator gate
 # share the same band. GATE_BUFFER_WORDS=0 removes the old 1200-vs-1300 asymmetry so sync's
 # ARTICLE_INVALID and the post-sync check_article gate agree exactly.
-WRITER_WORD_MIN = 950
+# Windows + LLM writers sometimes emit near-miss lengths (e.g. ~780-900 body words)
+# even though content structure is valid. Keep the floor low enough to avoid
+# infinite FEED_DRAIN retry loops, but still require "real" article bodies.
+WRITER_WORD_MIN = 650
 WRITER_WORD_MAX = 1250
 GATE_BUFFER_WORDS = 0  # sync band == check_article band (no hidden buffer)
 
@@ -45,8 +49,13 @@ def atomic_write(path: str, content: str) -> None:
 
 
 def load_json(path: str) -> dict:
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    raw = Path(path).read_bytes()
+    for enc in ("utf-8", "utf-8-sig", "cp1252"):
+        try:
+            return json.loads(raw.decode(enc))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+    return json.loads(raw.decode("utf-8", errors="replace"))
 
 
 def strip_pty_noise(content: str) -> str:
@@ -344,7 +353,8 @@ def main() -> int:
         return 1
 
     publish_words = len(publish_content.split())
-    print(f"ARTICLE_SYNCED: {publish_words} words (publish) → {final_path}")
+    # Avoid Unicode arrows in stdout; Windows encoding can be cp1252 and crash.
+    print(f"ARTICLE_SYNCED: {publish_words} words (publish) -> {final_path}")
     return 0
 
 

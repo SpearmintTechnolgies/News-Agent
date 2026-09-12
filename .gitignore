@@ -1,29 +1,39 @@
-# Live secrets — never commit
-openclaw.json
-exec-approvals.json
-workspace-wp-publisher/TOOLS.md
-credentials/
-**/.openclaw/
+# OpenClaw Project Git Ignore Rules
 
-# Runtime state
-agents/
-identity/
-devices/
-logs/
-telegram/
-subagents/
-media/
+# Dependencies & Build Caches
 node_modules/
-data/
-*.db
-*.sqlite
-
-# Python / backups
 __pycache__/
+*.pyc
 .pytest_cache/
-*.bak
-*.bak.*
+cache/
+data/extract_cache/
 
-# OS
+# Databases & Runtime State (Fresh start on clone)
+*.db
+data/*.db
+memory/*.sqlite
+article_history.db
+
+# Logs & Session Histories
+logs/*.log
+logs/*.jsonl
+state/*.log
+state/*.pid
+cron/runs/
+update-check.json
+
+# Backups & Temp Dumps
+.backups/
+.backups-*/
+openclaw.json.bak*
+openclaw.json.clobbered*
+
+# Docker Container Build Output Archives
+docker/bifrost-data/
+docker/openclaw-data/
+docker/build-context/
+docker/news-agent-deploy/*.tar.gz
+
+# OS Temp Files
 .DS_Store
-service-account.json
+Thumbs.db

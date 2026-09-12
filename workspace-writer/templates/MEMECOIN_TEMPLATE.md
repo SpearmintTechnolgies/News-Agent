@@ -9,6 +9,8 @@ Follow these rules for every article. Interior structure (how many sections, hea
   <h2_body min="2" max="4"/>            <!-- excludes ## Conclusion and ## FAQs -->
   <h3 min="3" max="6"/>                 <!-- ### only, nested inside an H2 -->
   <faqs min="3" max="6" format="**N. Question?**"/>
+  <bullets marker="- " min="3" max="4" placement="inside_h3_only"
+           never="inline_asterisk,asterisk_line,unicode,numbered"/>
   <body_words aim="1100" min="950" max="1250"/>  <!-- hook+H2s+Conclusion+FAQs -->
   <anchor_links count="2" placement="hook_or_first_H2" no_tweets="true" distinct="true"
                 source="research.source_urls"/>
@@ -28,7 +30,7 @@ Follow these rules for every article. Interior structure (how many sections, hea
 - **NATURAL WRITING:** Never use: "it's worth noting", "it is important to note", "delve into", "in conclusion", "furthermore", "moreover", "in summary", "the crypto landscape", "the world of crypto", "a testament to", "shed light on".
 - **TONE:** Direct. Trader-focused. Analytical. No hype or fluff ("amazing", "shocking").
 - **PARAGRAPHS:** 1–4 sentences max. One idea per paragraph.
-- **BULLET LISTS:** 3–4 items only, inside H3 sections if you use them. Never in Conclusion or opening hook.
+- **BULLET LISTS (dash only):** 3–4 items, inside H3 sections only. Never in Conclusion or opening hook. **ONLY** `- Item text.` on its own line. **NEVER** inline ` * ` in a paragraph, `* item` lines, `•` markers, or numbered `1.` lists in the body.
 
 **SEO and links**
 - **ANCHOR LINKS:** Exactly **2** markdown links to URLs from `RESEARCH_JSON.source_urls` (distinct URLs, no repeats). Both in the **opening hook or first H2 only** — woven into sentences, never a standalone `Publication | Publication` line. No x.com or twitter.com links in the body.

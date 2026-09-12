@@ -8,7 +8,7 @@ survivors into `editorial.db`'s `headline_pool` table — STRICTLY per project,
 so the two project lists can never mix.
 
 Usage:
-  python3 update_headline_pool.py --project memecoinist
+  python3 update_headline_pool.py --project coinnetwork
   python3 update_headline_pool.py --all          # scan every project in turn
   python3 update_headline_pool.py --all --target-count 25 --prune-hours 168
 

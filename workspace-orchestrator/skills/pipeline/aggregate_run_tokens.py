@@ -25,6 +25,9 @@ from typing import Any
 
 OPENCLAW_AGENTS = os.path.expanduser("~/.openclaw/agents")
 OPENCLAW_JSON = os.path.expanduser("~/.openclaw/openclaw.json")
+IMAGE_PRICING_JSON = os.path.expanduser(
+    "~/.openclaw/workspace-orchestrator/config/image-model-pricing.json"
+)
 WORKER_AGENTS = ("researcher", "writer", "creator", "chart-generator")
 BATCH_AGENTS = ("picker",)
 ORCHESTRATOR_AGENTS = ("orchestrator",)
@@ -142,13 +145,23 @@ def duration_from_steps(manifest: dict) -> int | None:
 
 
 def file_references_run_dir(path: str, run_dir: str) -> bool:
-    needle = run_dir.rstrip("/")
-    if not needle:
+    raw = str(run_dir or "").strip()
+    if not raw:
         return False
+    variants = {raw, raw.replace("\\", "/"), raw.replace("/", "\\")}
+    try:
+        real = os.path.realpath(raw)
+        variants.update({real, real.replace("\\", "/"), real.replace("/", "\\")})
+    except OSError:
+        pass
+    base = os.path.basename(raw.replace("\\", "/").rstrip("/"))
+    if base:
+        variants.add(base)
+    needles = [v for v in variants if v]
     try:
         with open(path, encoding="utf-8", errors="ignore") as f:
-            chunk = f.read(262_144)
-        return needle in chunk
+            chunk = f.read(1_048_576)
+        return any(n in chunk for n in needles)
     except OSError:
         return False
 
@@ -193,7 +206,7 @@ def session_primary_model(path: str) -> str | None:
 
 
 def empty_model_bucket() -> dict[str, int]:
-    return {"tokens_in": 0, "tokens_out": 0, "tokens_total": 0}
+    return {"tokens_in": 0, "tokens_out": 0, "tokens_cache_read": 0, "tokens_total": 0}
 
 
 def merge_model_usage(
@@ -203,6 +216,9 @@ def merge_model_usage(
         bucket = target.setdefault(model_id, empty_model_bucket())
         bucket["tokens_in"] += int(usage.get("tokens_in") or 0)
         bucket["tokens_out"] += int(usage.get("tokens_out") or 0)
+        bucket["tokens_cache_read"] = bucket.get("tokens_cache_read", 0) + int(
+            usage.get("tokens_cache_read") or 0
+        )
         bucket["tokens_total"] += int(usage.get("tokens_total") or 0)
 
 
@@ -214,6 +230,7 @@ def prorate_model_usage(
         out[model_id] = {
             "tokens_in": int(round(bucket["tokens_in"] * share)),
             "tokens_out": int(round(bucket["tokens_out"] * share)),
+            "tokens_cache_read": int(round(int(bucket.get("tokens_cache_read") or 0) * share)),
             "tokens_total": int(round(bucket["tokens_total"] * share)),
         }
     return out
@@ -227,13 +244,15 @@ def _accumulate_message_usage(
         return
     model_id = str(message.get("model") or "unknown").strip() or "unknown"
     bucket = by_model.setdefault(model_id, empty_model_bucket())
-    tokens_in = int(usage.get("input") or 0)
-    tokens_out = int(usage.get("output") or 0)
-    tokens_total = int(usage.get("totalTokens") or 0)
+    tokens_in = int(usage.get("input") or usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+    tokens_out = int(usage.get("output") or usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    cache_read = int(usage.get("cacheRead") or usage.get("cache_read_input_tokens") or usage.get("cache_read") or 0)
+    tokens_total = int(usage.get("totalTokens") or usage.get("total_tokens") or usage.get("total") or 0)
     if tokens_total <= 0 and (tokens_in or tokens_out):
         tokens_total = tokens_in + tokens_out
     bucket["tokens_in"] += tokens_in
     bucket["tokens_out"] += tokens_out
+    bucket["tokens_cache_read"] = bucket.get("tokens_cache_read", 0) + cache_read
     bucket["tokens_total"] += tokens_total
 
 
@@ -360,7 +379,7 @@ def load_model_catalog() -> dict[str, dict[str, Any]]:
     catalog: dict[str, dict[str, Any]] = {}
     data = load_json(OPENCLAW_JSON)
     providers = (data.get("models") or {}).get("providers") or {}
-    for provider in providers.values():
+    for provider_name, provider in providers.items():
         if not isinstance(provider, dict):
             continue
         for model in provider.get("models") or []:
@@ -370,27 +389,73 @@ def load_model_catalog() -> dict[str, dict[str, Any]]:
             if not model_id:
                 continue
             cost = model.get("cost") or {}
-            catalog[model_id] = {
+            entry = {
                 "name": str(model.get("name") or model_id),
                 "cost": {
                     "input": float(cost.get("input") or 0),
                     "output": float(cost.get("output") or 0),
                     "cacheRead": float(cost.get("cacheRead") or 0),
                     "cacheWrite": float(cost.get("cacheWrite") or 0),
+                    "per_image": float(cost.get("per_image") or 0),
                 },
             }
+            keys = [model_id]
+            if str(provider_name or "").strip():
+                keys.append(f"{provider_name}/{model_id}")
+            for key in keys:
+                existing = catalog.get(key)
+                existing_cost = (existing or {}).get("cost") or {}
+                if (
+                    existing
+                    and (
+                        float(existing_cost.get("input") or 0) > 0
+                        or float(existing_cost.get("output") or 0) > 0
+                        or float(existing_cost.get("per_image") or 0) > 0
+                    )
+                    and not (
+                        float(entry["cost"].get("input") or 0) > 0
+                        or float(entry["cost"].get("output") or 0) > 0
+                        or float(entry["cost"].get("per_image") or 0) > 0
+                    )
+                ):
+                    continue
+                catalog[key] = entry
     return catalog
 
 
-def model_cost_usd(tokens_in: int, tokens_out: int, cost: dict[str, float]) -> float:
-    return (
-        (tokens_in / 1_000_000.0) * float(cost.get("input") or 0)
-        + (tokens_out / 1_000_000.0) * float(cost.get("output") or 0)
-    )
+def lookup_catalog(catalog: dict[str, dict[str, Any]], model_id: str) -> dict[str, Any]:
+    key = str(model_id or "").strip()
+    if not key:
+        return {}
+    if key in catalog:
+        return catalog[key]
+    if "/" in key:
+        tail = key.rsplit("/", 1)[-1]
+        if tail in catalog:
+            return catalog[tail]
+    return {}
+
+
+def model_cost_usd(tokens_in: int, tokens_out: int, cost: dict[str, float], tokens_cache_read: int = 0) -> float:
+    input_price = float(cost.get("input") or 0)
+    output_price = float(cost.get("output") or 0)
+    cache_price = float(cost.get("cacheRead") or input_price)
+    
+    uncached_in = max(0, tokens_in - tokens_cache_read)
+    
+    cost_in = (uncached_in / 1_000_000.0) * input_price
+    cost_cache = (tokens_cache_read / 1_000_000.0) * cache_price
+    cost_out = (tokens_out / 1_000_000.0) * output_price
+    
+    return cost_in + cost_cache + cost_out
 
 
 def model_is_priced(cost: dict[str, float]) -> bool:
-    return float(cost.get("input") or 0) > 0 or float(cost.get("output") or 0) > 0
+    return (
+        float(cost.get("input") or 0) > 0
+        or float(cost.get("output") or 0) > 0
+        or float(cost.get("per_image") or 0) > 0
+    )
 
 
 def pricing_available(catalog: dict[str, dict[str, Any]]) -> bool:
@@ -399,6 +464,83 @@ def pricing_available(catalog: dict[str, dict[str, Any]]) -> bool:
         if model_is_priced(cost):
             return True
     return False
+
+
+def load_image_pricing() -> dict[str, dict[str, Any]]:
+    data = load_json(IMAGE_PRICING_JSON)
+    out: dict[str, dict[str, Any]] = {}
+    for model_id, entry in data.items():
+        if not isinstance(entry, dict):
+            continue
+        out[str(model_id)] = {
+            "name": str(entry.get("name") or model_id),
+            "per_image": float(entry.get("per_image") or 0),
+        }
+    return out
+
+
+def image_model_cost_usd(model_id: str, images: int, catalog: dict[str, dict[str, Any]]) -> tuple[float, str, bool]:
+    pricing = load_image_pricing()
+    meta = pricing.get(model_id) or catalog.get(model_id) or {}
+    name = str(meta.get("name") or model_id)
+    per_image = float(meta.get("per_image") or (meta.get("cost") or {}).get("per_image") or 0)
+    priced = per_image > 0
+    return round(per_image * images, 6), name, priced
+
+
+def load_image_cost(run_dir: str) -> dict[str, Any] | None:
+    path = os.path.join(run_dir, "publish", "image-cost.json")
+    data = load_json(path)
+    if not data or not data.get("model"):
+        return None
+    return data
+
+
+def merge_image_cost(
+    result: dict[str, Any],
+    image_cost: dict[str, Any],
+    catalog: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    model_id = str(image_cost.get("model") or "").strip()
+    if not model_id:
+        return result
+
+    images = int(image_cost.get("images") or 1)
+    image_cost_usd, model_name, priced = image_model_cost_usd(model_id, images, catalog)
+    if float(image_cost.get("cost_usd") or 0) > 0:
+        image_cost_usd = round(float(image_cost["cost_usd"]) * images, 6)
+
+    by_model = dict(result.get("by_model") or {})
+    existing = by_model.get(model_id) or {}
+    by_model[model_id] = {
+        "name": str(image_cost.get("model_name") or model_name or model_id),
+        "tokens_in": int(existing.get("tokens_in") or 0),
+        "tokens_out": int(existing.get("tokens_out") or 0),
+        "tokens_total": int(existing.get("tokens_total") or 0),
+        "images": images,
+        "cost_usd": round(float(existing.get("cost_usd") or 0) + image_cost_usd, 6),
+        "priced": priced or bool(existing.get("priced")),
+    }
+
+    by_agent = dict(result.get("by_agent") or {})
+    creator = dict(by_agent.get("creator") or {})
+    creator["cost_usd"] = round(float(creator.get("cost_usd") or 0) + image_cost_usd, 6)
+    by_agent["creator"] = creator
+
+    result["by_model"] = by_model
+    result["by_agent"] = by_agent
+    result["image_cost"] = {
+        "model": model_id,
+        "model_name": str(image_cost.get("model_name") or model_name or model_id),
+        "images": images,
+        "cost_usd": image_cost_usd,
+        "priced": priced,
+    }
+    result["image_cost_usd"] = image_cost_usd
+    result["cost_usd"] = round(float(result.get("cost_usd") or 0) + image_cost_usd, 6)
+    if priced:
+        result["pricing_available"] = True
+    return result
 
 
 def finalize_by_model(
@@ -413,12 +555,13 @@ def finalize_by_model(
         tokens_total = int(usage.get("tokens_total") or 0)
         if tokens_total <= 0 and not (tokens_in or tokens_out):
             continue
-        meta = catalog.get(model_id) or {}
+        meta = lookup_catalog(catalog, model_id)
         cost = meta.get("cost") or {}
         priced = model_is_priced(cost)
         if not priced and (tokens_in or tokens_out or tokens_total):
             missing_prices.append(model_id)
-        cost_usd = model_cost_usd(tokens_in, tokens_out, cost)
+        tokens_cache_read = int(usage.get("tokens_cache_read") or 0)
+        cost_usd = model_cost_usd(tokens_in, tokens_out, cost, tokens_cache_read)
         total_cost += cost_usd
         by_model[model_id] = {
             "name": str(meta.get("name") or model_id),
@@ -503,12 +646,13 @@ def agent_cost_usd(
 ) -> float:
     total = 0.0
     for model_id, usage in agent_models.items():
-        meta = catalog.get(model_id) or {}
+        meta = lookup_catalog(catalog, model_id)
         cost = meta.get("cost") or {}
         total += model_cost_usd(
             int(usage.get("tokens_in") or 0),
             int(usage.get("tokens_out") or 0),
             cost,
+            int(usage.get("tokens_cache_read") or 0),
         )
     return round(total, 6)
 
@@ -652,7 +796,7 @@ def aggregate_tokens(manifest_path: str) -> dict[str, Any]:
         by_agent_raw, manifest, window_start, window_end
     )
 
-    return {
+    result = {
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
         "tokens_total": tokens_total,
@@ -665,6 +809,25 @@ def aggregate_tokens(manifest_path: str) -> dict[str, Any]:
         "run_dir": run_dir,
         "aggregated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    image_cost = load_image_cost(run_dir)
+    if image_cost:
+        result = merge_image_cost(result, image_cost, catalog)
+
+    steps_path = os.path.join(run_dir, "publish", "steps.json")
+    steps_file = load_json(steps_path)
+    steps = steps_file.get("steps") if isinstance(steps_file.get("steps"), dict) else {}
+    if steps:
+        result["steps"] = steps
+        wall = sum(
+            int((row or {}).get("duration_seconds") or 0)
+            for row in steps.values()
+            if isinstance(row, dict)
+        )
+        if wall > 0:
+            result["wall_seconds"] = wall
+
+    return result
 
 
 def write_tokens_artifacts(manifest_path: str, result: dict[str, Any]) -> None:

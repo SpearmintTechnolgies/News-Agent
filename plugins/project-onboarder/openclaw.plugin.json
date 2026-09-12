@@ -1,0 +1,10 @@
+{
+  "id": "project-onboarder",
+  "name": "Project Onboarder",
+  "description": "Deterministic /onboard flow for adding a new news-agent project end to end (WordPress verify, categories, authors, Telegram wiring) without waking the orchestrator LLM.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

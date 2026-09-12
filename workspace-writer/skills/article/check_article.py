@@ -288,27 +288,51 @@ def run_checks(
 
     # ── hook / keyword ─────────────────────────────────────────────────────
     if primary_kw:
+        def _kw_tokens(text: str) -> set[str]:
+            # Keep 2+ letter tokens so acronyms like "AI" count; keep digit
+            # runs (strip thousands commas) so "200,000" can match headlines.
+            cleaned = re.sub(r"(?<=\d),(?=\d)", "", text.lower())
+            return {
+                w
+                for w in re.findall(r"[a-z0-9]+", cleaned)
+                if (w.isalpha() and len(w) >= 2) or (w.isdigit() and len(w) >= 3)
+            }
+
+        def _kw_overlap_ok(a: set[str], b: set[str]) -> bool:
+            if not a:
+                return True
+            need = 2 if len(a) >= 2 else 1
+            return len(a & b) >= need
+
         h1_text = sync.extract_h1(content)
-        if h1_text and primary_kw.lower() in h1_text.lower():
-            record("h1_keyword", True, "Primary Keyword in H1")
-        elif h1_text:
-            record(
-                "h1_keyword",
-                False,
-                f"H1 must contain Primary Keyword '{primary_kw}' (within first 5 words)",
-            )
+        if h1_text:
+            # Picker/Writer sometimes adjusts punctuation/casing (e.g. "X: Y" vs
+            # "X Says"), so use token overlap rather than exact substring.
+            primary_tokens = _kw_tokens(primary_kw)
+            h1_first = " ".join(h1_text.split()[:5])
+            h1_tokens = _kw_tokens(h1_first)
+            if _kw_overlap_ok(primary_tokens, h1_tokens):
+                record("h1_keyword", True, "Primary Keyword tokens in H1 (first words)")
+            else:
+                record(
+                    "h1_keyword",
+                    False,
+                    f"H1 must match Primary Keyword tokens (within first 5 words); overlap {len(primary_tokens & h1_tokens)}",
+                )
         else:
             record("h1_keyword", False, "add H1 containing Primary Keyword")
 
         hook = body_after_h1_before_h2(content)
         first = first_sentence(hook)
-        if primary_kw.lower() in first.lower():
-            record("primary_keyword_hook", True, "first sentence contains Primary Keyword")
+        primary_tokens = _kw_tokens(primary_kw)
+        first_tokens = _kw_tokens(first)
+        if _kw_overlap_ok(primary_tokens, first_tokens):
+            record("primary_keyword_hook", True, "first sentence contains Primary Keyword tokens")
         else:
             record(
                 "primary_keyword_hook",
                 False,
-                f"first sentence under H1 must contain '{primary_kw}'",
+                f"first sentence under H1 must match Primary Keyword tokens (overlap {len(primary_tokens & first_tokens)})",
             )
 
     # ── topic coherence ────────────────────────────────────────────────────
@@ -392,6 +416,16 @@ def run_checks(
     else:
         record("no_bare_source_line", True, "no bare source-only lines in body")
 
+    bullet_issues = hyg.find_noncanonical_bullet_issues(content, vas.SOURCES_SPLIT_RE)
+    if bullet_issues:
+        record(
+            "canonical_bullet_lists",
+            False,
+            "use dash lists only (- item per line); no inline * bullets, * lines, • markers, or numbered 1. lists in body",
+        )
+    else:
+        record("canonical_bullet_lists", True, "body lists use dash markers only")
+
     # ── style ──────────────────────────────────────────────────────────────
     if "\u2014" in content or "—" in content:
         record("no_em_dash", False, "replace em-dashes with comma or period")
@@ -428,6 +462,7 @@ def print_report(results: list[tuple[str, bool, str]]) -> bool:
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description="Combined article validator")
     parser.add_argument("--article", required=True, help="Path to article markdown")
     parser.add_argument("--research", default="", help="Path to validated.json")

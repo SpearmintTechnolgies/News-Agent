@@ -1,0 +1,684 @@
+{
+  "timestamp": "20260829T113501",
+  "mode": "execute",
+  "source_root": "/home/Rupesh/migration-source",
+  "target_root": "/home/Rupesh/.hermes",
+  "workspace_target": null,
+  "output_dir": "/home/Rupesh/.hermes/migration/openclaw/20260829T113501",
+  "migrate_secrets": "[redacted]",
+  "preset": null,
+  "skill_conflict_mode": "skip",
+  "selection": {
+    "selected": [
+      "shared-skills",
+      "user-profile"
+    ],
+    "preset": null,
+    "skill_conflict_mode": "skip",
+    "available": [
+      {
+        "id": "soul",
+        "label": "SOUL.md",
+        "description": "Import the OpenClaw persona file into Hermes."
+      },
+      {
+        "id": "workspace-agents",
+        "label": "Workspace instructions",
+        "description": "Copy the OpenClaw workspace instructions file into a chosen workspace."
+      },
+      {
+        "id": "memory",
+        "label": "MEMORY.md",
+        "description": "Import long-term memory entries into Hermes memories."
+      },
+      {
+        "id": "user-profile",
+        "label": "USER.md",
+        "description": "Import user profile entries into Hermes memories."
+      },
+      {
+        "id": "messaging-settings",
+        "label": "Messaging settings",
+        "description": "Import Hermes-compatible messaging settings such as allowlists and working directory."
+      },
+      {
+        "id": "secret-settings",
+        "label": "Allowlisted secrets",
+        "description": "Import the small allowlist of Hermes-compatible secrets when explicitly enabled."
+      },
+      {
+        "id": "command-allowlist",
+        "label": "Command allowlist",
+        "description": "Merge OpenClaw exec approval patterns into Hermes command_allowlist."
+      },
+      {
+        "id": "skills",
+        "label": "User skills",
+        "description": "Copy OpenClaw skills into ~/.hermes/skills/openclaw-imports/."
+      },
+      {
+        "id": "tts-assets",
+        "label": "TTS assets",
+        "description": "Copy compatible workspace TTS assets into ~/.hermes/tts/."
+      },
+      {
+        "id": "discord-settings",
+        "label": "Discord settings",
+        "description": "Import Discord bot token and allowlist into Hermes .env."
+      },
+      {
+        "id": "slack-settings",
+        "label": "Slack settings",
+        "description": "Import Slack bot/app tokens and allowlist into Hermes .env."
+      },
+      {
+        "id": "whatsapp-settings",
+        "label": "WhatsApp settings",
+        "description": "Import WhatsApp allowlist into Hermes .env."
+      },
+      {
+        "id": "signal-settings",
+        "label": "Signal settings",
+        "description": "Import Signal account, HTTP URL, and allowlist into Hermes .env."
+      },
+      {
+        "id": "provider-keys",
+        "label": "Provider API keys",
+        "description": "Import model provider API keys into Hermes .env (requires --migrate-secrets)."
+      },
+      {
+        "id": "model-config",
+        "label": "Default model",
+        "description": "Import the default model setting into Hermes config.yaml."
+      },
+      {
+        "id": "tts-config",
+        "label": "TTS configuration",
+        "description": "Import TTS provider and voice settings into Hermes config.yaml."
+      },
+      {
+        "id": "shared-skills",
+        "label": "Shared skills",
+        "description": "Copy shared OpenClaw skills from ~/.openclaw/skills/ into Hermes."
+      },
+      {
+        "id": "daily-memory",
+        "label": "Daily memory files",
+        "description": "Merge daily memory entries from workspace/memory/ into Hermes MEMORY.md."
+      },
+      {
+        "id": "archive",
+        "label": "Archive unmapped docs",
+        "description": "Archive compatible-but-unmapped docs for later manual review."
+      },
+      {
+        "id": "mcp-servers",
+        "label": "MCP servers",
+        "description": "Import MCP server definitions from OpenClaw into Hermes config.yaml."
+      },
+      {
+        "id": "plugins-config",
+        "label": "Plugins configuration",
+        "description": "Archive OpenClaw plugin configuration and installed extensions for manual review."
+      },
+      {
+        "id": "cron-jobs",
+        "label": "Cron / scheduled tasks",
+        "description": "Import cron job definitions. Archive for manual recreation via 'hermes cron'."
+      },
+      {
+        "id": "hooks-config",
+        "label": "Hooks and webhooks",
+        "description": "Archive OpenClaw hook configuration (internal hooks, webhooks, Gmail integration)."
+      },
+      {
+        "id": "agent-config",
+        "label": "Agent defaults and multi-agent setup",
+        "description": "Import agent defaults (compaction, context, thinking) into Hermes config. Archive multi-agent list."
+      },
+      {
+        "id": "gateway-config",
+        "label": "Gateway configuration",
+        "description": "Import gateway port and auth settings. Archive full gateway config for manual setup."
+      },
+      {
+        "id": "session-config",
+        "label": "Session configuration",
+        "description": "Import session reset policies (daily/idle) into Hermes session_reset config."
+      },
+      {
+        "id": "full-providers",
+        "label": "Full model provider definitions",
+        "description": "Import custom model providers (baseUrl, apiType, headers) into Hermes custom_providers."
+      },
+      {
+        "id": "deep-channels",
+        "label": "Deep channel configuration",
+        "description": "Import extended channel settings (Matrix, Mattermost, IRC, group configs). Archive complex settings."
+      },
+      {
+        "id": "browser-config",
+        "label": "Browser configuration",
+        "description": "Import browser automation settings into Hermes config.yaml."
+      },
+      {
+        "id": "tools-config",
+        "label": "Tools configuration",
+        "description": "Import tool settings (exec timeout, sandbox, web search) into Hermes config.yaml."
+      },
+      {
+        "id": "approvals-config",
+        "label": "Approval rules",
+        "description": "Import approval mode and rules into Hermes config.yaml approvals section."
+      },
+      {
+        "id": "memory-backend",
+        "label": "Memory backend configuration",
+        "description": "Archive OpenClaw memory backend settings (QMD, vector search, citations) for manual review."
+      },
+      {
+        "id": "skills-config",
+        "label": "Skills registry configuration",
+        "description": "Archive per-skill enabled/config/env settings from OpenClaw skills.entries."
+      },
+      {
+        "id": "ui-identity",
+        "label": "UI and identity settings",
+        "description": "Archive OpenClaw UI theme, assistant identity, and display preferences."
+      },
+      {
+        "id": "logging-config",
+        "label": "Logging and diagnostics",
+        "description": "Archive OpenClaw logging and diagnostics configuration."
+      }
+    ],
+    "presets": [
+      {
+        "id": "user-data",
+        "selected": [
+          "agent-config",
+          "approvals-config",
+          "archive",
+          "browser-config",
+          "command-allowlist",
+          "cron-jobs",
+          "daily-memory",
+          "deep-channels",
+          "discord-settings",
+          "full-providers",
+          "gateway-config",
+          "hooks-config",
+          "logging-config",
+          "mcp-servers",
+          "memory",
+          "memory-backend",
+          "messaging-settings",
+          "model-config",
+          "plugins-config",
+          "session-config",
+          "shared-skills",
+          "signal-settings",
+          "skills",
+          "skills-config",
+          "slack-settings",
+          "soul",
+          "tools-config",
+          "tts-assets",
+          "tts-config",
+          "ui-identity",
+          "user-profile",
+          "whatsapp-settings",
+          "workspace-agents"
+        ]
+      },
+      {
+        "id": "full",
+        "selected": [
+          "agent-config",
+          "approvals-config",
+          "archive",
+          "browser-config",
+          "command-allowlist",
+          "cron-jobs",
+          "daily-memory",
+          "deep-channels",
+          "discord-settings",
+          "full-providers",
+          "gateway-config",
+          "hooks-config",
+          "logging-config",
+          "mcp-servers",
+          "memory",
+          "memory-backend",
+          "messaging-settings",
+          "model-config",
+          "plugins-config",
+          "provider-keys",
+          "secret-settings",
+          "session-config",
+          "shared-skills",
+          "signal-settings",
+          "skills",
+          "skills-config",
+          "slack-settings",
+          "soul",
+          "tools-config",
+          "tts-assets",
+          "tts-config",
+          "ui-identity",
+          "user-profile",
+          "whatsapp-settings",
+          "workspace-agents"
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "migrated": 2,
+    "archived": 0,
+    "skipped": 33,
+    "conflict": 0,
+    "error": 0
+  },
+  "items": [
+    {
+      "kind": "soul",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "SOUL.md"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "workspace-agents",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Workspace instructions"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "memory",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "MEMORY.md"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "user-profile",
+      "source": "/home/Rupesh/migration-source/workspace/USER.md",
+      "destination": "/home/Rupesh/.hermes/memories/USER.md",
+      "status": "migrated",
+      "reason": "",
+      "details": {
+        "backup": "",
+        "overflow_preview": [],
+        "existing_entries": 0,
+        "added_entries": 10,
+        "duplicate_entries": 0,
+        "overflowed_entries": 0,
+        "char_limit": 1375,
+        "final_char_count": 517
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "messaging-settings",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Messaging settings"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "secret-settings",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Allowlisted secrets"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "discord-settings",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Discord settings"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "slack-settings",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Slack settings"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "whatsapp-settings",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "WhatsApp settings"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "signal-settings",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Signal settings"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "provider-keys",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Provider API keys"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "model-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Default model"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "tts-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "TTS configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "command-allowlist",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Command allowlist"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "skills",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "User skills"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "shared-skills",
+      "source": "/home/Rupesh/migration-source/skills/chart-generator",
+      "destination": "/home/Rupesh/.hermes/skills/openclaw-imports/chart-generator",
+      "status": "migrated",
+      "reason": "",
+      "details": {
+        "backup": ""
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "daily-memory",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Daily memory files"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "tts-assets",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "TTS assets"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "archive",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Archive unmapped docs"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "mcp-servers",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "MCP servers"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "plugins-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Plugins configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "cron-jobs",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Cron / scheduled tasks"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "hooks-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Hooks and webhooks"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "agent-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Agent defaults and multi-agent setup"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "gateway-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Gateway configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "session-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Session configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "full-providers",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Full model provider definitions"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "deep-channels",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Deep channel configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "browser-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Browser configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "tools-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Tools configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "approvals-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Approval rules"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "memory-backend",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Memory backend configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "skills-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Skills registry configuration"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "ui-identity",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "UI and identity settings"
+      },
+      "sensitive": false
+    },
+    {
+      "kind": "logging-config",
+      "source": null,
+      "destination": null,
+      "status": "skipped",
+      "reason": "Not selected for this run",
+      "details": {
+        "option_label": "Logging and diagnostics"
+      },
+      "sensitive": false
+    }
+  ],
+  "warnings": [
+    "API keys and other credentials were detected but not imported. Re-run with --migrate-secrets to copy supported keys into the Hermes env file."
+  ],
+  "next_steps": [
+    "Review the migration report at /home/Rupesh/.hermes/migration/openclaw/20260829T113501/summary.md",
+    "Start a new Hermes session (or /reset) to pick up the imported config."
+  ]
+}
