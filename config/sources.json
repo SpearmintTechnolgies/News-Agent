@@ -1,0 +1,52 @@
+{
+  "feeds": [
+    {
+      "name": "CoinDesk",
+      "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+      "source_type": "newsroom",
+      "role": "discovery",
+      "authority": 0.80,
+      "enabled": true
+    },
+    {
+      "name": "Cointelegraph",
+      "url": "https://cointelegraph.com/rss",
+      "source_type": "newsroom",
+      "role": "discovery",
+      "authority": 0.70,
+      "enabled": true
+    },
+    {
+      "name": "The Block",
+      "url": "https://www.theblock.co/rss.xml",
+      "source_type": "newsroom",
+      "role": "discovery",
+      "authority": 0.80,
+      "enabled": true
+    },
+    {
+      "name": "CFTC General",
+      "url": "https://www.cftc.gov/RSS/RSSGP/rssgp.xml",
+      "source_type": "official_regulator",
+      "role": "primary_evidence",
+      "authority": 1.00,
+      "enabled": true
+    },
+    {
+      "name": "CFTC Enforcement",
+      "url": "https://www.cftc.gov/RSS/RSSENF/rssenf.xml",
+      "source_type": "official_regulator",
+      "role": "primary_evidence",
+      "authority": 1.00,
+      "enabled": true
+    },
+    {
+      "name": "FCA News",
+      "url": "https://www.fca.org.uk/news/rss.xml",
+      "source_type": "official_regulator",
+      "role": "primary_evidence",
+      "authority": 1.00,
+      "enabled": true
+    }
+  ]
+}

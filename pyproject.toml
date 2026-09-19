@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "newsagent-v2"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "feedparser==6.0.11",
+    "requests==2.32.5",
+    "python-dotenv==1.1.1",
+    "pillow==11.3.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"newsagent_v2.image" = ["fixtures/*.json"]

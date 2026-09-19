@@ -1,0 +1,35 @@
+{
+  "batch_id": "20260914T142536Z-38a70731",
+  "selected_event_ids": [
+    "event-019",
+    "event-023",
+    "event-002",
+    "event-003",
+    "event-022"
+  ],
+  "skip_reasons": {
+    "event-019": "below_article_minimum_length",
+    "event-023": "below_article_minimum_length",
+    "event-002": "below_article_minimum_length",
+    "event-003": "missing_article",
+    "event-022": "missing_article"
+  },
+  "article_word_counts": {
+    "event-019": 53,
+    "event-023": 95,
+    "event-002": 40,
+    "event-003": 0,
+    "event-022": 0
+  },
+  "evidence_word_counts": {
+    "event-019": 35,
+    "event-023": 74,
+    "event-002": 16,
+    "event-003": null,
+    "event-022": null
+  },
+  "image_request_count": 0,
+  "telegram_sends": 0,
+  "ai_request_count_in_batch_telemetry": 1,
+  "notes": "Sanitized offline fixture. No live provider payloads. Articles 003/022 were omitted from content_fn when parsed_output was missing."
+}
