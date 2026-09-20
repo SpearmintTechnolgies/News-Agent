@@ -20,11 +20,15 @@ from newsagent_v2.article.writer.v4.writer import (
     V4NaturalProseWriter,
     build_v4_writer,
 )
-from newsagent_v2.discovery.event_clusterer import NewsEvent
+from newsagent_v2.discovery.event_clusterer import NewsEvent, EventReport
 from newsagent_v2.image.vertex_make_image import build_vertex_make_image_fn
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.config import TelegramConfig
 
+from .source_expansion_adapter import (
+    expand_sources_for_event,
+    ExpansionResult,
+)
 from .version_store import VersionStore
 
 
@@ -41,6 +45,20 @@ class GenerationJob:
     image_version: str | None = None
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize job including metadata."""
+        return {
+            "job_id": self.job_id,
+            "event_id": self.event_id,
+            "state": self.state,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "article_version": self.article_version,
+            "image_version": self.image_version,
+            "error": self.error,
+            "metadata": self.metadata,
+        }
 
 
 class RunStoryAdapter:
@@ -78,7 +96,11 @@ class RunStoryAdapter:
         V4 research/compile expect evidence under ``article_input.evidence``
         (see ``research_event`` / ``enrich_story``). Top-level ``evidence`` is
         retained for adapters that still read it directly.
+        
+        Now includes SOURCE EXPANSION via CollectorV2 + SourceRegistry to
+        find corroborating sources when the original source is inaccessible.
         """
+        # Build base evidence from event reports
         evidence = [
             {
                 "source": r.source,
@@ -91,6 +113,30 @@ class RunStoryAdapter:
             }
             for r in event.reports
         ]
+        
+        # EXPAND SOURCES: Try to find corroborating sources for this event
+        # This is the ZERO-LLM deterministic expansion that was missing in V5
+        event_reports = [r.to_dict() for r in event.reports]
+        try:
+            expansion = expand_sources_for_event(
+                event={
+                    "event_id": event.event_id,
+                    "representative_title": event.canonical_title,
+                    "canonical_title": event.canonical_title,
+                    "topic": event.topic,
+                    "entities": list(event.entities),
+                },
+                event_entities=list(event.entities),
+                event_topic=event.topic,
+                event_reports=event_reports,
+            )
+            
+            # Add expanded sources to evidence
+            if expansion.sources_added:
+                evidence.extend(expansion.sources_added)
+        except Exception:
+            # Expansion failure should not block the pipeline
+            expansion = None
 
         article_input = {
             "event_id": event.event_id,
@@ -110,6 +156,7 @@ class RunStoryAdapter:
             "source_count": event.source_count,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "developments": [d.to_dict() for d in event.developments],
+            "source_expansion": expansion.as_dict() if expansion else None,
         }
 
     def _create_job(self, event: NewsEvent) -> GenerationJob:
@@ -190,6 +237,43 @@ class RunStoryAdapter:
             else:
                 job.state = "FAILED"
                 job.error = result.get("error", "Unknown error")
+                
+                # PERSIST FULL FAILURE DIAGNOSTICS
+                # Store all available failure telemetry for forensic analysis
+                job.metadata["failure_details"] = {
+                    "failure_class": result.get("failure_class"),
+                    "error": result.get("error"),
+                    "notes": result.get("notes"),
+                    "critical_codes": result.get("critical_codes", []),
+                    "event_id": event.event_id,
+                    "job_id": job.job_id,
+                    "stage": "generation",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    # Evidence metrics
+                    "sources_retrieved": result.get("sources_retrieved"),
+                    "independent_sources": result.get("independent_sources"),
+                    "primary_sources": result.get("primary_sources"),
+                    "unique_propositions": result.get("unique_propositions"),
+                    "evidence_capacity": result.get("evidence_capacity"),
+                    "article_type": result.get("article_type"),
+                    # Article metrics (if produced)
+                    "native_words": result.get("native_words"),
+                    "final_words": result.get("final_words"),
+                    "writer_calls": result.get("writer_calls"),
+                    "repair_calls": result.get("repair_calls"),
+                    "expansion_calls": result.get("expansion_calls"),
+                    # Grounding metrics
+                    "supported": result.get("supported"),
+                    "ambiguous": result.get("ambiguous"),
+                    "unsupported": result.get("unsupported"),
+                    # Provider info
+                    "writer_model": result.get("writer_model"),
+                    "writer_provider": result.get("writer_provider"),
+                    "kimi_calls": result.get("kimi_calls"),
+                    "vertex_calls": result.get("vertex_calls"),
+                    # Attempt path for forensics
+                    "attempt_path": result.get("attempt_path"),
+                }
 
             self._update_job(job)
 
@@ -245,7 +329,7 @@ class RunStoryAdapter:
 
         env = self.environ
 
-        # Build story format
+        # Build story format (includes source expansion)
         story = self._event_to_story(event)
 
         # Initialize writer
@@ -265,6 +349,79 @@ class RunStoryAdapter:
         # Assess evidence capacity
         from newsagent_v2.article.writer.v4.evidence_depth import assess_evidence_capacity
         depth = assess_evidence_capacity(bank, research=research)
+        
+        # PRE-WRITER EVIDENCE GATE
+        # Must block before any writer calls if evidence is insufficient
+        diagnostics = {
+            "queries_generated": getattr(research, 'search_queries', []),
+            "sources_discovered": research.sources_discovered if hasattr(research, 'sources_discovered') else 0,
+            "sources_retrieved": research.sources_retrieved if hasattr(research, 'sources_retrieved') else 0,
+            "sources_failed": [],
+            "independent_sources": research.independent_sources if hasattr(research, 'independent_sources') else 0,
+            "primary_sources": research.primary_sources if hasattr(research, 'primary_sources') else 0,
+            "raw_research_words": research.raw_research_words if hasattr(research, 'raw_research_words') else 0,
+            "unique_propositions": bank.unique_proposition_count if hasattr(bank, 'unique_proposition_count') else 0,
+            "evidence_capacity": depth.evidence_capacity if depth else "UNKNOWN",
+            "pre_writer_gate_passed": False,
+        }
+        
+        # Check for failed sources (403, timeouts, etc.)
+        evidence_rows = pack.get("evidence", []) if pack else []
+        for row in evidence_rows:
+            if isinstance(row, dict):
+                extraction = row.get("extraction_method", "")
+                if "blocked" in extraction or "failed" in extraction or "error" in extraction:
+                    diagnostics["sources_failed"].append({
+                        "url": row.get("url"),
+                        "source": row.get("source"),
+                        "reason": extraction,
+                    })
+        
+        # GATE: Must have at least one successfully retrieved source
+        if research.sources_retrieved == 0:
+            diagnostics["pre_writer_gate_passed"] = False
+            diagnostics["gate_failure_reason"] = "NO_SOURCES_RETRIEVED"
+            return {
+                "ok": False,
+                "error": "INSUFFICIENT_EVIDENCE",
+                "notes": "Pre-writer evidence gate blocked: sources_retrieved == 0",
+                "diagnostics": diagnostics,
+                "writer_calls": 0,
+                "kimi_calls": 0,
+                "image_calls": 0,
+            }
+        
+        # GATE: Single proposition is not sufficient for full article
+        unique_props = bank.unique_proposition_count if hasattr(bank, 'unique_proposition_count') else 0
+        if unique_props <= 1 and depth and depth.evidence_limited:
+            diagnostics["pre_writer_gate_passed"] = False
+            diagnostics["gate_failure_reason"] = "INSUFFICIENT_PROPOSITIONS"
+            return {
+                "ok": False,
+                "error": "INSUFFICIENT_EVIDENCE",
+                "notes": f"Pre-writer evidence gate blocked: {unique_props} propositions, insufficient for full article",
+                "diagnostics": diagnostics,
+                "writer_calls": 0,
+                "kimi_calls": 0,
+                "image_calls": 0,
+            }
+        
+        # GATE: Must have RICH or MEDIUM capacity for normal article generation
+        # LIMITED depth briefs gate separately if configured
+        if depth and depth.evidence_capacity == "LIMITED":
+            diagnostics["pre_writer_gate_passed"] = False
+            diagnostics["gate_failure_reason"] = "LIMITED_EVIDENCE_CAPACITY"
+            return {
+                "ok": False,
+                "error": "INSUFFICIENT_EVIDENCE",
+                "notes": f"Pre-writer evidence gate blocked: LIMITED capacity, {unique_props} propositions",
+                "diagnostics": diagnostics,
+                "writer_calls": 0,
+                "kimi_calls": 0,
+                "image_calls": 0,
+            }
+        
+        diagnostics["pre_writer_gate_passed"] = True
 
         # Compile V4 article (includes writer + QA + grounding)
         attempts_root = self._attempts_root(job.job_id)
@@ -301,6 +458,7 @@ class RunStoryAdapter:
                     "grounding_supported": compiled.supported,
                     "grounding_ambiguous": compiled.ambiguous,
                     "grounding_unsupported": compiled.unsupported,
+                    "attempts_root": str(attempts_root),  # KEY: Persist for revision evidence reuse
                 },
             )
 

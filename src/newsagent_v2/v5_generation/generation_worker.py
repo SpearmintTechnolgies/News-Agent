@@ -193,41 +193,41 @@ class GenerationWorker:
         result: dict[str, Any],
         job: GenerationJob,
     ) -> None:
-        """Send review package after successful generation."""
-        # This would integrate with the existing review system
-        # For now, send a simple confirmation with basic review controls
+        """Send review package after successful generation.
+        
+        Uses telegram_delivery module - ZERO generation/provider calls.
+        """
+        from .telegram_delivery import send_initial_review_package
+        from .version_store import VersionStore, DEFAULT_STORE_ROOT
+        from pathlib import Path
         
         article_version = result.get("article_version", "V1")
+        image_version = result.get("image_version", "V1")
         
-        # Build review keyboard
-        from newsagent_v2.telegram.v5_cards import make_callback_data
-        
-        review_keyboard = {
-            "inline_keyboard": [
-                [
-                    {"text": "RATE ARTICLE", "callback_data": f"rate_article:{job.event_id}:{article_version}"},
-                    {"text": "RATE IMAGE", "callback_data": f"rate_image:{job.event_id}:{article_version}"},
-                ],
-                [
-                    {"text": "ARTICLE FEEDBACK", "callback_data": f"feedback_article:{job.event_id}:{article_version}"},
-                    {"text": "IMAGE FEEDBACK", "callback_data": f"feedback_image:{job.event_id}:{article_version}"},
-                ],
-                [
-                    {"text": "REVISE", "callback_data": f"revise:{job.event_id}:{article_version}"},
-                    {"text": "PUBLISH", "callback_data": f"publish:{job.event_id}:{article_version}"},
-                ],
-                [
-                    {"text": "REJECT", "callback_data": f"reject:{job.event_id}:{article_version}"},
-                ],
-            ]
-        }
-        
-        self.client.send_message(
-            chat_id=self.config.test_chat_id,
-            text=f"✅ <b>Story Ready for Review</b>\n\n{event.canonical_title}\n\nArticle: {article_version}\nUse the buttons below to review.",
-            parse_mode="HTML",
-            reply_markup=review_keyboard,
+        # Initialize VersionStore
+        version_root = self.environ.get("V5_VERSION_STORE_ROOT")
+        version_store = VersionStore(
+            root=Path(version_root) if version_root else None
         )
+        
+        # Send using delivery module (NO generation calls)
+        delivery_result = send_initial_review_package(
+            client=self.client,
+            config=self.config,
+            version_store=version_store,
+            event_id=job.event_id,
+            canonical_title=event.canonical_title,
+            article_version=article_version,
+            image_version=image_version,
+        )
+        
+        if not delivery_result.get("ok"):
+            # Send error notification
+            self.client.send_message(
+                chat_id=self.config.test_chat_id,
+                text=f"❌ Review package delivery failed: {delivery_result.get('error', 'unknown')}",
+                parse_mode="HTML",
+            )
 
     # Active jobs tracking for max_active = 1 enforcement
     _active_jobs: dict[str, GenerationJob] = {}

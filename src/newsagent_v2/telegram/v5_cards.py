@@ -49,29 +49,40 @@ def make_callback_data(prefix: str, event_id: str) -> str:
     return payload
 
 
-def discovery_keyboard(event_id: str) -> dict[str, list]:
+def discovery_keyboard(event_id: str, source_url: str | None = None) -> dict[str, list]:
     """Create inline keyboard for discovery card.
     
     [RUN STORY] [FOLLOW] [IGNORE]
+    [🔗 OPEN SOURCE] (if URL provided)
     """
-    return {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "RUN STORY",
-                    "callback_data": make_callback_data(RUN_PREFIX, event_id),
-                },
-                {
-                    "text": "FOLLOW",
-                    "callback_data": make_callback_data(FOLLOW_PREFIX, event_id),
-                },
-                {
-                    "text": "IGNORE",
-                    "callback_data": make_callback_data(IGNORE_PREFIX, event_id),
-                },
-            ]
-        ]
-    }
+    # Main row with existing buttons
+    main_row = [
+        {
+            "text": "▶ RUN STORY",
+            "callback_data": make_callback_data(RUN_PREFIX, event_id),
+        },
+        {
+            "text": "👁 FOLLOW",
+            "callback_data": make_callback_data(FOLLOW_PREFIX, event_id),
+        },
+        {
+            "text": "🚫 IGNORE",
+            "callback_data": make_callback_data(IGNORE_PREFIX, event_id),
+        },
+    ]
+    
+    rows = [main_row]
+    
+    # Add OPEN SOURCE button if valid URL
+    if source_url and source_url.startswith(("http://", "https://")):
+        rows.append([
+            {
+                "text": "🔗 OPEN SOURCE",
+                "url": source_url,  # URL button opens directly, not callback
+            }
+        ])
+    
+    return {"inline_keyboard": rows}
 
 
 def seepage_keyboard(offset: int = 5) -> dict[str, list]:
@@ -96,10 +107,13 @@ def render_card_from_event(
     """Full render for one NewsEvent card."""
     compact = compact_event_card(event, rank, total_events)
     
+    # Get primary/canonical source URL for OPEN SOURCE button
+    source_url = event.primary_url
+    
     return {
         "text": compact,
         "parse_mode": "HTML",
-        "reply_markup": discovery_keyboard(event.event_id),
+        "reply_markup": discovery_keyboard(event.event_id, source_url),
         "event_id": event.event_id,
         "rank": rank,
     }

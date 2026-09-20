@@ -140,9 +140,19 @@ def compile_v4_article(
         ledgers = bank.to_ledgers()
         factbank_meta = bank.as_dict()
         depth = assess_evidence_capacity(bank, research=None)
+        # CRITICAL: source_names must come from evidence_units when research=False
+        # evidence_units contains the source info from V1 revision evidence
+        source_names = []
+        for unit in (pack.get("evidence_units") or []):
+            if isinstance(unit, dict):
+                source = unit.get("source", "").strip()
+                if source:
+                    source_names.append(source)
+        
         packet = fact_bank_to_writer_packet(
             bank,
             story_topic=str(working.get("representative_title") or ""),
+            source_names=source_names,
         )
 
     if not event_id:

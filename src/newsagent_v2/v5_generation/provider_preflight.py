@@ -34,11 +34,20 @@ class ProviderPreflight:
         return "SET" if self.environ.get(name, "").strip() else "MISSING"
     
     def check_writer(self) -> ProviderStatus:
-        """Check writer provider readiness."""
-        from newsagent_v2.article.writer.v4.writer import V4_WRITER_MODEL, V4_WRITER_PROVIDER
+        """Check writer provider readiness.
         
-        provider = V4_WRITER_PROVIDER
-        model = V4_WRITER_MODEL
+        Supports: groq, kimi (when NEWSAGENT_V2_V4_ALLOW_KIMI=true)
+        """
+        from newsagent_v2.article.writer.v4.provider import (
+            resolve_v4_provider_specs,
+            PROVIDER_KIMI,
+        )
+        
+        specs = resolve_v4_provider_specs(self.environ)
+        primary = specs["primary"]
+        
+        provider = primary.provider
+        model = primary.model
         
         if provider == "groq":
             groq_key = self._check_env("GROQ_API_KEY")
@@ -56,12 +65,36 @@ class ProviderPreflight:
                 credential_envs=credentials,
             )
         
+        if provider == PROVIDER_KIMI:
+            from newsagent_v2.article.writer.bedrock_mantle import KEY_ENV as KIMI_KEY_ENV
+            kimi_key = self._check_env(KIMI_KEY_ENV)
+            allow_kimi = self.environ.get("NEWSAGENT_V2_V4_ALLOW_KIMI", "").lower() == "true"
+            credentials = {KIMI_KEY_ENV: kimi_key}
+            
+            if not allow_kimi:
+                status = "NOT_ALLOWED"
+                notes = "Set NEWSAGENT_V2_V4_ALLOW_KIMI=true to authorize Kimi"
+            elif kimi_key != "SET":
+                status = "MISSING_CREDENTIALS"
+                notes = f"{KIMI_KEY_ENV} not set"
+            else:
+                status = "READY"
+                notes = "Kimi authorized and ready"
+            
+            return ProviderStatus(
+                provider=provider,
+                status=status,
+                configured_model=model,
+                credential_envs=credentials,
+                notes=notes,
+            )
+        
         return ProviderStatus(
             provider=provider,
             status="UNKNOWN",
             configured_model=model,
             credential_envs={},
-            notes="Unknown provider",
+            notes=f"Unknown provider: {provider}",
         )
     
     def check_image(self) -> ProviderStatus:

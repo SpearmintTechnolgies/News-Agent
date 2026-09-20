@@ -64,7 +64,9 @@ Prefer approximately 290–330 BODY words when evidence supports it.
 RULES:
 - use only authorized facts
 - preserve numbers exactly
-- preserve attribution and modality/uncertainty
+- preserve attribution and modality/uncertainty EXACTLY as in evidence (plan/proposed/expected/may/could/conditional must NOT become completed/active/definite/will)
+- CRITICAL: When related facts contain dates, percentages, thresholds, deadlines, or conditional activation criteria, do NOT synthesize them into a new combined assertion. Use separate directly-groundable statements.
+- For temporal/numeric claims: prefer atomic statements that mirror evidence structure; avoid combining date+number+condition into one invented sentence
 - do not invent motives, causality, predictions, market reaction, or background
 - do not invent comparisons, importance claims, or unsupported temporal relationships
 - paraphrase independently; avoid copying source phrasing or long source-like phrases

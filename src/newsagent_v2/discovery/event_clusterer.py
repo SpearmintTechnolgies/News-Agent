@@ -140,6 +140,22 @@ class NewsEvent:
         return any(r.source_authority >= 0.9 for r in self.reports)
 
     @property
+    def primary_url(self) -> str | None:
+        """Return URL of highest-authority report, or first report if no primary.
+        
+        Returns None if no reports exist.
+        """
+        if not self.reports:
+            return None
+        # Sort by authority descending, then by published_at descending
+        sorted_reports = sorted(
+            self.reports,
+            key=lambda r: (r.source_authority, r.published_at or ""),
+            reverse=True
+        )
+        return sorted_reports[0].url
+
+    @property
     def age_hours(self) -> float:
         """Calculate age of event in hours."""
         try:

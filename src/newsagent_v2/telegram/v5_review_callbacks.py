@@ -53,6 +53,7 @@ class V5ReviewCallbackHandler:
             "save_rate_article", "save_rate_image",  # Save rating
             "feedback_article", "feedback_image",  # Enter feedback mode
             "revise", "approve", "reject", "publish",
+            "view_full",  # View full article (idempotent/read-only)
         }
         
         if action not in valid_actions:
@@ -310,20 +311,11 @@ class V5ReviewCallbackHandler:
         result = self.revision_controller.revise(event, request)
         
         if result.ok:
-            # Build result message
-            message = f"✅ Revision complete:\n"
-            if result.article_revised:
-                message += f"  Article: {result.article_version} (NEW)\n"
-            else:
-                message += f"  Article: {result.article_version} (reused)\n"
-            if result.image_revised:
-                message += f"  Image: {result.image_version} (NEW)\n"
-            else:
-                message += f"  Image: {result.image_version} (reused)\n"
-            
+            # Return compact revision result for Telegram delivery
+            # The runtime will call send_revision_package with these versions
             return {
                 "ok": True,
-                "action": "revise",
+                "action": "revise_complete",
                 "article_revised": result.article_revised,
                 "image_revised": result.image_revised,
                 "article_version": result.article_version,
@@ -332,7 +324,16 @@ class V5ReviewCallbackHandler:
                 "image_hash": result.image_hash,
                 "article_calls": result.article_calls,
                 "image_calls": result.image_calls,
-                "message": message,
+                "event_id": event_id,
+                "canonical_title": event.canonical_title or "Unknown",
+                # Signal to runtime that full revision package should be sent
+                "send_revision_package": True,
+                "compact_message": self._build_revision_summary(
+                    result.article_revised,
+                    result.image_revised,
+                    result.article_version,
+                    result.image_version,
+                ),
             }
         else:
             return {
@@ -340,6 +341,30 @@ class V5ReviewCallbackHandler:
                 "reason": result.error,
                 "message": f"❌ Revision failed: {result.error}",
             }
+    
+    def _build_revision_summary(
+        self,
+        article_revised: bool,
+        image_revised: bool,
+        article_version: str | None,
+        image_version: str | None,
+    ) -> str:
+        """Build compact revision summary for Telegram."""
+        lines = []
+        
+        if article_version:
+            status = "REVISED" if article_revised else "REUSED"
+            lines.append(f"✍️ Article {article_version} — {status}")
+        else:
+            lines.append("✍️ Article: None")
+        
+        if image_version:
+            status = "NEW" if image_revised else "REUSED"
+            lines.append(f"🖼 Image {image_version} — {status}")
+        else:
+            lines.append("🖼 Image: None")
+        
+        return "\n".join(lines)
     
     def handle_approve(
         self,
@@ -563,8 +588,56 @@ class V5ReviewCallbackHandler:
             return self.handle_reject(event_id, reviewer)
         elif action == "publish":
             return self.handle_publish(event_id, reviewer, job_id)
+        elif action == "view_full":
+            return self.handle_view_full(event_id, version, artifact_type=extra or "article")
         
         return {"ok": False, "reason": "unknown_action", "action": action}
+    
+    def handle_view_full(
+        self,
+        event_id: str,
+        version: str,
+        artifact_type: str = "article",
+    ) -> dict[str, Any]:
+        """Handle VIEW FULL callback - idempotent, read-only, ZERO provider calls.
+        
+        Loads persisted artifact from VersionStore and returns for Telegram display.
+        Does NOT create new versions.
+        """
+        print(f"[VIEWFULL-DIAG-3] HANDLER: handle_view_full() ENTERED")
+        print(f"[VIEWFULL-DIAG-3]   event_id={event_id}")
+        print(f"[VIEWFULL-DIAG-3]   version={version}")
+        print(f"[VIEWFULL-DIAG-3]   artifact_type={artifact_type}")
+        
+        if artifact_type == "article":
+            article_data = self.version_store.get_article(event_id, version)
+            print(f"[VIEWFULL-DIAG-3]   article_data found={article_data is not None}")
+            if not article_data:
+                return {"ok": False, "reason": "article_not_found", "message": f"Article {version} not found"}
+            
+            article = article_data.get("article", {})
+            return {
+                "ok": True,
+                "action": "view_full_article",
+                "event_id": event_id,
+                "version": version,
+                "headline": article.get("headline", "Unknown"),
+                "body": article.get("article_body", ""),
+                "message": f"📖 Article {version} (read-only)",
+            }
+        else:
+            image_path = self.version_store.get_image_path(event_id, version)
+            if not image_path or not image_path.exists():
+                return {"ok": False, "reason": "image_not_found", "message": f"Image {version} not found"}
+            
+            return {
+                "ok": True,
+                "action": "view_full_image",
+                "event_id": event_id,
+                "version": version,
+                "image_path": str(image_path),
+                "message": f"🖼 Image {version} (read-only)",
+            }
     
     def check_and_capture_feedback_text(self, chat_id: str, text: str, reviewer: str = "user") -> dict[str, Any] | None:
         """Check if chat is in feedback mode and capture the text.

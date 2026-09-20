@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Version Store - persistent storage for frozen artifacts with SHA-256 integrity.
 
 Structure:
@@ -27,8 +29,6 @@ STORY-<id>/
     publication/
         publication.json
 """
-
-from __future__ import annotations
 
 import hashlib
 import json
@@ -513,3 +513,151 @@ class VersionStore:
             "articles": self.list_article_versions(event_id),
             "images": self.list_image_versions(event_id),
         }
+
+    # Revision Evidence Loading
+
+    def get_article_attempts_root(self, event_id: str, version: str) -> Path | None:
+        """Get attempts_root from article metadata for revision evidence loading."""
+        article = self.get_article(event_id, version)
+        if not article:
+            return None
+        
+        metadata = article.get("metadata", {})
+        attempts_root_str = metadata.get("attempts_root")
+        if attempts_root_str:
+            path = Path(attempts_root_str)
+            if path.exists():
+                return path
+        
+        # LEGACY FALLBACK: For V1 articles that predate attempts_root persistence
+        # Attempt to discover original generation attempt from v5_attempts
+        return self._resolve_legacy_attempts_root(event_id)
+    
+    def _resolve_legacy_attempts_root(self, event_id: str) -> Path | None:
+        """Resolve legacy attempts_root for stories without metadata persistence.
+        
+        RULES (strict):
+        1. Look only for original generation attempts matching exact event_id
+        2. EXCLUDE: {event_id}-rev-* and any revision directories
+        3. MUST contain: {candidate}/{event_id}/evidence_packet.json
+        4. Validate exact event/story ownership where possible
+        5. Exactly ONE valid original candidate -> resolve it
+        6. ZERO candidates -> return None (fail closed handled by caller)
+        7. MULTIPLE ambiguous candidates -> return None (fail closed)
+        8. Never mutate or fabricate evidence
+        
+        LIVE CASE: evt-fec17bd1 -> evt-fec17bd1-20260920T092414
+        """
+        base_path = self.root / ".." / "v5_attempts"
+        if not base_path.exists():
+            return None
+        
+        candidates = []
+        
+        for item in base_path.iterdir():
+            if not item.is_dir():
+                continue
+            
+            name = item.name
+            
+            # STRICT: Must start with event_id
+            if not name.startswith(event_id):
+                continue
+            
+            # STRICT EXCLUSION: Skip revisions (contains "-rev-")
+            if "-rev-" in name:
+                continue
+            
+            # STRICT: Must contain evidence_packet.json at {item}/{event_id}/evidence_packet.json
+            evidence_path = item / event_id / "evidence_packet.json"
+            if not evidence_path.is_file():
+                # Also try direct under item root (some structures)
+                evidence_path = item / "evidence_packet.json"
+                if not evidence_path.is_file():
+                    continue
+            
+            # STRICT: Validate ownership where possible
+            # Try to read attempt.json to confirm event_id matches
+            attempt_path = item / event_id / "attempt.json"
+            if attempt_path.is_file():
+                try:
+                    attempt_data = json.loads(attempt_path.read_text(encoding="utf-8"))
+                    stored_event_id = attempt_data.get("event_id")
+                    if stored_event_id and stored_event_id != event_id:
+                        continue  # Wrong event, skip
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Cannot validate, continue with caution
+            
+            # Validate evidence packet has expected structure
+            try:
+                evidence_data = json.loads(evidence_path.read_text(encoding="utf-8"))
+                # Must have authorized_facts to be valid
+                if not isinstance(evidence_data.get("authorized_facts"), list):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+            
+            candidates.append(item)
+        
+        # STRICT FAIL-CLOSED: Multiple candidates is ambiguous
+        if len(candidates) == 0:
+            return None
+        if len(candidates) > 1:
+            # Ambiguous - fail closed rather than guess
+            return None
+        
+        # Exactly one valid candidate
+        return candidates[0]
+    
+    def get_evidence_packet(self, event_id: str, version: str) -> dict[str, Any] | None:
+        """Load evidence packet from article's generation attempt.
+        
+        Used by revision to reuse V1's successful evidence context.
+        Supports both modern (attempts_root in metadata) and legacy resolution.
+        """
+        attempts_root = self.get_article_attempts_root(event_id, version)
+        if not attempts_root:
+            return None
+        
+        # Try modern path first: {attempts_root}/{event_id}/evidence_packet.json
+        evidence_path = attempts_root / event_id / "evidence_packet.json"
+        if not evidence_path.is_file():
+            # Legacy path: direct under attempts_root
+            evidence_path = attempts_root / "evidence_packet.json"
+        
+        if evidence_path.is_file():
+            try:
+                return json.loads(evidence_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        return None
+    
+    def get_attempt_artifact(
+        self,
+        event_id: str,
+        version: str,
+        artifact_name: str,  # "evidence_packet", "attempt", "article", etc.
+    ) -> dict[str, Any] | None:
+        """Load any artifact from article's generation attempt.
+        
+        Supports both modern (attempts_root in metadata) and legacy resolution.
+        """
+        attempts_root = self.get_article_attempts_root(event_id, version)
+        if not attempts_root:
+            return None
+        
+        # Try event subdirectory first, then root
+        paths_to_try = [
+            attempts_root / event_id / f"{artifact_name}.json",
+            attempts_root / f"{artifact_name}.json",
+        ]
+        
+        for path in paths_to_try:
+            if path.is_file():
+                try:
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, TypeError):
+                    continue
+        
+        return None
