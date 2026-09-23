@@ -24,10 +24,13 @@ from newsagent_v2.discovery.event_clusterer import NewsEvent, EventReport
 from newsagent_v2.image.vertex_make_image import build_vertex_make_image_fn
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.config import TelegramConfig
+from newsagent_v2.article.writer.v4.recovery import USER_FAILURE_MESSAGE
 
+from newsagent_v2.v5_generation.depth_cost_helpers import apply_depth_fallback
 from .source_expansion_adapter import (
     expand_sources_for_event,
     ExpansionResult,
+    default_search_fn_for_story,
 )
 from .version_store import VersionStore
 
@@ -236,7 +239,7 @@ class RunStoryAdapter:
                 job.image_version = result.get("image_version")
             else:
                 job.state = "FAILED"
-                job.error = result.get("error", "Unknown error")
+                job.error = USER_FAILURE_MESSAGE
                 
                 # PERSIST FULL FAILURE DIAGNOSTICS
                 # Store all available failure telemetry for forensic analysis
@@ -290,7 +293,22 @@ class RunStoryAdapter:
 
         except Exception as e:
             job.state = "FAILED"
-            job.error = f"{type(e).__name__}: {str(e)[:200]}"
+            job.error = USER_FAILURE_MESSAGE
+            failure_details = {
+                "failure_class": "WORKER_EXCEPTION",
+                "exception_type": type(e).__name__,
+                "exception_message": str(e)[:300],
+                "event_id": event.event_id,
+                "job_id": job.job_id,
+                "stage": "generation",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            job.metadata["failure_details"] = failure_details
+            if self.version_store:
+                self.version_store.save_generation_diagnostics(
+                    event.event_id,
+                    failure_details,
+                )
             self._update_job(job)
 
             return {
@@ -299,6 +317,7 @@ class RunStoryAdapter:
                 "job_id": job.job_id,
                 "state": "FAILED",
                 "error": job.error,
+                "internal_error": f"{type(e).__name__}: {str(e)[:200]}",
             }
 
     def _update_job(self, job: GenerationJob) -> None:
@@ -329,18 +348,32 @@ class RunStoryAdapter:
 
         env = self.environ
 
+        # Initialize Kimi budget tracking BEFORE writer creation
+        # This ensures event_id has a budget context for the transport guard
+        from newsagent_v2.providers.kimi_budget import KimiBudgetStore, KimiBudgetManager
+
+        budget_store = KimiBudgetStore(
+            self.version_store.root if self.version_store else None
+        )
+        budget_manager = KimiBudgetManager(budget_store)
+
+        # Create fresh budget for new story (this is initial generation, not revision)
+        story_budget = budget_manager.store.create_for_new_story(event.event_id)
+
         # Build story format (includes source expansion)
         story = self._event_to_story(event)
 
-        # Initialize writer
+        # Initialize writer with event_id for budget tracking
+        # Reduced max_calls from 24 to safer defensive secondary value (5)
         writer = build_v4_writer(
             environ=env,
             enable_failover=False,
-            max_calls=24,
+            max_calls=5,
+            event_id=event.event_id,
         )
 
         # Run multi-source research
-        research = research_event(story)
+        research = research_event(story, search_fn=default_search_fn_for_story(story))
         pack = research.pack
 
         # Build fact bank
@@ -433,12 +466,123 @@ class RunStoryAdapter:
             research=True,
         )
 
+        recovery_history: list[dict[str, Any]] = []
+        if not compiled.ok and compiled.article and compiled.article_input:
+            from newsagent_v2.article.writer.v4.recovery import recover_article
+
+            def _targeted_research(input_data: dict[str, Any], gaps: list[str]) -> Any:
+                targeted = dict(story)
+                targeted["article_input"] = dict(input_data)
+                targeted["article_input"]["recovery_gaps"] = list(gaps)
+                current_evidence = targeted["article_input"].get("evidence") or []
+                expansion = expand_sources_for_event(
+                    event={
+                        "event_id": event.event_id,
+                        "representative_title": event.canonical_title,
+                        "canonical_title": event.canonical_title,
+                        "topic": event.topic,
+                        "entities": list(event.entities),
+                    },
+                    event_entities=list(event.entities),
+                    event_topic=event.topic,
+                    event_reports=current_evidence,
+                )
+                seen_urls = {
+                    str(row.get("url") or "").strip().lower().rstrip("/")
+                    for row in current_evidence
+                    if isinstance(row, dict) and row.get("url")
+                }
+                for row in expansion.sources_added:
+                    key = str(row.get("url") or "").strip().lower().rstrip("/")
+                    if key and key not in seen_urls:
+                        current_evidence.append(row)
+                        seen_urls.add(key)
+                return research_event(targeted, search_fn=default_search_fn_for_story(targeted))
+
+            def _rebuild_mapping(article: dict[str, Any], input_data: dict[str, Any]) -> None:
+                article["evidence_used"] = [
+                    row.get("url") or row.get("source")
+                    for row in input_data.get("evidence", [])
+                    if isinstance(row, dict) and (row.get("url") or row.get("source"))
+                ]
+
+            recovered = recover_article(
+                compiled.article,
+                compiled.article_input,
+                compiled.qa or {},
+                research_fn=_targeted_research,
+                rebuild_claim_mapping=_rebuild_mapping,
+                usage_fn=lambda: dict(compiled.kimi_usage or {}),
+            )
+            recovery_history = recovered.history
+            compiled.article = recovered.article
+            compiled.article_input = recovered.article_input
+            compiled.qa = recovered.qa
+            compiled.ok = recovered.succeeded
+            if recovered.succeeded:
+                compiled.failure_class = None
+                compiled.notes = "v4_ok_after_bounded_recovery"
+            if self.version_store and recovery_history:
+                self.version_store.save_recovery_history(event.event_id, recovery_history)
+
+        # Audited depth fallback AFTER bounded recovery only (never on first short draft).
+        depth_meta: dict = {"depth_status": None}
+        body_for_depth = ""
+        if compiled.article:
+            body_for_depth = str(compiled.article.get("article_body") or "")
+        from newsagent_v2.article.qa.textutil import word_count as _wc
+        words_now = int(compiled.final_words or _wc(body_for_depth) or 0)
+        if compiled.article and (not compiled.ok or words_now < 600):
+            depth_meta = apply_depth_fallback(
+                article=compiled.article,
+                qa=compiled.qa,
+                word_count=words_now,
+                recovery_history=recovery_history,
+                recovery_succeeded=bool(compiled.ok),
+            )
+            if depth_meta.get("depth_status") == "DEPTH_FALLBACK_PASS" and depth_meta.get("ok"):
+                compiled.qa = depth_meta.get("qa") or compiled.qa
+                compiled.ok = True
+                compiled.failure_class = None
+                compiled.notes = "DEPTH_FALLBACK_PASS_after_exhausted_recovery"
+                compiled.final_words = words_now
+
         if not compiled.ok or not compiled.article:
-            return {
+            failure_result = {
                 "ok": False,
-                "error": compiled.failure_class or "article_generation_failed",
+                "error": "Article could not be completed reliably after automatic verification. Please retry.",
+                "failure_class": compiled.failure_class,
+                "critical_codes": compiled.critical_codes,
                 "notes": compiled.notes,
+                "recovery_history": recovery_history,
+                "sources_retrieved": compiled.research.get("sources_retrieved"),
+                "independent_sources": compiled.independent_sources,
+                "primary_sources": compiled.research.get("primary_sources"),
+                "unique_propositions": compiled.unique_propositions,
+                "evidence_capacity": compiled.evidence_capacity,
+                "article_type": compiled.article_type,
+                "native_words": compiled.native_words,
+                "final_words": compiled.final_words,
+                "writer_calls": compiled.writer_calls,
+                "repair_calls": compiled.repair_calls,
+                "expansion_calls": compiled.expansion_calls,
+                "supported": compiled.supported,
+                "ambiguous": compiled.ambiguous,
+                "unsupported": compiled.unsupported,
+                "writer_model": compiled.writer_model,
+                "writer_provider": compiled.writer_provider,
+                "kimi_usage": compiled.kimi_usage,
             }
+            if self.version_store:
+                self.version_store.save_generation_diagnostics(
+                    event.event_id,
+                    {
+                        key: value
+                        for key, value in failure_result.items()
+                        if key not in {"error", "recovery_history"}
+                    },
+                )
+            return failure_result
 
         # Freeze Article V1
         article_v1 = compiled.article
@@ -459,8 +603,36 @@ class RunStoryAdapter:
                     "grounding_ambiguous": compiled.ambiguous,
                     "grounding_unsupported": compiled.unsupported,
                     "attempts_root": str(attempts_root),  # KEY: Persist for revision evidence reuse
+                    "depth_status": depth_meta.get("depth_status") or ("DEPTH_NORMAL_PASS" if (compiled.final_words or 0) >= 500 else None),
+                    "depth_fallback": {
+                        "final_word_count": depth_meta.get("final_word_count", compiled.final_words),
+                        "recovery_exhausted": depth_meta.get("recovery_exhausted"),
+                        "suppressed_critical_code": depth_meta.get("suppressed_critical_code"),
+                    } if depth_meta.get("depth_status") == "DEPTH_FALLBACK_PASS" else None,
+                    "billable_usage": {"text": None, "image": None},
                 },
             )
+
+        text_usage = dict(compiled.kimi_usage or {})
+        if text_usage:
+            from newsagent_v2.article.writer.v4.article_cost_telemetry import (
+                compute_cost_from_tokens,
+                extract_token_usage,
+                resolve_verified_kimi_pricing,
+            )
+            tokens = extract_token_usage(text_usage)
+            pricing = resolve_verified_kimi_pricing(self.environ, usage=text_usage)
+            cost = compute_cost_from_tokens(
+                input_tokens=tokens["input_tokens"],
+                output_tokens=tokens["output_tokens"],
+                pricing=pricing,
+            )
+            text_usage.update({
+                "provider": compiled.writer_provider,
+                "model": compiled.writer_model,
+                "cost_usd": cost.get("article_generation_cost_usd"),
+                "pricing_source": cost.get("pricing_source"),
+            })
 
         # Generate Image V1
         image_result = self._generate_image(
@@ -478,6 +650,8 @@ class RunStoryAdapter:
                 "image_version": None,
                 "image_failed": True,
                 "article_hash": article_hash,
+                "text_usage": compiled.kimi_usage,
+                "image_usage": image_result,
             }
 
         image_path = image_result.get("final_path")
@@ -497,12 +671,39 @@ class RunStoryAdapter:
                 },
             )
 
+        image_usage = {
+            "provider": image_result.get("provider"),
+            "model": image_result.get("model"),
+            "requests": image_result.get("image_request_count") or 1,
+            "provider_reported_usage": image_result.get("provider_reported_usage"),
+            "provider_reported_cost_usd": image_result.get("provider_reported_cost_usd"),
+            "provider_reported_cost": image_result.get("provider_reported_cost"),
+        }
+        if self.version_store:
+            article_record = self.version_store.get_article(event.event_id, "v1")
+            if article_record:
+                meta = dict(article_record.get("metadata") or {})
+                meta["billable_usage"] = {"text": text_usage, "image": image_usage}
+                meta["text_usage"] = text_usage
+                meta["image_usage"] = image_usage
+                if depth_meta.get("depth_status"):
+                    meta["depth_status"] = depth_meta.get("depth_status")
+                self.version_store.save_article(
+                    event.event_id, "v1", article_record.get("article") or {},
+                    article_hash, article_record.get("qa_result") or {}, meta,
+                )
         return {
             "ok": True,
             "article_version": "v1",
             "image_version": "v1",
             "article_hash": article_hash,
             "image_hash": image_hash,
+            "kimi_usage": text_usage,
+            "text_usage": text_usage,
+            "image_usage": image_usage,
+            "depth_status": depth_meta.get("depth_status") or "DEPTH_NORMAL_PASS",
+            "depth_fallback": depth_meta if depth_meta.get("depth_status") == "DEPTH_FALLBACK_PASS" else None,
+            "event_id": event.event_id,
         }
 
     def _generate_image(

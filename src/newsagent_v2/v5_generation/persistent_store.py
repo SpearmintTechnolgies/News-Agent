@@ -76,6 +76,7 @@ class GenerationJob:
     # Status
     error: str | None = None
     progress_message_id: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -91,6 +92,7 @@ class GenerationJob:
             "image_hash": self.image_hash,
             "error": self.error,
             "progress_message_id": self.progress_message_id,
+            "metadata": self.metadata,
         }
     
     @classmethod
@@ -305,6 +307,7 @@ class PersistentV5Store:
         image_hash: str | None = None,
         error: str | None = None,
         progress_message_id: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Update job state."""
         with self._lock:
@@ -327,6 +330,8 @@ class PersistentV5Store:
                 job.error = error
             if progress_message_id is not None:
                 job.progress_message_id = progress_message_id
+            if metadata is not None:
+                job.metadata.update(metadata)
             
             self.save_job(job)
             return True

@@ -19,7 +19,7 @@ KNOWN_ARTICLE_MODES = frozenset(
 FULL_ARTICLE_MODES = frozenset({ARTICLE_MODE_NORMAL, ARTICLE_MODE_FULL})
 
 # Production QA floor. Do not change lightly.
-PRODUCTION_HARD_MINIMUM_WORDS = 350
+PRODUCTION_HARD_MINIMUM_WORDS = 600
 
 # TEMPORARY / DEMO ONLY — CEO delivery mode.
 # Accepts a shorter article; does NOT weaken grounding, copyright, or factual gates.
@@ -42,8 +42,8 @@ class ArticleDepthPolicy:
 NORMAL_ARTICLE_POLICY = ArticleDepthPolicy(
     mode=ARTICLE_MODE_NORMAL,
     hard_minimum_words=PRODUCTION_HARD_MINIMUM_WORDS,
-    target_min_words=450,
-    target_max_words=800,
+    target_min_words=700,
+    target_max_words=1000,
     min_evidence_words_for_target_depth=80,
     temporary_demo_minimum=False,
 )
@@ -68,7 +68,7 @@ def resolve_article_hard_minimum_words(
     """Return (hard_minimum_words, temporary_demo_active).
 
     TEMPORARY / DEMO: when ARTICLE_MIN_WORDS or NEWSAGENT_V2_DEMO_ARTICLE_MIN_WORDS
-    is set to a positive int, that value overrides the production 350-word floor
+    is set to a positive int, that value overrides the production 600-word normal floor
     for length QA only. All other QA gates remain unchanged.
     """
     env = _environ_map(environ)

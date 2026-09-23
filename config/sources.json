@@ -1,52 +1,422 @@
 {
   "feeds": [
     {
+      "source_id": "coindesk",
       "name": "CoinDesk",
+      "source_type": "crypto_publication",
       "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
-      "source_type": "newsroom",
+      "authority": 0.8,
       "role": "discovery",
-      "authority": 0.80,
-      "enabled": true
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
     },
     {
+      "source_id": "cointelegraph",
       "name": "Cointelegraph",
+      "source_type": "crypto_publication",
       "url": "https://cointelegraph.com/rss",
-      "source_type": "newsroom",
+      "authority": 0.7,
       "role": "discovery",
-      "authority": 0.70,
-      "enabled": true
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
     },
     {
+      "source_id": "theblock",
       "name": "The Block",
+      "source_type": "crypto_publication",
       "url": "https://www.theblock.co/rss.xml",
-      "source_type": "newsroom",
+      "authority": 0.8,
       "role": "discovery",
-      "authority": 0.80,
-      "enabled": true
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
     },
     {
+      "source_id": "bitcoin_magazine",
+      "name": "Bitcoin Magazine",
+      "source_type": "crypto_publication",
+      "url": "https://bitcoinmagazine.com/.rss/full/",
+      "authority": 0.75,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "decrypt",
+      "name": "Decrypt",
+      "source_type": "crypto_publication",
+      "url": "https://decrypt.co/feed",
+      "authority": 0.7,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "cryptoslate",
+      "name": "CryptoSlate",
+      "source_type": "crypto_publication",
+      "url": "https://cryptoslate.com/feed/",
+      "authority": 0.65,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "bitcoin_com_news",
+      "name": "Bitcoin.com News",
+      "source_type": "crypto_publication",
+      "url": "https://news.bitcoin.com/feed/",
+      "authority": 0.6,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "newsbtc",
+      "name": "NewsBTC",
+      "source_type": "crypto_publication",
+      "url": "https://www.newsbtc.com/feed/",
+      "authority": 0.55,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "cryptopotato",
+      "name": "CryptoPotato",
+      "source_type": "crypto_publication",
+      "url": "https://cryptopotato.com/feed/",
+      "authority": 0.55,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "beincrypto",
+      "name": "BeInCrypto",
+      "source_type": "crypto_publication",
+      "url": "https://beincrypto.com/feed/",
+      "authority": 0.55,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "blockworks",
+      "name": "Blockworks",
+      "source_type": "crypto_publication",
+      "url": "https://blockworks.co/feed",
+      "authority": 0.75,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "thedefiant",
+      "name": "The Defiant",
+      "source_type": "crypto_publication",
+      "url": "https://thedefiant.io/api/feed",
+      "authority": 0.7,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "dlnews",
+      "name": "DL News",
+      "source_type": "crypto_publication",
+      "url": "https://www.dlnews.com/arc/outboundfeeds/rss/",
+      "authority": 0.75,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "cryptobriefing",
+      "name": "Crypto Briefing",
+      "source_type": "crypto_publication",
+      "url": "https://cryptobriefing.com/feed/",
+      "authority": 0.6,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "u_today",
+      "name": "U.Today",
+      "source_type": "crypto_publication",
+      "url": "https://u.today/rss",
+      "authority": 0.5,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "ambcrypto",
+      "name": "AMBCrypto",
+      "source_type": "crypto_publication",
+      "url": "https://ambcrypto.com/feed/",
+      "authority": 0.5,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "coinjournal",
+      "name": "CoinJournal",
+      "source_type": "crypto_publication",
+      "url": "https://coinjournal.net/feed/",
+      "authority": 0.5,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "bitcoinist",
+      "name": "Bitcoinist",
+      "source_type": "crypto_publication",
+      "url": "https://bitcoinist.com/feed/",
+      "authority": 0.5,
+      "role": "discovery",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "cftc_general",
       "name": "CFTC General",
+      "source_type": "official_regulator",
       "url": "https://www.cftc.gov/RSS/RSSGP/rssgp.xml",
-      "source_type": "official_regulator",
+      "authority": 1.0,
       "role": "primary_evidence",
-      "authority": 1.00,
-      "enabled": true
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
     },
     {
+      "source_id": "cftc_enforcement",
       "name": "CFTC Enforcement",
-      "url": "https://www.cftc.gov/RSS/RSSENF/rssenf.xml",
       "source_type": "official_regulator",
+      "url": "https://www.cftc.gov/RSS/RSSENF/rssenf.xml",
+      "authority": 1.0,
       "role": "primary_evidence",
-      "authority": 1.00,
-      "enabled": true
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
     },
     {
+      "source_id": "fca_news",
       "name": "FCA News",
-      "url": "https://www.fca.org.uk/news/rss.xml",
       "source_type": "official_regulator",
+      "url": "https://www.fca.org.uk/news/rss.xml",
+      "authority": 1.0,
       "role": "primary_evidence",
-      "authority": 1.00,
-      "enabled": true
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
+    },
+    {
+      "source_id": "sec_press",
+      "name": "SEC Press Releases",
+      "source_type": "official_regulator",
+      "url": "https://www.sec.gov/news/pressreleases.rss",
+      "authority": 1.0,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
+    },
+    {
+      "source_id": "sec_speeches",
+      "name": "SEC Speeches and Statements",
+      "source_type": "official_regulator",
+      "url": "https://www.sec.gov/news/speeches-statements.rss",
+      "authority": 1.0,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
+    },
+    {
+      "source_id": "federal_register_sec",
+      "name": "Federal Register (SEC)",
+      "source_type": "official_regulator",
+      "url": "https://www.federalregister.gov/api/v1/documents.rss?conditions%5Bagencies%5D%5B%5D=securities-and-exchange-commission",
+      "authority": 1.0,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
+    },
+    {
+      "source_id": "finra_news",
+      "name": "FINRA Newsroom",
+      "source_type": "official_regulator",
+      "url": "https://www.finra.org/rss/newsroom",
+      "authority": 0.95,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
+    },
+    {
+      "source_id": "treasury_press",
+      "name": "US Treasury Press",
+      "source_type": "official_regulator",
+      "url": "https://home.treasury.gov/system/files/136/treasury-press-releases.xml",
+      "authority": 1.0,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 3
+    },
+    {
+      "source_id": "bbc_business",
+      "name": "BBC Business",
+      "source_type": "financial_news",
+      "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "authority": 0.85,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "npr_business",
+      "name": "NPR Business",
+      "source_type": "financial_news",
+      "url": "https://feeds.npr.org/1006/rss.xml",
+      "authority": 0.8,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "cnbc_top",
+      "name": "CNBC Top News",
+      "source_type": "financial_news",
+      "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114",
+      "authority": 0.75,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "cnbc_finance",
+      "name": "CNBC Finance",
+      "source_type": "financial_news",
+      "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664",
+      "authority": 0.75,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "marketwatch_top",
+      "name": "MarketWatch Top Stories",
+      "source_type": "financial_news",
+      "url": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "authority": 0.7,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "yahoo_finance",
+      "name": "Yahoo Finance",
+      "source_type": "financial_news",
+      "url": "https://finance.yahoo.com/news/rssindex",
+      "authority": 0.65,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "investing_com",
+      "name": "Investing.com Crypto",
+      "source_type": "financial_news",
+      "url": "https://www.investing.com/rss/news_301.rss",
+      "authority": 0.6,
+      "role": "secondary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "coinbase_blog",
+      "name": "Coinbase Blog",
+      "source_type": "exchange",
+      "url": "https://www.coinbase.com/blog/rss.xml",
+      "authority": 0.9,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "kraken_blog",
+      "name": "Kraken Blog",
+      "source_type": "exchange",
+      "url": "https://blog.kraken.com/feed/",
+      "authority": 0.85,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "ethereum_blog",
+      "name": "Ethereum Foundation Blog",
+      "source_type": "crypto_company",
+      "url": "https://blog.ethereum.org/en/feed.xml",
+      "authority": 0.95,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "ripple_insights",
+      "name": "Ripple Insights",
+      "source_type": "crypto_company",
+      "url": "https://ripple.com/insights/feed/",
+      "authority": 0.8,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
+    },
+    {
+      "source_id": "circle_blog",
+      "name": "Circle Blog",
+      "source_type": "crypto_company",
+      "url": "https://www.circle.com/blog/rss.xml",
+      "authority": 0.85,
+      "role": "primary_evidence",
+      "enabled": true,
+      "timeout_seconds": 30,
+      "retry_limit": 2
     }
   ]
 }

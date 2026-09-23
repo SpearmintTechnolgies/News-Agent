@@ -72,6 +72,7 @@ RULES:
 - paraphrase independently; avoid copying source phrasing or long source-like phrases
 - quotes only from authorized quotes, reproduced exactly
 - prefer complete developed sentences over telegraphic fragments
+- When authorized facts support it, end the article_body with a short grounded "Conclusion / What Happens Next" (only outcomes or next steps stated in evidence — no speculation) and 2–4 useful FAQs whose answers restate authorized facts only; omit either block if evidence cannot support it without filler or invention
 - do not mention evidence IDs, prompts, system, environment, or configuration
 OUTPUT: exactly one JSON object with keys:
 headline, dek, article_body, seo_title, meta_description, slug
@@ -239,11 +240,15 @@ def build_v4_writer_messages(
             "Do not reuse any prior draft. "
             f"Target {prefer[0]}–{prefer[1]} BODY words "
             f"(hard band {hard[0]}–{hard[1]} BODY words). Develop authorized facts naturally. "
-            "No unsupported significance, comparison, predictions, or invented causality."
+            "No unsupported significance, comparison, predictions, or invented causality. "
+            "Where authorized facts support it, include a grounded Conclusion / What Happens Next "
+            "and 2–4 FAQs with answers restating those facts only."
         )
     else:
         instruction = (
-            "Write the article now using only authorized_facts and authorized_quotes."
+            "Write the article now using only authorized_facts and authorized_quotes. "
+            "Where authorized facts support it, include a grounded Conclusion / What Happens Next "
+            "and 2–4 FAQs with answers restating those facts only — no filler or speculation."
         )
     system = V4_SYSTEM_PROMPT
     if regeneration:
@@ -335,6 +340,7 @@ class V4NaturalProseWriter:
         timeout_seconds: int = 120,
         transport: ChatTransport | None = None,
         provider_name: str | None = None,
+        event_id: str | None = None,
     ) -> None:
         self.environ = environ
         self.http_post = http_post
@@ -342,6 +348,7 @@ class V4NaturalProseWriter:
         self.timeout_seconds = timeout_seconds
         self.generation_calls = 0
         self.last_result: V4WriterResult | None = None
+        self.event_id = event_id
         if transport is not None:
             self.transport = transport
             self.provider = getattr(transport, "provider_name", provider_name or DEFAULT_PROVIDER)
@@ -367,6 +374,10 @@ class V4NaturalProseWriter:
         # Prefer transport key for non-Groq providers (e.g. Bedrock Mantle).
         if not self.api_key:
             self.api_key = getattr(self.transport, "api_key", None) or api_key
+        # Propagate event_id to Kimi transport for budget tracking
+        if self.provider == PROVIDER_KIMI and self.event_id:
+            if hasattr(self.transport, "event_id"):
+                object.__setattr__(self.transport, "event_id", self.event_id)
 
     def _configured(self) -> bool:
         if self.http_post is not None:
@@ -433,11 +444,17 @@ class V4NaturalProseWriter:
         }
         self.generation_calls += 1
         started = perf_counter()
+
+        # Add stage marker for Kimi budget tracking
+        if self.provider == PROVIDER_KIMI and body_extra:
+            body_extra = {**body_extra, "_stage": "initial_writer"}
+
         response = self.transport.complete(
             messages=messages,
             body_extra=body_extra,
             max_completion_tokens=V4_MAX_COMPLETION_TOKENS,
             temperature=0.3,
+            event_id=self.event_id,
         )
         # Soft retry without json_schema if model rejects schema mode.
         if (not response.ok) and (
@@ -450,9 +467,10 @@ class V4NaturalProseWriter:
             ]
             response = self.transport.complete(
                 messages=soft_messages,
-                body_extra=None,
+                body_extra={"_stage": "schema_fallback"},
                 max_completion_tokens=V4_MAX_COMPLETION_TOKENS,
                 temperature=0.3,
+                event_id=self.event_id,
             )
             diagnostic = {**diagnostic, "soft_json_fallback": True}
         latency_ms = int((perf_counter() - started) * 1000)
@@ -647,12 +665,14 @@ def build_v4_writer(
     http_post: Callable[..., Any] | None = None,
     enable_failover: bool = True,
     max_calls: int | None = None,
+    event_id: str | None = None,
 ) -> V4NaturalProseWriter | FailoverV4Writer:
     env = dict(environ or {})
     specs = resolve_v4_provider_specs(env)
     primary_spec = specs["primary"]
     fallback_spec = specs["fallback"]
     max_attempts = int(specs.get("max_provider_attempts") or 2)
+    # Reduced from 24 to safer defensive secondary limit
     calls = max(1, int(max_calls if max_calls is not None else 3))
     assert_v4_writer_is_free(primary_spec.model, environ=env)
 
@@ -665,6 +685,11 @@ def build_v4_writer(
         allow_kimi=bool(specs.get("allow_kimi")),
         timeout_seconds=180 if primary_spec.provider == PROVIDER_KIMI else 120,
     )
+    # Propagate event_id to Kimi transport
+    if primary_spec.provider == PROVIDER_KIMI and event_id:
+        if hasattr(primary_transport, "event_id"):
+            object.__setattr__(primary_transport, "event_id", event_id)
+
     if api_key and primary_spec.provider == "groq":
         primary_transport = GroqChatTransport(
             api_key=api_key,
@@ -679,6 +704,7 @@ def build_v4_writer(
         http_post=http_post,
         max_calls=calls,
         timeout_seconds=180 if primary_spec.provider == PROVIDER_KIMI else 120,
+        event_id=event_id,
     )
 
     # Controlled Kimi validation: never silently fall back to Groq.
@@ -706,6 +732,7 @@ def build_v4_writer(
         environ=env,
         http_post=http_post,
         max_calls=calls,
+        event_id=event_id,
     )
     return FailoverV4Writer(
         primary=primary,

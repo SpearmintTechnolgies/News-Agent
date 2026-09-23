@@ -310,6 +310,31 @@ def _family_hits(text: str) -> list[str]:
     return found
 
 
+
+def is_faq_question_or_structural_heading(text: str) -> bool:
+    """FAQ questions and closing headings are structural, not factual assertions.
+
+    FAQ *answers* must still be grounded; only questions/headings are exempt.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    # Collapse embedded newlines from markdown blocks treated as one sentence.
+    compact = re.sub(r"\s+", " ", raw).strip()
+    if re.match(
+        r"^(?:#{1,3}\s*)?(?:\*\*)?(?:conclusion(?:\s*/\s*what happens next)?|what happens next|faqs?|frequently asked questions)\b",
+        compact,
+        flags=re.IGNORECASE,
+    ):
+        return True
+    if re.match(r"^(?:\*\*)?Q\s*:", compact, flags=re.IGNORECASE):
+        return True
+    # Bold question-only lines: **What ...?**
+    if re.match(r"^\*\*[^*]+\?\*\*$", compact):
+        return True
+    return False
+
+
 def check_body_claim_coverage(
     article: dict[str, Any],
     article_input: dict[str, Any] | None = None,
@@ -341,6 +366,8 @@ def check_body_claim_coverage(
     covered = 0
     for sentence in sentences:
         if is_connective_sentence(sentence):
+            continue
+        if is_faq_question_or_structural_heading(sentence):
             continue
         assertive += 1
         if sentence_covered_by_claims(sentence, texts):
@@ -421,6 +448,8 @@ def _check_body_atomic_coverage(
         if sentence.text not in body_set:
             continue
         if sentence.status == "CONNECTIVE":
+            continue
+        if is_faq_question_or_structural_heading(sentence.text):
             continue
         body_assertive += 1
         if sentence.status == "SUPPORTED":

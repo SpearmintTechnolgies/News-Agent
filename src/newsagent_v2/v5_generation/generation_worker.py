@@ -20,6 +20,7 @@ from newsagent_v2.v5_generation.persistent_store import (
 )
 from newsagent_v2.v5_generation.run_story_adapter import RunStoryAdapter
 from newsagent_v2.v5_generation.cost_ledger import CostLedger
+from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
 
 
 class GenerationWorker:
@@ -34,11 +35,13 @@ class GenerationWorker:
         config: TelegramConfig,
         persistent_store: PersistentV5Store,
         environ: dict[str, str] | None = None,
+        wordpress_lifecycle: WordPressDraftLifecycle | None = None,
     ) -> None:
         self.client = client
         self.config = config
         self.persistent_store = persistent_store
         self.environ = environ or {}
+        self.wordpress_lifecycle = wordpress_lifecycle
         # CostLedger expects persist_path, not environ
         ledger_path = Path("./data/v5_state/cost_ledger.json") if environ else None
         self.ledger = CostLedger(persist_path=ledger_path)
@@ -80,8 +83,8 @@ class GenerationWorker:
         error: str,
     ) -> None:
         """Report failure to Telegram."""
-        safe_error = str(error)[:100]  # Truncate
-        text = f"❌ Generation failed\nStage: {stage}\nReason: {safe_error}"
+        safe_error = "Article could not be completed reliably after automatic verification. Please retry."
+        text = f"❌ Generation failed\nStage: {stage}\n{safe_error}"
         
         if job.progress_message_id:
             self.client.edit_message_text(
@@ -140,6 +143,65 @@ class GenerationWorker:
             
             # Update final state
             if result.get("ok"):
+                article_record = version_store.get_article(event.event_id, result.get("article_version"))
+                article_body = str((article_record or {}).get("article", {}).get("article_body") or "")
+                from newsagent_v2.article.qa.textutil import word_count
+                words = word_count(article_body)
+                depth_status = result.get("depth_status") or (article_record or {}).get("metadata", {}).get("depth_status")
+                if words < 400:
+                    result = {
+                        **result,
+                        "ok": False,
+                        "error": "Article did not meet the 400 grounded-word floor after recovery.",
+                    }
+                    self.persistent_store.update_job_state(
+                        job.job_id, "FAILED_FINAL", error=result["error"],
+                    )
+                    self._report_failure(job, "article_depth", result["error"])
+                    return result
+                if words < 500 and depth_status != "DEPTH_FALLBACK_PASS":
+                    result = {
+                        **result,
+                        "ok": False,
+                        "error": "Article did not meet the 500 grounded-word minimum after recovery.",
+                    }
+                    self.persistent_store.update_job_state(
+                        job.job_id, "FAILED_FINAL", error=result["error"],
+                    )
+                    self._report_failure(job, "article_depth", result["error"])
+                    return result
+                draft_data = self._create_wordpress_draft(event, result, version_store)
+                if self.wordpress_lifecycle is not None:
+                    result["wordpress_draft"] = draft_data or {
+                        "ok": False,
+                        "error": "WordPress draft was not created",
+                        "error_code": "draft_missing",
+                    }
+                    if not (isinstance(draft_data, dict) and draft_data.get("ok")):
+                        wp_error = str((draft_data or {}).get("error") or "WordPress draft creation failed")
+                        self.persistent_store.update_job_state(
+                            job.job_id,
+                            "FAILED_FINAL",
+                            error=wp_error[:200],
+                            article_version=result.get("article_version"),
+                            article_hash=result.get("article_hash"),
+                            image_version=result.get("image_version"),
+                            image_hash=result.get("image_hash"),
+                        )
+                        self._report_failure(job, "wordpress_draft", wp_error)
+                        return {**result, "ok": False, "error": wp_error}
+                    article_record = version_store.get_article(event.event_id, result.get("article_version"))
+                    if article_record:
+                        metadata = dict(article_record.get("metadata") or {})
+                        metadata["text_usage"] = result.get("text_usage") or result.get("kimi_usage") or {}
+                        metadata["image_usage"] = result.get("image_usage") or {}
+                        version_store.save_article(
+                            event.event_id, result["article_version"], article_record.get("article") or {},
+                            result.get("article_hash") or "", article_record.get("qa_result") or {}, metadata,
+                        )
+                elif draft_data:
+                    result["wordpress_draft"] = draft_data
+
                 self.persistent_store.update_job_state(
                     job.job_id,
                     "SUCCEEDED",
@@ -147,24 +209,27 @@ class GenerationWorker:
                     article_hash=result.get("article_hash"),
                     image_version=result.get("image_version"),
                     image_hash=result.get("image_hash"),
+                    metadata={"wordpress_draft": result.get("wordpress_draft")} if result.get("wordpress_draft") else None,
                 )
-                
-                # Finalize cost (tokens unknown at this layer → UNKNOWN)
+
+                usage = result.get("kimi_usage") or {}
                 self.ledger.finalize_entry(
                     writer_entry.entry_id,
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    cost_inr=None,
+                    prompt_tokens=int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0),
+                    completion_tokens=int(usage.get("completion_tokens") or usage.get("output_tokens") or 0),
+                    cost_inr=usage.get("cost_inr"),
                 )
-                
-                # Send completion
+
+                # Ready / review only after successful WP draft (or when WP lifecycle is unset in tests)
                 self._update_progress(
                     job,
-                    f"Ready for review\nArticle: {result.get('article_version', 'V1')}\nImage: {result.get('image_version', 'V1')}",
-                    "✅",
+                    (
+                        "Ready for review\n"
+                        f"Article: {result.get('article_version', 'V1')}\n"
+                        f"Image: {result.get('image_version', 'V1')}"
+                    ),
+                    "OK",
                 )
-                
-                # Send review package
                 self._send_review_package(event, result, job)
                 
             else:
@@ -197,7 +262,7 @@ class GenerationWorker:
         
         Uses telegram_delivery module - ZERO generation/provider calls.
         """
-        from .telegram_delivery import send_initial_review_package
+        from .telegram_delivery import send_initial_v5_review_package
         from .version_store import VersionStore, DEFAULT_STORE_ROOT
         from pathlib import Path
         
@@ -211,7 +276,7 @@ class GenerationWorker:
         )
         
         # Send using delivery module (NO generation calls)
-        delivery_result = send_initial_review_package(
+        delivery_result = send_initial_v5_review_package(
             client=self.client,
             config=self.config,
             version_store=version_store,
@@ -219,6 +284,8 @@ class GenerationWorker:
             canonical_title=event.canonical_title,
             article_version=article_version,
             image_version=image_version,
+            generation_result=result,
+            environ=self.environ,
         )
         
         if not delivery_result.get("ok"):
@@ -228,6 +295,76 @@ class GenerationWorker:
                 text=f"❌ Review package delivery failed: {delivery_result.get('error', 'unknown')}",
                 parse_mode="HTML",
             )
+
+    def _create_wordpress_draft(self, event: NewsEvent, result: dict[str, Any], version_store: Any) -> dict[str, Any] | None:
+        """Create the one event-keyed draft after the existing generation/QA gate."""
+        lifecycle = self.wordpress_lifecycle
+        if lifecycle is None:
+            return None
+        article_version = result.get("article_version")
+        if not article_version:
+            return None
+        article_record = version_store.get_article(event.event_id, article_version)
+        if not article_record:
+            return None
+        article = article_record.get("article", {})
+        from newsagent_v2.article.qa.textutil import word_count
+        words = word_count(str(article.get("article_body") or ""))
+        depth_status = result.get("depth_status") or (article_record.get("metadata") or {}).get("depth_status")
+        if words < 400:
+            return None
+        if words < 500 and depth_status != "DEPTH_FALLBACK_PASS":
+            return None
+        categories = article.get("categories") if isinstance(article.get("categories"), list) else []
+        if article.get("category") and not categories:
+            categories = [article["category"]]
+        if (not categories or [str(item).strip().lower() for item in categories] == ["other"]) and event.topic:
+            categories = [str(event.topic).replace("_", " ").title()]
+        tags = article.get("tags") if isinstance(article.get("tags"), list) else []
+        tags = list(dict.fromkeys(
+            [str(item) for item in tags if item]
+            + sorted(str(item) for item in (event.entities or []) if item)
+        ))[:8]
+        image_path = version_store.get_image_path(event.event_id, result.get("image_version")) if result.get("image_version") else None
+        draft = lifecycle.create_or_update_draft(
+            event_id=event.event_id,
+            article=article,
+            article_version=article_version,
+            image_path=str(image_path) if image_path else None,
+            image_version=result.get("image_version"),
+            categories=[str(item) for item in categories if item],
+            tags=[str(item) for item in tags if item],
+            evidence=[report.to_dict() for report in event.reports],
+            topic=str(event.topic or article.get("category") or ""),
+        )
+        from dataclasses import asdict
+        if not draft.ok:
+            return {
+                "ok": False,
+                "error": draft.error or "WordPress draft creation failed",
+                "error_code": getattr(draft, "error_code", None) or "create_failed",
+                "event_id": event.event_id,
+            }
+        if draft.seo_validation and draft.seo_validation.status != "PASS":
+            reasons = "; ".join(draft.seo_validation.recommendations[:3])
+            return {
+                "ok": False,
+                "error": f"SEO validation did not pass: {reasons}",
+                "error_code": "seo_validation_failed",
+                "event_id": event.event_id,
+                "seo_validation": asdict(draft.seo_validation),
+            }
+        data = asdict(draft)
+        data["ok"] = True
+        data["seo_status"] = draft.seo_validation.status if draft.seo_validation else "unavailable"
+        data["seo_validation"] = asdict(draft.seo_validation) if draft.seo_validation else None
+        data["seo_metadata"] = asdict(draft.seo) if draft.seo else None
+        data["categories"] = [str(item) for item in categories if item]
+        data["tags"] = [str(item) for item in tags if item]
+        data["text_usage"] = result.get("text_usage") or {}
+        data["image_usage"] = result.get("image_usage") or {}
+        data["cms_html"] = True
+        return data
 
     # Active jobs tracking for max_active = 1 enforcement
     _active_jobs: dict[str, GenerationJob] = {}

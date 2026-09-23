@@ -14,6 +14,7 @@ from .providers.mock import MockEditorialProvider
 from .publishers.dryrun import publish_dry_run
 from .diagnostics import filter_candidates, build_diagnostics
 from .cluster import cluster_events
+from .article_readiness import preflight_article_readiness
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config" / "sources.json"
@@ -61,7 +62,13 @@ def run() -> int:
         metrics.deduped = len(unique)
 
         clusters = cluster_events(unique)
-        ranked_clusters = rank_clusters(clusters)
+        ready_clusters, article_readiness = preflight_article_readiness(clusters)
+        ranked_clusters = rank_clusters(ready_clusters)
+
+        (OUTPUT / "article_readiness.json").write_text(
+            json.dumps(article_readiness, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
         (OUTPUT / "event_clusters.json").write_text(
             json.dumps(

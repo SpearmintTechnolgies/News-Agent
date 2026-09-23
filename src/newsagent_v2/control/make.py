@@ -113,6 +113,16 @@ def send_approval_cards(
             total=total,
             article_type=row.get("article_type_label") or row.get("article_type"),
             body_words=row.get("body_words") or row.get("canonical_body_words"),
+            kimi_usage=row.get("kimi_usage"),
+            wordpress_draft={
+                "wp_url": row.get("wp_url"),
+                "status": (row.get("wordpress_draft") or {}).get("status"),
+            }
+            if row.get("wordpress_draft")
+            else None,
+            categories=row.get("categories"),
+            tags=row.get("tags"),
+            seo_status=row.get("seo_status"),
         )
         image_path = Path(str(row["final_image_path"]))
         result = client.send_photo(
@@ -233,6 +243,8 @@ def persist_story_artifacts(
             "image_http_status": (row.get("image") or {}).get("http_status"),
             "skip_reason": row.get("skip_reason"),
             "generation_failure": row.get("generation_failure"),
+            "article_readiness": row.get("article_readiness")
+            or (row.get("article_input") or {}).get("article_readiness"),
             "evidence_sufficiency": row.get("evidence_sufficiency")
             or (row.get("article_input") or {}).get("evidence_sufficiency"),
             "evidence_fetch": [
@@ -247,7 +259,15 @@ def persist_story_artifacts(
                 if isinstance(item, dict)
             ],
             "prompt_compaction": row.get("prompt_compaction"),
-            "wp_url": None,
+            "wp_url": row.get("wp_url"),
+            "wp_post_id": row.get("wp_post_id"),
+            "wordpress_draft": row.get("wordpress_draft"),
+            "article_version": row.get("article_version"),
+            "image_version": row.get("image_version"),
+            "kimi_usage": row.get("kimi_usage"),
+            "categories": row.get("categories"),
+            "tags": row.get("tags"),
+            "seo_status": row.get("seo_status"),
         },
     )
 

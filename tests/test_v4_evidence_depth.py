@@ -256,7 +256,7 @@ class EvidenceCapacityTests(unittest.TestCase):
         rich = assess_evidence_capacity(_rich_bank(), research=research)
         self.assertEqual(rich.evidence_capacity, CAPACITY_RICH)
         self.assertEqual(rich.article_type, ARTICLE_FULL)
-        self.assertEqual(rich.recommended_word_range, (250, 400))
+        self.assertEqual(rich.recommended_word_range, (700, 1000))
 
         medium_props = _rich_bank().propositions[:8]
         medium_bank = FactBank(event_id="m", propositions=medium_props)
@@ -290,14 +290,14 @@ class EvidenceCapacityTests(unittest.TestCase):
             research=research,
         )
         self.assertEqual(depth.evidence_capacity, CAPACITY_MEDIUM)
-        self.assertTrue(slightly_below_recommended(120, depth))
+        self.assertTrue(slightly_below_recommended(320, depth))
         native = V4NativeArticle(
             headline="Deutsche Bank is awaiting regulatory approval for crypto custody",
             dek="Custody",
             article_body=_pad(
                 "Deutsche Bank is awaiting regulatory approval for crypto custody. "
                 "Initial supported asset includes Bitcoin.",
-                120,
+                320,
             ),
             seo_title="Custody",
             meta_description="Custody",
@@ -315,7 +315,7 @@ class EvidenceCapacityTests(unittest.TestCase):
         messages = _enrichment_messages(
             native=native,
             unused=unused,
-            current_words=120,
+            current_words=320,
             target_min=depth.recommended_word_min,
             target_max=depth.recommended_word_max,
         )
@@ -338,7 +338,7 @@ class EvidenceCapacityTests(unittest.TestCase):
         )
         self.assertEqual(expansion.mode, "enrichment")
         self.assertEqual(writer.expansion_calls, 1)
-        self.assertGreater(out.word_count, 120)
+        self.assertGreater(out.word_count, 320)
 
     def test_provider_rate_limit_not_editorial_failure(self) -> None:
         self.assertTrue(provider_error_is_infrastructure("RATE_LIMITED"))
@@ -392,11 +392,123 @@ class EvidenceCapacityTests(unittest.TestCase):
         self.assertFalse(str(expansion.reject_reason).startswith("WRITER_UNDERPRODUCED"))
 
 
+
+class UnderproductionRecoveryPathTests(unittest.TestCase):
+    """Live Test #2: unused-fact enrichment before regen; keep grounded draft."""
+
+    def test_rich_underproduction_tries_unused_enrichment_before_regen(self) -> None:
+        research = EventResearchResult(
+            pack={}, story={}, independent_sources=3, primary_sources=1
+        )
+        bank = _rich_bank()
+        depth = assess_evidence_capacity(bank, research=research)
+        self.assertEqual(depth.evidence_capacity, CAPACITY_RICH)
+        self.assertTrue(is_writer_underproduced(120, depth))
+        native = V4NativeArticle(
+            headline="Deutsche Bank is awaiting regulatory approval for crypto custody",
+            dek="Custody",
+            article_body=_pad(
+                "Deutsche Bank is awaiting regulatory approval for crypto custody. "
+                "Initial supported asset includes Bitcoin.",
+                120,
+            ),
+            seo_title="Custody",
+            meta_description="Custody",
+            slug="custody",
+        )
+        packet = fact_bank_to_writer_packet(bank)
+        ledgers = bank.to_ledgers()
+        report = verify_v4_native(native, packet=packet, ledgers=ledgers)
+        unused = build_unused_evidence_set(
+            packet=packet, report=report, article_body=native.article_body
+        )
+        self.assertGreater(len(unused.facts), 0)
+        writer = ScriptedV4Writer(
+            native.as_dict(),
+            expansion_text=(
+                "Initial supported asset includes Ether. "
+                "Initial supported assets include selected stablecoins. "
+                "The custody unit will serve institutional clients first."
+            ),
+            regeneration_payload={
+                **native.as_dict(),
+                "article_body": _pad(
+                    "Deutsche Bank is awaiting regulatory approval for crypto custody. "
+                    "Initial supported asset includes Bitcoin. "
+                    "Initial supported asset includes Ether.",
+                    200,
+                ),
+            },
+        )
+        out, _r, expansion = realize_body_word_target(
+            native,
+            packet=packet,
+            ledgers=ledgers,
+            article_input={"evidence": []},
+            report=report,
+            writer=writer,
+            depth=depth,
+        )
+        self.assertGreaterEqual(writer.expansion_calls, 1)
+        self.assertFalse(expansion.rejected)
+        self.assertFalse(str(expansion.reject_reason or "").startswith("WRITER_UNDERPRODUCED"))
+        self.assertGreater(out.word_count, 120)
+
+    def test_regen_grounding_failure_keeps_draft_not_hard_underproduced(self) -> None:
+        research = EventResearchResult(
+            pack={}, story={}, independent_sources=3, primary_sources=1
+        )
+        bank = _rich_bank()
+        depth = assess_evidence_capacity(bank, research=research)
+        native = V4NativeArticle(
+            headline="Deutsche Bank is awaiting regulatory approval for crypto custody",
+            dek="Custody",
+            article_body=_pad(
+                "Deutsche Bank is awaiting regulatory approval for crypto custody. "
+                "Initial supported asset includes Bitcoin.",
+                120,
+            ),
+            seo_title="Custody",
+            meta_description="Custody",
+            slug="custody",
+        )
+        packet = fact_bank_to_writer_packet(bank)
+        ledgers = bank.to_ledgers()
+        report = verify_v4_native(native, packet=packet, ledgers=ledgers)
+        bad = {
+            **native.as_dict(),
+            "article_body": _pad(
+                "Alien regulators on Mars approved unlimited custody licenses overnight. "
+                "Deutsche Bank is awaiting regulatory approval for crypto custody.",
+                450,
+            ),
+        }
+        writer = ScriptedV4Writer(
+            native.as_dict(),
+            expansion_text="Aliens bought bitcoin overnight.",
+            regeneration_payload=bad,
+        )
+        out, _r, expansion = realize_body_word_target(
+            native,
+            packet=packet,
+            ledgers=ledgers,
+            article_input={"evidence": []},
+            report=report,
+            writer=writer,
+            depth=depth,
+        )
+        self.assertEqual(expansion.mode, "regeneration")
+        self.assertFalse(expansion.rejected)
+        self.assertEqual(expansion.reject_reason, "regeneration_failed_grounding_kept_draft")
+        self.assertNotIn("Alien regulators", out.article_body)
+        self.assertNotIn("Mars", out.article_body)
+
+
 class LimitedDepthPublishabilityTests(unittest.TestCase):
     def test_limited_depth_brief_policy_gates(self) -> None:
         depth = assess_evidence_capacity(_limited_bank())
         self.assertEqual(depth.article_type, ARTICLE_LIMITED)
-        self.assertEqual(depth.qa_article_mode, "brief")
+        self.assertEqual(depth.qa_article_mode, "normal")
         # Still requires grounding/copyright/mechanics/security â€” length alone is not enough.
         self.assertTrue(depth.evidence_limited)
         native = V4NativeArticle(

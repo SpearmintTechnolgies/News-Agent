@@ -9,6 +9,7 @@ from newsagent_v2.cluster import cluster_events
 from newsagent_v2.collect import collect_rss, load_sources
 from newsagent_v2.dedupe import dedupe
 from newsagent_v2.diagnostics import filter_candidates
+from newsagent_v2.article_readiness import preflight_article_readiness
 from newsagent_v2.evidence import build_evidence_pack
 from newsagent_v2.rank import rank_clusters
 
@@ -22,12 +23,18 @@ def discover_ranked_top5(*, sources_path: Path | None = None) -> dict[str, Any]:
     filtered, rejected = filter_candidates(items)
     unique = dedupe(filtered)
     clusters = cluster_events(unique)
-    ranked = rank_clusters(clusters)
+    ready, readiness = preflight_article_readiness(clusters)
+    ranked = rank_clusters(ready)
     evidence = build_evidence_pack(ranked, limit=5)
     return {
         "ranked_clusters": ranked,
         "evidence_pack": evidence,
         "source_health": source_health,
         "rejected": rejected,
+        "article_readiness": readiness,
+        "article_readiness_rejected": [
+            event_id for event_id, result in readiness.items()
+            if not result["eligible"]
+        ],
         "collected": len(items),
     }

@@ -153,6 +153,9 @@ def _is_primary_source_id(source_id: str, pack: dict[str, Any]) -> bool:
                 "company",
                 "official",
                 "government",
+                "official_regulator",
+                "crypto_company",
+                "exchange",
             }
     return False
 

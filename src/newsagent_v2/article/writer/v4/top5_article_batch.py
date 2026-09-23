@@ -609,7 +609,8 @@ def run_top5_article_batch(*, environ: dict[str, str] | None = None) -> dict[str
             break
         event_id = str(story.get("event_id") or f"rank-{index}")
         try:
-            researched = research_event(story)
+            from newsagent_v2.v5_generation.source_expansion_adapter import default_search_fn_for_story
+            researched = research_event(story, search_fn=default_search_fn_for_story(story))
             pack = researched.pack
             bank = build_fact_bank(event_id=event_id, pack=pack)
             base_depth = assess_evidence_capacity(bank, research=researched)

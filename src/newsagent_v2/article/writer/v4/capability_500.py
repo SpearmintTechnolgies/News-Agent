@@ -449,7 +449,8 @@ def run_capability_500(*, environ: dict[str, str]) -> dict[str, Any]:
     rich_pack = None
 
     for index, story in enumerate(stories[:MAX_CANDIDATES], start=1):
-        researched = research_event(story)
+        from newsagent_v2.v5_generation.source_expansion_adapter import default_search_fn_for_story
+        researched = research_event(story, search_fn=default_search_fn_for_story(story))
         pack = researched.pack
         event_id = str(story.get("event_id") or pack.get("event_id") or f"rank-{index}")
         bank = build_fact_bank(event_id=event_id, pack=pack)

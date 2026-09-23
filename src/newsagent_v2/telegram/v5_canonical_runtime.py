@@ -1,4 +1,4 @@
-"""Canonical V5 Runtime - glues hardened control runtime with V5 functionality.
+﻿"""Canonical V5 Runtime - glues hardened control runtime with V5 functionality.
 
 Reuses:
 - build_runtime() for singleton, offsets, transport
@@ -24,7 +24,8 @@ from newsagent_v2.telegram.config import TelegramConfig, load_telegram_config
 from newsagent_v2.telegram.live_transport import create_live_transport
 from newsagent_v2.telegram.singleton import acquire_singleton_lock, release_singleton_lock
 from newsagent_v2.telegram.state import V5BotState
-from newsagent_v2.telegram.listener import poll_once
+from newsagent_v2.telegram.contract import ACK_MAKE_TEXT
+from newsagent_v2.telegram.listener import is_make_command, poll_once
 from newsagent_v2.telegram.v5_callbacks import V5CallbackHandler, V5TelegramStore
 from newsagent_v2.telegram.v5_cards import render_card_from_event, seepage_keyboard
 from newsagent_v2.telegram.v5_review_callbacks import V5ReviewCallbackHandler
@@ -35,6 +36,9 @@ from newsagent_v2.v5_generation.provider_preflight import ProviderPreflight
 from newsagent_v2.v5_generation.persistent_review import PersistentReviewStore
 from newsagent_v2.v5_generation.revision_controller import RevisionController
 from newsagent_v2.v5_generation.version_store import VersionStore
+from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
+from newsagent_v2.wordpress.draft_store import WordPressDraftStore
+from newsagent_v2.publication.master_index import MasterIndexStore
 
 
 class CanonicalV5Integration:
@@ -51,12 +55,24 @@ class CanonicalV5Integration:
         source_registry: SourceRegistry | None = None,
         persistent_store: PersistentV5Store | None = None,
         environ: dict[str, str] | None = None,
+        wordpress_lifecycle: WordPressDraftLifecycle | None = None,
     ) -> None:
         self.config = config
         self.client = client
         self.event_store = event_store or EventStore(root=Path("./data/events"))
         self.source_registry = source_registry or SourceRegistry()
         self.environ = environ or dict(os.environ)
+        if wordpress_lifecycle is None:
+            from newsagent_v2.wordpress.config import load_wordpress_config, WordPressConfigError
+            from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+            try:
+                wordpress_lifecycle = WordPressDraftLifecycle(
+                    config=load_wordpress_config(self.environ),
+                    transport=build_live_wordpress_transport(),
+                    store=WordPressDraftStore(), master_index=MasterIndexStore(),
+                )
+            except WordPressConfigError:
+                wordpress_lifecycle = None
 
         # Persistent state
         self.persistent_store = persistent_store or PersistentV5Store()
@@ -70,6 +86,7 @@ class CanonicalV5Integration:
             config=config,
             persistent_store=self.persistent_store,
             environ=self.environ,
+            wordpress_lifecycle=wordpress_lifecycle,
         )
 
         # Telegram state
@@ -81,7 +98,7 @@ class CanonicalV5Integration:
             preflight=self.preflight,
             environ=self.environ,
         )
-        
+
         # Review callback handler for rate, feedback, approve, revise, etc.
         self.review_store = PersistentReviewStore()
         self.version_store = VersionStore()
@@ -94,10 +111,14 @@ class CanonicalV5Integration:
             revision_controller=self.revision_controller,
             version_store=self.version_store,
             persistent_store=self.persistent_store,
+            wordpress_lifecycle=wordpress_lifecycle,
+            master_index=MasterIndexStore(),
+            environ=self.environ,
         )
 
         # Discovery pipeline
         self._discovery_pipeline: Any | None = None
+        self._poll_offset: int | None = None
 
     def run_discovery(self) -> list[Any]:
         """Run V5 discovery and send Top 5."""
@@ -118,6 +139,14 @@ class CanonicalV5Integration:
         events = self._discovery_pipeline.get_top_events(count=count, offset=offset)
         total = len(self.telegram_store.get_ranked_events() or [])
         results = []
+
+        if not events:
+            results.append(self.client.send_message(
+                chat_id=self.config.test_chat_id,
+                text="No stories passed the evidence gate after source expansion.",
+                parse_mode="HTML",
+            ))
+            return results
 
         for i, event in enumerate(events):
             rank = offset + i + 1
@@ -143,7 +172,7 @@ class CanonicalV5Integration:
 
     def handle_callback(self, data: str, update: dict[str, Any] | None = None) -> dict[str, Any]:
         """Handle V5 callback.
-        
+
         Routes to:
         1. V5ReviewCallbackHandler for review actions (rate, feedback, approve, etc.)
         2. V5CallbackHandler for discovery actions (run, follow, ignore, see_next)
@@ -152,7 +181,7 @@ class CanonicalV5Integration:
         review_result = self._try_review_callback(data, update)
         if review_result is not None:
             return review_result
-        
+
         # Fall through to discovery callback handler
         result = self.callback_handler.handle(data)
 
@@ -170,25 +199,25 @@ class CanonicalV5Integration:
             self.send_top_events(count=5, offset=offset)
 
         return result
-    
+
     def _send_revision_result(self, result: dict[str, Any]) -> None:
         """Send compact revision package with VIEW FULL ARTICLE button.
-        
+
         ZERO provider calls - only loads frozen artifacts.
         """
         from ..v5_generation.telegram_delivery import send_compact_revision_summary
         from ..v5_generation.version_store import VersionStore
-        
+
         event_id = result.get("event_id", "")
         article_version = result.get("article_version")
         image_version = result.get("image_version")
         article_revised = result.get("article_revised", False)
         image_revised = result.get("image_revised", False)
         canonical_title = result.get("canonical_title", "Unknown")
-        
+
         # Use existing VersionStore
         version_store = VersionStore()
-        
+
         # Send COMPACT revision summary (with VIEW FULL button)
         send_compact_revision_summary(
             client=self.client,
@@ -201,23 +230,23 @@ class CanonicalV5Integration:
             article_revised=article_revised,
             image_revised=image_revised,
         )
-    
+
     def _send_view_full_article(self, result: dict[str, Any]) -> None:
         """Send complete article - idempotent, read-only, ZERO provider calls.
-        
+
         Loads persisted article from VersionStore and sends to Telegram.
         Respects message limits by splitting if needed.
         Errors are logged but do not crash the runtime.
         """
         from ..v5_generation.telegram_delivery import _send_article_text
-        
+
         event_id = result.get("event_id", "")
         version = result.get("version", "")
         headline = result.get("headline", "Unknown")
         body = result.get("body", "")
-        
+
         print(f"[VIEWFULL] Sending full article: event={event_id} version={version}")
-        
+
         # Send via delivery helper (handles splitting for Telegram limits)
         # Errors are caught and logged to prevent crashing the polling runtime
         try:
@@ -238,35 +267,38 @@ class CanonicalV5Integration:
             try:
                 self.client.send_message(
                     chat_id=self.config.test_chat_id,
-                    text=f"❌ Failed to send full article {version}: {str(e)[:100]}",
+                    text=f"âŒ Failed to send full article {version}: {str(e)[:100]}",
                     parse_mode="HTML",
                 )
             except Exception:
                 pass  # If even error notification fails, silently continue
-    
+
     def _send_view_full_image(self, result: dict[str, Any]) -> None:
         """Send complete image - idempotent, read-only, ZERO provider calls.
-        
+
         Loads persisted image from VersionStore and sends to Telegram.
         """
         from pathlib import Path
-        
+
         image_path = result.get("image_path", "")
         if image_path and Path(image_path).exists():
             self.client.send_photo(
                 chat_id=self.config.test_chat_id,
                 photo=image_path,
-                caption="🖼 Image (read-only)",
+                caption="ðŸ–¼ Image (read-only)",
             )
-    
+
     def _try_review_callback(self, data: str, update: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """Try to handle as review callback. Returns None if not a review callback."""
+        if self.callback_handler.parse_callback(data) is not None:
+            return None
+
         # === DIAGNOSTIC: Raw callback received ===
         print(f"[VIEWFULL-DIAG-1] RAW CALLBACK RECEIVED: callback_data='{data}'")
-        
+
         # Parse to check if it's a review callback
         parsed = self.review_callback_handler.parse_callback(data)
-        
+
         # === DIAGNOSTIC: Parser result ===
         if parsed is None:
             print(f"[VIEWFULL-DIAG-2] PARSER: REJECTED (parsed=None)")
@@ -276,7 +308,7 @@ class CanonicalV5Integration:
         print(f"[VIEWFULL-DIAG-2]   event_id={parsed.get('event_id')}")
         print(f"[VIEWFULL-DIAG-2]   version={parsed.get('version')}")
         print(f"[VIEWFULL-DIAG-2]   extra={parsed.get('extra')}")
-        
+
         # Get chat_id from update for feedback mode
         chat_id = ""
         if update and update.get("callback_query"):
@@ -287,7 +319,7 @@ class CanonicalV5Integration:
                     chat = msg["chat"]
                     if isinstance(chat, dict):
                         chat_id = str(chat.get("id", ""))
-        
+
         # Handle via review callback handler
         print(f"[VIEWFULL-DIAG-3] HANDLER: About to call review_callback_handler.handle()")
         result = self.review_callback_handler.handle(
@@ -296,7 +328,7 @@ class CanonicalV5Integration:
             job_id="",
             chat_id=chat_id,
         )
-        
+
         # === DIAGNOSTIC: Handler result ===
         print(f"[VIEWFULL-DIAG-4] HANDLER RESULT:")
         print(f"[VIEWFULL-DIAG-4]   ok={result.get('ok')}")
@@ -304,29 +336,37 @@ class CanonicalV5Integration:
         print(f"[VIEWFULL-DIAG-4]   event_id={result.get('event_id')}")
         print(f"[VIEWFULL-DIAG-4]   version={result.get('version')}")
         print(f"[VIEWFULL-DIAG-4]   full_result_keys={list(result.keys())}")
-        
+
         # Handle special actions
         if result.get("ok"):
             action = result.get("action", "")
-            
+
             # === DIAGNOSTIC: Router branch selection ===
             print(f"[VIEWFULL-DIAG-5] RUNTIME ROUTER: action='{action}'")
-            
+
             # Handle revision completion - send compact revision package
             if action == "revise_complete" and result.get("send_revision_package"):
-                print(f"[VIEWFULL-DIAG-5]   → branch: _send_revision_result()")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: _send_revision_result()")
                 self._send_revision_result(result)
+            elif action == "edit_complete" and result.get("send_review_package"):
+                from ..v5_generation.telegram_delivery import send_initial_v5_review_package
+                send_initial_v5_review_package(
+                    client=self.client, config=self.config, version_store=self.version_store,
+                    event_id=result["event_id"], canonical_title=result.get("canonical_title", "Unknown"),
+                    article_version=result["article_version"], image_version=result.get("image_version"),
+                    generation_result=result,
+                )
             # Handle view full article - send complete article (read-only)
             elif action == "view_full_article":
-                print(f"[VIEWFULL-DIAG-5]   → branch: _send_view_full_article()")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: _send_view_full_article()")
                 self._send_view_full_article(result)
             # Handle view full image - send image (read-only)
             elif action == "view_full_image":
-                print(f"[VIEWFULL-DIAG-5]   → branch: _send_view_full_image()")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: _send_view_full_image()")
                 self._send_view_full_image(result)
             # Standard message + reply_markup
             elif result.get("reply_markup"):
-                print(f"[VIEWFULL-DIAG-5]   → branch: send_message with reply_markup")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: send_message with reply_markup")
                 self.client.send_message(
                     chat_id=self.config.test_chat_id,
                     text=result.get("message", ""),
@@ -334,7 +374,7 @@ class CanonicalV5Integration:
                     reply_markup=result.get("reply_markup"),
                 )
             elif result.get("compact_message"):
-                print(f"[VIEWFULL-DIAG-5]   → branch: send_message compact_message")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: send_message compact_message")
                 # Send compact revision summary
                 self.client.send_message(
                     chat_id=self.config.test_chat_id,
@@ -342,7 +382,7 @@ class CanonicalV5Integration:
                     parse_mode="HTML",
                 )
             elif result.get("message"):
-                print(f"[VIEWFULL-DIAG-5]   → branch: send_message simple")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: send_message simple")
                 # Simple acknowledgment
                 self.client.send_message(
                     chat_id=self.config.test_chat_id,
@@ -350,35 +390,76 @@ class CanonicalV5Integration:
                     parse_mode="HTML",
                 )
             else:
-                print(f"[VIEWFULL-DIAG-5]   → branch: NO MATCH - no action taken!")
+                print(f"[VIEWFULL-DIAG-5]   â†’ branch: NO MATCH - no action taken!")
         else:
             # Error message
             error_msg = result.get("message") or result.get("reason") or "Unknown error"
-            print(f"[VIEWFULL-DIAG-5]   → branch: ERROR - {error_msg}")
+            print(f"[VIEWFULL-DIAG-5]   â†’ branch: ERROR - {error_msg}")
             self.client.send_message(
                 chat_id=self.config.test_chat_id,
-                text=f"❌ {error_msg}",
+                text=f"âŒ {error_msg}",
                 parse_mode="HTML",
             )
-        
+
         return result
 
     def run_once(self) -> dict[str, Any]:
         """Poll once and handle updates."""
-        response = poll_once(self.client, timeout=30)
+        # HTTP client timeout must exceed Telegram long-poll timeout; otherwise
+        # empty getUpdates calls fail as read timeouts with no updates forever.
+        http_timeout = int(getattr(self.client, "timeout_seconds", 30) or 30)
+        long_poll_timeout = max(1, http_timeout - 5)
 
-        payload = response.get("payload") if isinstance(response, dict) else None
+        try:
+            response = poll_once(
+                self.client,
+                offset=self._poll_offset,
+                timeout=long_poll_timeout,
+            )
+        except Exception as exc:
+            print(f"[POLL] getUpdates raised: {exc!r}")
+            return {"handled": 0, "updates": 0, "poll_error": str(exc)}
+
+        if not isinstance(response, dict):
+            print(f"[POLL] unexpected response type: {type(response).__name__}")
+            return {"handled": 0, "updates": 0, "poll_error": "bad_response_type"}
+
+        if not response.get("ok", True):
+            print(
+                "[POLL] getUpdates failed: "
+                f"status={response.get('status_code')} "
+                f"error={response.get('error') or response.get('telegram_description')}"
+            )
+            return {
+                "handled": 0,
+                "updates": 0,
+                "poll_error": response.get("error") or "getUpdates_failed",
+            }
+
+        payload = response.get("payload")
         if not isinstance(payload, dict):
-            return {"handled": 0}
+            print("[POLL] getUpdates missing payload")
+            return {"handled": 0, "updates": 0, "poll_error": "missing_payload"}
 
         updates = payload.get("result", [])
         if not isinstance(updates, list):
-            return {"handled": 0}
+            print("[POLL] getUpdates result is not a list")
+            return {"handled": 0, "updates": 0, "poll_error": "bad_result"}
+
+        if updates:
+            print(
+                f"[POLL] received {len(updates)} update(s) "
+                f"offset_before={self._poll_offset}"
+            )
 
         handled = 0
+        allowed_chat = str(self.config.test_chat_id).strip()
         for update in updates:
             if not isinstance(update, dict):
                 continue
+            update_id = update.get("update_id")
+            if isinstance(update_id, int):
+                self._poll_offset = update_id + 1
 
             # Callback
             callback = update.get("callback_query")
@@ -386,7 +467,10 @@ class CanonicalV5Integration:
                 data = str(callback.get("data") or "")
                 query_id = str(callback.get("id") or "")
                 print(f"[VIEWFULL-DIAG-0] CALLBACK UPDATE: query_id={query_id[:20]}... data='{data}'")
-                self.handle_callback(data, update)
+                try:
+                    self.handle_callback(data, update)
+                except Exception as exc:
+                    print(f"[ROUTE] callback handler error: {exc!r}")
                 if query_id:
                     print(f"[VIEWFULL-DIAG-8] ANSWERING CALLBACK: query_id={query_id[:20]}...")
                     try:
@@ -402,13 +486,17 @@ class CanonicalV5Integration:
             if isinstance(message, dict):
                 text = message.get("text", "")
                 chat = message.get("chat") or {}
-                chat_id = str(chat.get("id", ""))
+                chat_id = str(chat.get("id", "")).strip()
 
-                if chat_id != self.config.test_chat_id:
+                if chat_id != allowed_chat:
+                    print(
+                        f"[ROUTE] skip update_id={update_id}: "
+                        f"chat_id={chat_id!r} != allowed={allowed_chat!r}"
+                    )
                     continue
-                
+
                 # === FEEDBACK CAPTURE: Check if awaiting feedback BEFORE command handling ===
-                if text and not text.startswith("/"):
+                if text and not str(text).startswith("/"):
                     feedback_result = self._try_capture_feedback(chat_id, text)
                     if feedback_result:
                         # Feedback was captured - send confirmation
@@ -420,27 +508,45 @@ class CanonicalV5Integration:
                             )
                         handled += 1
                         continue  # Don't process as normal message
-                
+
                 # === COMMAND HANDLING ===
-                cmd = (text or "").strip().split()[0] if text else ""
-                if cmd == "/make":
-                    self.run_discovery()
+                # Accept /make and /make@BotName (group clients often append @bot).
+                if is_make_command(text if isinstance(text, str) else None):
+                    token = str(text).strip().split()[0]
+                    print(f"[ROUTE] /make received token={token!r} chat_id={chat_id}")
+                    try:
+                        self.client.send_message(
+                            chat_id=self.config.test_chat_id,
+                            text=ACK_MAKE_TEXT,
+                        )
+                        print("[ROUTE] /make ACK sent; starting discovery")
+                        self.run_discovery()
+                        print("[ROUTE] /make discovery finished")
+                    except Exception as exc:
+                        print(f"[ROUTE] /make handler error: {exc!r}")
+                        try:
+                            self.client.send_message(
+                                chat_id=self.config.test_chat_id,
+                                text=f"⚠️ /make failed: {exc}",
+                            )
+                        except Exception as send_exc:
+                            print(f"[ROUTE] /make error notify failed: {send_exc!r}")
                     handled += 1
 
         return {"handled": handled, "updates": len(updates)}
-    
+
     def _try_capture_feedback(self, chat_id: str, text: str) -> dict[str, Any] | None:
         """Try to capture feedback text. Returns result if captured, None otherwise."""
         if not chat_id or not text:
             return None
-        
+
         # Check with review callback handler
         result = self.review_callback_handler.check_and_capture_feedback_text(
             chat_id=chat_id,
             text=text,
             reviewer="user",
         )
-        
+
         return result
 
 
@@ -534,26 +640,12 @@ def run_canonical_v5(
         print("Send /make to run discovery")
         print("Ctrl+C to stop")
 
-        # Polling loop with offset tracking
-        offset: int | None = None
         iterations = 0
 
         while True:
             if max_iterations is not None and iterations >= max_iterations:
                 break
             iterations += 1
-
-            response = poll_once(client, offset=offset, timeout=30)
-
-            # Update offset from response
-            payload = response.get("payload") if isinstance(response, dict) else None
-            if isinstance(payload, dict):
-                updates = payload.get("result", [])
-                if isinstance(updates, list):
-                    for update in updates:
-                        update_id = update.get("update_id")
-                        if isinstance(update_id, int):
-                            offset = update_id + 1
 
             result = integration.run_once()
 

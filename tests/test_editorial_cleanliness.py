@@ -8,6 +8,7 @@ from newsagent_v2.article.qa.editorial_cleanliness import (
     FAILURE_CODE,
     evaluate_editorial_cleanliness,
 )
+from newsagent_v2.article.writer.v4.sanitize import sanitize_editorial_artifacts
 from newsagent_v2.article.writer.controlled.failures import (
     EDITORIAL_CLEANLINESS_FAILED,
     classify_qa_failure,
@@ -61,6 +62,26 @@ class EditorialCleanlinessGateTests(unittest.TestCase):
         self.assertTrue(
             result["duplicate_sentences"] or result["duplicate_paragraphs"]
         )
+
+    def test_sanitize_removes_embedded_headline_dek_and_metadata(self) -> None:
+        headline = "The moves comes as the SEC and CFTC advance crypto-related rulemaking despite the Clarity"
+        dek = "Digital assets advance while regulatory agencies pursue alternative paths after the Clarity Act stalls in the Senate."
+        body = (
+            "Bitcoin has reclaimed the $80,000 level.\n\n"
+            f"{headline}\n\n"
+            f"{dek}\n\n"
+            "Source: The Block\n\n"
+            "Bitcoin has reclaimed the $80,000 level.\n\n"
+            "The SEC and CFTC are advancing rulemaking while the Clarity Act stalls."
+        )
+
+        article = _article(headline=headline, dek=dek, body=body)
+        clean = sanitize_editorial_artifacts(article)
+
+        self.assertNotIn(headline.lower(), clean["article_body"].lower())
+        self.assertNotIn(dek.lower(), clean["article_body"].lower())
+        self.assertNotIn("source:", clean["article_body"].lower())
+        self.assertIn("Bitcoin has reclaimed the $80,000 level.", clean["article_body"])
 
     def test_source_artifact_detection(self) -> None:
         body = (

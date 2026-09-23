@@ -21,12 +21,12 @@ ARTICLE_FULL = "FULL_ARTICLE"
 ARTICLE_STANDARD = "STANDARD_BRIEF"
 ARTICLE_LIMITED = "LIMITED_DEPTH_BRIEF"
 
-FULL_RANGE = (250, 400)
-FULL_PREFER = (280, 330)
-STANDARD_RANGE = (150, 249)
-LIMITED_RANGE = (120, 149)
+FULL_RANGE = (700, 1000)
+FULL_PREFER = (750, 900)
+STANDARD_RANGE = (500, 700)
+LIMITED_RANGE = (500, 600)
 LIMITED_RANGE_FLOOR = LIMITED_RANGE[0]
-ABSOLUTE_PUBLICATION_MINIMUM = 120
+ABSOLUTE_PUBLICATION_MINIMUM = 400
 
 
 @dataclass(frozen=True)
@@ -146,7 +146,7 @@ def assess_evidence_capacity(
             numeric_fact_count=stats["numeric"],
             attribution_count=stats["attributed"],
             evidence_limited=False,
-            qa_article_mode=ARTICLE_MODE_BRIEF,
+            qa_article_mode=ARTICLE_MODE_NORMAL,
             reason="medium_unique_coverage",
             research=research_dict,
         )
@@ -165,7 +165,7 @@ def assess_evidence_capacity(
         numeric_fact_count=stats["numeric"],
         attribution_count=stats["attributed"],
         evidence_limited=True,
-        qa_article_mode=ARTICLE_MODE_BRIEF,
+        qa_article_mode=ARTICLE_MODE_NORMAL,
         reason="limited_unique_coverage",
         research=research_dict,
     )
@@ -203,8 +203,13 @@ def check_v4_article_depth(
     article: dict[str, Any],
     depth: DepthDecision | None,
 ) -> list[dict[str, Any]]:
-    """V4 publication depth gate. Absolute floor 120; type floors enforced."""
-    from newsagent_v2.article.qa.result import SEVERITY_CRITICAL, issue
+    """V4 publication depth gate.
+
+    Hard publication floor remains ABSOLUTE_PUBLICATION_MINIMUM (400). 600+ is normal; 500-599/400-499 use depth fallback.
+    RICH recommended band (700–1000) is editorial guidance only — at/above 500
+    it must not create a critical below_article_type_minimum failure.
+    """
+    from newsagent_v2.article.qa.result import SEVERITY_CRITICAL, SEVERITY_WARNING, issue
 
     body = article.get("article_body") if isinstance(article.get("article_body"), str) else ""
     words = word_count(body)
@@ -224,31 +229,32 @@ def check_v4_article_depth(
         return issues
     if depth is None:
         return issues
-    floor = depth.recommended_word_min
+    # Hard-block only below 400; normal target is 600+. Recommended type/RICH targets are warnings only.
+    floor = int(depth.recommended_word_min or ABSOLUTE_PUBLICATION_MINIMUM)
     label = depth.article_type
     if words < floor:
         issues.append(
             issue(
-                code="below_article_type_minimum",
+                code="below_editorial_recommended_range",
                 message=(
-                    f"{label} has {words} words; minimum for this EvidenceCapacity/"
-                    f"article type is {floor}"
+                    f"{label} has {words} words; recommended band for this "
+                    f"EvidenceCapacity starts at {floor} (publication floor "
+                    f"{ABSOLUTE_PUBLICATION_MINIMUM} already met)"
                 ),
-                severity=SEVERITY_CRITICAL,
+                severity=SEVERITY_WARNING,
                 module="depth",
             )
         )
-    # RICH underproduction must never pass as a limited stub.
     if depth.evidence_capacity == CAPACITY_RICH and words < FULL_RANGE[0]:
-        if not any(item.get("code") == "below_article_type_minimum" for item in issues):
+        if not any(item.get("code") == "below_editorial_recommended_range" for item in issues):
             issues.append(
                 issue(
-                    code="rich_capacity_underproduced",
+                    code="below_editorial_recommended_range",
                     message=(
-                        f"RICH evidence produced {words} words; "
-                        f"FULL_ARTICLE requires at least {FULL_RANGE[0]}"
+                        f"RICH evidence produced {words} words; editorial target "
+                        f"is {FULL_RANGE[0]}–{FULL_RANGE[1]} (not a publication failure)"
                     ),
-                    severity=SEVERITY_CRITICAL,
+                    severity=SEVERITY_WARNING,
                     module="depth",
                 )
             )

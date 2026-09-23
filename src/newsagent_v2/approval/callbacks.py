@@ -21,6 +21,8 @@ from newsagent_v2.telegram.cards import (
 )
 from newsagent_v2.wordpress.adapter import WordPressPublishError, publish_frozen_story, sanitize_wp_error
 from newsagent_v2.wordpress.config import WordPressConfig
+from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
+from newsagent_v2.publication.master_index import MasterIndexStore
 
 
 def handle_callback(
@@ -30,6 +32,7 @@ def handle_callback(
     wp_config: WordPressConfig | None = None,
     wp_transport: Callable[..., Any] | None = None,
     publish_fn: Callable[..., dict[str, Any]] | None = None,
+    index_store: MasterIndexStore | None = None,
 ) -> dict[str, Any]:
     parsed = parse_callback_data(raw_data)
     if parsed is None:
@@ -110,9 +113,9 @@ def handle_callback(
         batch_id,
         event_id,
         expected=STATE_AWAITING_APPROVAL,
-        new_state=STATE_PUBLISHING,
+        new_state=STATE_APPROVED,
     )
-    if claimed is None or claimed.get("state") != STATE_PUBLISHING:
+    if claimed is None or claimed.get("state") != STATE_APPROVED:
         latest = store.read_story(batch_id, event_id) or story
         return {
             "ok": True,
@@ -125,18 +128,57 @@ def handle_callback(
             "event_id": event_id,
         }
 
+    store.cas_story_state(
+        batch_id,
+        event_id,
+        expected=STATE_PUBLISHING,
+        new_state=STATE_APPROVED,
+        extra={"state": STATE_APPROVED, "wordpress_disabled": True, "wp_url": None},
+    )
+    return {
+        "ok": True,
+        "action": "approve",
+        "state": STATE_APPROVED,
+        "published": False,
+        "duplicate": False,
+        "wordpress_disabled": True,
+        "url": None,
+        "batch_id": batch_id,
+        "event_id": event_id,
+        "message_id": claimed.get("telegram_message_id"),
+        "caption": claimed.get("caption") or "",
+        "telegram_caption_suffix": "✅ Approved\nWordPress remains a draft until explicit PUBLISH.",
+        "reply_markup": empty_keyboard(),
+    }
+
     try:
-        publisher = publish_fn or publish_frozen_story
-        kwargs: dict[str, Any] = {
-            "article": claimed.get("article") or {},
-            "image_path": claimed.get("final_image_path"),
-        }
-        if publish_fn is None:
-            if wp_config is None or wp_transport is None:
-                raise WordPressPublishError("wp_unconfigured", "WordPress is not configured")
-            kwargs["config"] = wp_config
-            kwargs["transport"] = wp_transport
-        result = publisher(**kwargs)
+        if claimed.get("wp_post_id") and wp_config is not None and wp_transport is not None:
+            draft_result = WordPressDraftLifecycle(
+                config=wp_config,
+                transport=wp_transport,
+            ).publish_draft(event_id)
+            if not draft_result.ok:
+                raise WordPressPublishError(
+                    draft_result.error_code or "draft_publish_failed",
+                    draft_result.error or "draft publish failed",
+                )
+            result = {
+                "ok": True,
+                "post_id": draft_result.wp_post_id,
+                "url": draft_result.wp_url,
+            }
+        else:
+            publisher = publish_fn or publish_frozen_story
+            kwargs: dict[str, Any] = {
+                "article": claimed.get("article") or {},
+                "image_path": claimed.get("final_image_path"),
+            }
+            if publish_fn is None:
+                if wp_config is None or wp_transport is None:
+                    raise WordPressPublishError("wp_unconfigured", "WordPress is not configured")
+                kwargs["config"] = wp_config
+                kwargs["transport"] = wp_transport
+            result = publisher(**kwargs)
         if result.get("wordpress_disabled") or result.get("held"):
             store.cas_story_state(
                 batch_id,
@@ -177,6 +219,20 @@ def handle_callback(
                 "state": STATE_PUBLISHED,
             },
         )
+        indexing_state = "RECORDED"
+        try:
+            (index_store or MasterIndexStore()).record_publication(
+                event_id=event_id,
+                canonical_url=url or "",
+                wp_post_id=result.get("post_id"),
+                article_version=claimed.get("article_version"),
+                image_version=claimed.get("image_version"),
+                categories=claimed.get("categories"),
+                tags=claimed.get("tags"),
+                seo_status=claimed.get("seo_status"),
+            )
+        except Exception:
+            indexing_state = "FAILED"
         caption = claimed.get("caption") or ""
         suffix = f"✅ Published\n{url}" if url else "✅ Published"
         return {
@@ -186,6 +242,7 @@ def handle_callback(
             "published": True,
             "duplicate": False,
             "url": url,
+            "indexing_state": indexing_state,
             "batch_id": batch_id,
             "event_id": event_id,
             "message_id": claimed.get("telegram_message_id"),

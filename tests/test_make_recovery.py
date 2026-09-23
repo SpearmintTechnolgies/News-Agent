@@ -4,6 +4,7 @@ import inspect
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 from newsagent_v2.approval.store import ApprovalStore
 from newsagent_v2.article.writer.controlled.failures import (
@@ -15,6 +16,7 @@ from newsagent_v2.control import live as live_mod
 from newsagent_v2.control.make_recovery import recover_publishable_article, run_make_top1
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.config import TelegramConfig
+from newsagent_v2.wordpress.draft_lifecycle import DraftResult
 
 PIXEL = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "telegram" / "pixel.png"
 
@@ -230,6 +232,46 @@ class MakeRecoveryTests(unittest.TestCase):
             self.assertEqual(ok["status"], "SUCCESS")
             self.assertIn("ok", image_jobs)
             self.assertTrue(any("sendPhoto" in str(row) or row.get("kwargs", {}).get("files") for row in transport.calls))
+
+    def test_qa_pass_wires_wordpress_draft_before_persistence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ApprovalStore(root=Path(tmp) / "approval")
+            config = TelegramConfig(bot_token="1234567890:AA-test-token-value-not-real", test_chat_id="-1001")
+            transport = RecordingTransport()
+            client = TelegramTestClient(config, transport=transport, live_send_enabled=True)
+            lifecycle = Mock()
+            lifecycle.create_or_update_draft.return_value = DraftResult(
+                ok=True,
+                event_id="e-wp",
+                wp_post_id=42,
+                wp_url="https://example.com/?p=42",
+                status="draft",
+                created=True,
+            )
+
+            def image_ok(_job):
+                return {"success": True, "final_path": str(PIXEL), "image_request_count": 0}
+
+            result = run_make_top1(
+                environ={},
+                store=store,
+                telegram_config=config,
+                telegram_client=client,
+                compile_fn=_pass,
+                image_fn=image_ok,
+                stories=[_story("e-wp", 1)],
+                assess_fn=_eligible,
+                wordpress_lifecycle=lifecycle,
+            )
+
+            self.assertIn(result["status"], {"SUCCESS", "TELEGRAM FAILED"})
+            call = lifecycle.create_or_update_draft.call_args.kwargs
+            self.assertEqual(call["event_id"], "e-wp")
+            self.assertEqual(call["image_path"], str(PIXEL))
+            story = store.read_story(result["batch_id"], "e-wp")
+            self.assertEqual(story["wp_post_id"], 42)
+            self.assertEqual(story["wp_url"], "https://example.com/?p=42")
+            self.assertEqual(story["wordpress_draft"]["status"], "draft")
 
     def test_make_pipeline_uses_recovery_orchestrator(self) -> None:
         src = inspect.getsource(live_mod.build_live_pipeline)

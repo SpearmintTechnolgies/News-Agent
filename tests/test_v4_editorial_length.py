@@ -155,8 +155,20 @@ def _native_words(approx: int, *, include_late_facts: bool = False) -> V4NativeA
 
 class V4EditorialLengthTests(unittest.TestCase):
     def setUp(self) -> None:
+        self._prev_article_min = os.environ.get("ARTICLE_MIN_WORDS")
+        self._prev_demo_min = os.environ.get("NEWSAGENT_V2_DEMO_ARTICLE_MIN_WORDS")
         os.environ["ARTICLE_MIN_WORDS"] = "120"
         os.environ["NEWSAGENT_V2_DEMO_ARTICLE_MIN_WORDS"] = "120"
+
+    def tearDown(self) -> None:
+        if self._prev_article_min is None:
+            os.environ.pop("ARTICLE_MIN_WORDS", None)
+        else:
+            os.environ["ARTICLE_MIN_WORDS"] = self._prev_article_min
+        if self._prev_demo_min is None:
+            os.environ.pop("NEWSAGENT_V2_DEMO_ARTICLE_MIN_WORDS", None)
+        else:
+            os.environ["NEWSAGENT_V2_DEMO_ARTICLE_MIN_WORDS"] = self._prev_demo_min
 
     def test_a_no_expansion_when_already_280(self) -> None:
         native = _native_words(280)
@@ -196,8 +208,8 @@ class V4EditorialLengthTests(unittest.TestCase):
             writer=writer,
         )
         self.assertTrue(expansion.triggered)
-        self.assertEqual(writer.expansion_calls, 0)
-        self.assertEqual(writer.regeneration_calls, 1)
+        # Unused-fact enrichment may run before regeneration when unused props exist.
+        self.assertGreaterEqual(writer.regeneration_calls, 1)
         self.assertGreaterEqual(out.word_count, EDITORIAL_TARGET_MIN_WORDS)
 
     def test_c_validated_regeneration_reaches_target(self) -> None:
@@ -221,7 +233,7 @@ class V4EditorialLengthTests(unittest.TestCase):
         self.assertTrue(expansion.editorial_target_met)
         self.assertGreater(expansion.validated_words, 0)
 
-    def test_d_regeneration_still_under_rejects(self) -> None:
+    def test_d_regeneration_still_under_keeps_draft(self) -> None:
         claims = (
             LedgerClaim(
                 "C01",
@@ -275,9 +287,9 @@ class V4EditorialLengthTests(unittest.TestCase):
             writer=writer,
         )
         self.assertTrue(expansion.triggered)
-        self.assertEqual(writer.expansion_calls, 0)
-        self.assertTrue(expansion.rejected)
-        self.assertIn("WRITER_UNDERPRODUCED", str(expansion.reject_reason))
+        # Grounded-but-short regen continues to QA/depth instead of hard WRITER_UNDERPRODUCED.
+        self.assertFalse(expansion.rejected)
+        self.assertFalse(str(expansion.reject_reason or "").startswith("WRITER_UNDERPRODUCED"))
         self.assertFalse(expansion.editorial_target_met)
         self.assertEqual(expansion.warning, BELOW_EDITORIAL_TARGET_WARNING)
 
@@ -304,7 +316,9 @@ class V4EditorialLengthTests(unittest.TestCase):
             writer=writer,
         )
         self.assertTrue(expansion.attempted)
-        self.assertTrue(expansion.rejected)
+        # Ungrounded regen discarded; best grounded draft kept for QA/depth.
+        self.assertFalse(expansion.rejected)
+        self.assertIn("regeneration_failed_grounding_kept_draft", str(expansion.reject_reason))
         self.assertNotIn("criminal inquiry", out.article_body)
 
     def test_f_unauthorized_number_in_regeneration_rejected(self) -> None:
@@ -362,11 +376,10 @@ class V4EditorialLengthTests(unittest.TestCase):
             report=report,
             writer=writer,
         )
-        self.assertEqual(writer.expansion_calls, 0)
         self.assertNotIn("uniquely phrased copyright trap", out.article_body)
         self.assertTrue(expansion.editorial_target_met or expansion.validated_words >= 0)
 
-    def test_h_short_regeneration_rejected_no_third_pass(self) -> None:
+    def test_h_short_regeneration_keeps_draft_no_third_pass(self) -> None:
         native = _native_words(170)
         packet = _packet()
         ledgers = _ledgers()
@@ -384,8 +397,8 @@ class V4EditorialLengthTests(unittest.TestCase):
             writer=writer,
         )
         self.assertEqual(writer.regeneration_calls, 1)
-        self.assertTrue(expansion.rejected)
-        self.assertIn("WRITER_UNDERPRODUCED", str(expansion.reject_reason))
+        self.assertFalse(expansion.rejected)
+        self.assertFalse(str(expansion.reject_reason or "").startswith("WRITER_UNDERPRODUCED"))
 
     def test_i_kimi_forbidden(self) -> None:
         self.assertTrue(any("kimi" in item for item in FORBIDDEN_WRITERS))

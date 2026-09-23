@@ -5,6 +5,38 @@ from typing import Any
 from newsagent_v2.article.contract import FACTUAL_CLAIM_TYPES
 from newsagent_v2.article.input import evidence_index
 from newsagent_v2.article.qa.result import SEVERITY_CRITICAL, issue
+from newsagent_v2.article.qa.structure import extract_quoted_spans
+from newsagent_v2.article.qa.textutil import words
+
+
+def _normalized_tokens(text: str) -> set[str]:
+    return set(words(text))
+
+
+def _quote_supported_by_evidence(
+    quote_text: str,
+    refs: list[Any],
+    allowed: dict[str, dict[str, Any]],
+) -> bool:
+    quote_tokens = _normalized_tokens(quote_text)
+    if not quote_tokens:
+        return False
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+        row = allowed.get(ref.get("url")) if isinstance(ref.get("url"), str) else None
+        if not isinstance(row, dict):
+            continue
+        evidence = " ".join(
+            str(row.get(key) or "")
+            for key in ("title", "summary", "extracted_text")
+        )
+        evidence_tokens = _normalized_tokens(evidence)
+        if quote_tokens <= evidence_tokens:
+            return True
+        if len(quote_tokens & evidence_tokens) / len(quote_tokens) >= 0.6:
+            return True
+    return False
 
 
 def check_claims(
@@ -15,6 +47,24 @@ def check_claims(
     allowed = evidence_index(article_input)
     claims = article.get("claims") if isinstance(article.get("claims"), list) else []
     quotes = article.get("quotes") if isinstance(article.get("quotes"), list) else []
+
+    quote_rows_by_text = {
+        str(row.get("text") or "").strip(): row
+        for row in quotes
+        if isinstance(row, dict) and str(row.get("text") or "").strip()
+    }
+    body = str(article.get("article_body") or "")
+    for span in extract_quoted_spans(body):
+        row = quote_rows_by_text.get(span)
+        if not isinstance(row, dict):
+            issues.append(
+                issue(
+                    code="quote_body_unmapped",
+                    message="article_body contains a quoted span without a matching quotes[] entry",
+                    severity=SEVERITY_CRITICAL,
+                    module="claims",
+                )
+            )
 
     with_evidence = 0
     for i, claim in enumerate(claims):
@@ -97,6 +147,17 @@ def check_claims(
                     issue(
                         code="direct_quote_no_source",
                         message=f"quotes[{i}] direct quote requires a source evidence ref",
+                        severity=SEVERITY_CRITICAL,
+                        module="claims",
+                    )
+                )
+        if has_ref and isinstance(refs, list):
+            quote_text = str(quote.get("text") or "").strip()
+            if not _quote_supported_by_evidence(quote_text, refs, allowed):
+                issues.append(
+                    issue(
+                        code="quote_unsupported_evidence",
+                        message=f"quotes[{i}] text is not supported by referenced evidence",
                         severity=SEVERITY_CRITICAL,
                         module="claims",
                     )

@@ -368,8 +368,11 @@ def realize_body_word_target(
     Capacity-aware length path.
 
     - LIMITED coherent drafts are accepted (not WRITER_UNDERPRODUCED).
-    - MEDIUM slightly below band → ONE unused-proposition enrichment.
-    - RICH severe shortfall → ONE fresh packet-only regeneration.
+    - MEDIUM slightly below band: ONE unused-proposition enrichment.
+    - RICH / severe MEDIUM underproduction: unused-fact enrichment first, then
+      ONE fresh packet-only regeneration if still short.
+    - If regeneration fails grounding (or stays short), keep the best grounded
+      draft and continue to QA / depth gates — do not hard-reject WRITER_UNDERPRODUCED.
     - Provider rate limits are infrastructure errors, not editorial failure.
     """
     from newsagent_v2.article.writer.v4.evidence_depth import (
@@ -407,7 +410,10 @@ def realize_body_word_target(
         result.warning = None if result.editorial_target_met else "below_limited_depth_floor"
         return current, report, result
 
-    # MEDIUM enrichment: slightly below + unused props.
+    # Slightly below recommended: try unused-fact enrichment first.
+    # If enrichment is attempted but yields 0 validated words, fall through to
+    # regeneration instead of returning the short draft (Live Test #3).
+    force_regen_after_empty_enrichment = False
     if isinstance(depth, DepthDecision) and slightly_below_recommended(current_words, depth):
         unused = build_unused_evidence_set(
             packet=packet, report=report, article_body=current.article_body
@@ -423,7 +429,7 @@ def realize_body_word_target(
                 unused=unused,
                 current_words=current_words,
             )
-            result.model_calls = calls
+            result.model_calls = int(calls or 0)
             if err and provider_error_is_infrastructure(err):
                 result.rejected = True
                 result.provider_infrastructure_error = True
@@ -445,33 +451,105 @@ def realize_body_word_target(
                     words2 = word_count(current.article_body)
                     result.validated_words = words2
                     result.editorial_target_met = target_min <= words2 <= target_max
+                    # Successful enrichment: keep prior slightly-below return behavior.
                     return current, report2, result
-        # Enrichment unavailable/failed — continue without inventing depth.
-        result.editorial_target_met = current_words >= target_min
-        return current, report, result
+                # Attempted but filter dropped everything → continue to regeneration.
+                force_regen_after_empty_enrichment = True
+            else:
+                # Attempted but model returned no usable text → regeneration.
+                force_regen_after_empty_enrichment = True
+        else:
+            # No unused facts available to enrich — keep prior return (no forced regen).
+            result.editorial_target_met = current_words >= target_min
+            return current, report, result
 
-    # Underproduction relative to capacity (RICH / severe MEDIUM).
+    # Underproduction relative to capacity (RICH / severe MEDIUM),
+    # or slightly-below after zero-word / insufficient enrichment.
     underproduced = (
         is_writer_underproduced(current_words, depth)
         if isinstance(depth, DepthDecision)
         else current_words < target_min
     )
-    if not underproduced:
+    if not underproduced and not force_regen_after_empty_enrichment:
         result.editorial_target_met = current_words >= target_min
         return current, report, result
 
     result.triggered = True
-    result.mode = "regeneration"
     result.depth_loss_origin = "NATIVE_UNDERPRODUCTION"
+
+    def _still_underproduced(words: int) -> bool:
+        if isinstance(depth, DepthDecision):
+            return is_writer_underproduced(words, depth)
+        return words < target_min
+
+    # 1) Try unused authorized-fact enrichment BEFORE hard regeneration.
+    #    Live Test #2 skipped this path at 332 words despite unused facts.
+    unused = build_unused_evidence_set(
+        packet=packet, report=report, article_body=current.article_body
+    )
+    result.unused_before = unused.fact_ids
+    can_enrich = bool(
+        writer is not None
+        and (
+            hasattr(writer, "expand")
+            or callable(getattr(writer, "http_post", None))
+            or bool(getattr(writer, "api_key", None))
+        )
+    )
+    if unused.facts and can_enrich:
+        result.attempted = True
+        result.mode = "enrichment"
+        text, calls, err = generate_expansion_text(
+            writer=writer,
+            native=current,
+            unused=unused,
+            current_words=current_words,
+        )
+        result.model_calls += int(calls or 0)
+        if err and provider_error_is_infrastructure(err):
+            result.rejected = True
+            result.provider_infrastructure_error = True
+            result.reject_reason = f"PROVIDER_RATE_LIMITED:{err}"
+            return current, report, result
+        if text:
+            filtered, _rep, filter_err = _filter_expansion_sentences(
+                text,
+                native=current,
+                packet=packet,
+                ledgers=ledgers,
+                article_input=article_input,
+            )
+            if filtered and not filter_err:
+                current.article_body = (current.article_body + " " + filtered).strip()
+                result.appended_text = filtered
+                result.generated_words = word_count(filtered)
+                report = verify_v4_native(current, packet=packet, ledgers=ledgers)
+                current_words = word_count(current.article_body)
+                result.validated_words = current_words
+                if not _still_underproduced(current_words):
+                    result.editorial_target_met = target_min <= current_words <= target_max
+                    result.rejected = False
+                    result.reject_reason = None
+                    return current, report, result
+
+    # 2) Regeneration when still underproduced after enrichment (or none available),
+    #    or when slightly-below enrichment was attempted and produced 0 validated words.
+    if not _still_underproduced(current_words) and not force_regen_after_empty_enrichment:
+        result.editorial_target_met = target_min <= current_words <= target_max
+        return current, report, result
+
+    result.mode = "regeneration"
     if writer is None or not hasattr(writer, "render"):
-        result.rejected = True
-        result.reject_reason = "WRITER_UNDERPRODUCED:no_writer_for_regeneration"
+        # Keep best grounded draft for downstream QA / depth fallback.
+        result.rejected = False
+        result.reject_reason = "underproduced_no_writer_kept_draft"
         result.warning = BELOW_EDITORIAL_TARGET_WARNING
+        result.editorial_target_met = False
         return current, report, result
 
     result.attempted = True
     rendered = writer.render(packet, regeneration=True)
-    result.model_calls = 1
+    result.model_calls += 1
     if not getattr(rendered, "ok", False) or rendered.native is None:
         err = str(getattr(rendered, "error", None) or "regeneration_failed")
         if provider_error_is_infrastructure(err) or bool(
@@ -481,35 +559,42 @@ def realize_body_word_target(
             result.provider_infrastructure_error = True
             result.reject_reason = f"PROVIDER_RATE_LIMITED:{err}"
             return current, report, result
-        result.rejected = True
-        result.reject_reason = f"WRITER_UNDERPRODUCED:{err}"
+        # Non-infra render failure: keep grounded draft for QA/depth gates.
+        result.rejected = False
+        result.reject_reason = f"regeneration_failed_kept_draft:{err}"
         result.warning = BELOW_EDITORIAL_TARGET_WARNING
+        result.editorial_target_met = False
         return current, report, result
 
     fresh = rendered.native
     fresh_words = word_count(fresh.article_body)
     result.generated_words = fresh_words
-    result.appended_text = ""
     report2 = verify_v4_native(fresh, packet=packet, ledgers=ledgers)
     if not report2.ok:
-        result.rejected = True
-        result.reject_reason = "WRITER_UNDERPRODUCED:regeneration_failed_grounding"
+        # Regen failed grounding — keep best grounded draft; do NOT hard-fail
+        # WRITER_UNDERPRODUCED so compile can reach QA + depth fallback.
+        result.rejected = False
+        result.reject_reason = "regeneration_failed_grounding_kept_draft"
         result.warning = BELOW_EDITORIAL_TARGET_WARNING
+        result.editorial_target_met = False
         return current, report, result
-    if isinstance(depth, DepthDecision):
-        still_short = is_writer_underproduced(fresh_words, depth)
-    else:
-        still_short = fresh_words < target_min
+
+    still_short = _still_underproduced(fresh_words)
     if still_short:
-        result.rejected = True
-        result.reject_reason = "WRITER_UNDERPRODUCED"
+        # Grounded but still short: continue to QA/depth with the longer grounded draft.
+        result.rejected = False
+        result.reject_reason = "underproduced_after_regeneration_kept_draft"
         result.validated_words = fresh_words
         result.warning = BELOW_EDITORIAL_TARGET_WARNING
         result.editorial_target_met = False
-        return fresh, report2, result
+        if fresh_words >= current_words:
+            return fresh, report2, result
+        return current, report, result
 
     result.validated_words = fresh_words
     result.editorial_target_met = target_min <= fresh_words <= target_max
+    result.rejected = False
+    result.reject_reason = None
     return fresh, report2, result
 
 

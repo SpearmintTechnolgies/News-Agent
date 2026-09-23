@@ -1,4 +1,4 @@
-"""V4 writer provider selection and OpenAI-compatible transports.
+﻿"""V4 writer provider selection and OpenAI-compatible transports.
 
 Pipeline code stays provider-agnostic. Selection is env/config only.
 Kimi and paid private Qwen adapters exist but stay idle unless explicitly allowed.
@@ -29,6 +29,7 @@ ENV_FALLBACK_PROVIDER = "NEWSAGENT_V2_V4_WRITER_FALLBACK_PROVIDER"
 ENV_FALLBACK_MODEL = "NEWSAGENT_V2_V4_WRITER_FALLBACK_MODEL"
 ENV_ALLOW_PAID_QWEN = "NEWSAGENT_V2_V4_ALLOW_PAID_QWEN"
 ENV_ALLOW_KIMI = "NEWSAGENT_V2_V4_ALLOW_KIMI"
+ENV_KIMI_BASE_URL = "NEWSAGENT_V2_V4_KIMI_BASE_URL"
 ENV_MAX_PROVIDER_ATTEMPTS = "NEWSAGENT_V2_V4_MAX_PROVIDER_ATTEMPTS"
 
 PROVIDER_GROQ = "groq"
@@ -48,7 +49,7 @@ KNOWN_GROQ_QWEN_OTPM_LIMIT = 1000
 V4_MAX_COMPLETION_TOKENS = 900  # must remain < KNOWN_GROQ_QWEN_OTPM_LIMIT
 assert V4_MAX_COMPLETION_TOKENS < KNOWN_GROQ_QWEN_OTPM_LIMIT
 
-# Infrastructure error classes — content QA failures must NOT failover.
+# Infrastructure error classes â€” content QA failures must NOT failover.
 INFRA_RATE_LIMIT = "RATE_LIMIT"
 INFRA_TIMEOUT = "TIMEOUT"
 INFRA_MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
@@ -173,7 +174,7 @@ def same_org_groq_failover_is_otpm_safe(
     fallback_provider: str,
     error_type: str | None,
 ) -> bool:
-    """Same-org Groq→Groq does not reset organization OTPM on RATE_LIMIT."""
+    """Same-org Groqâ†’Groq does not reset organization OTPM on RATE_LIMIT."""
     if str(error_type or "") != INFRA_RATE_LIMIT:
         return True
     return not (
@@ -566,6 +567,7 @@ class KimiChatTransport(ChatTransport):
     http_post: Callable[..., Any] | None = None
     timeout_seconds: int = 180
     base_url: str = ""
+    event_id: str | None = None  # Budget tracking identity
 
     def __post_init__(self) -> None:
         if not self.base_url:
@@ -577,6 +579,12 @@ class KimiChatTransport(ChatTransport):
     def chat_url(self) -> str:
         return f"{self.base_url.rstrip('/')}/chat/completions"
 
+    def _get_stage_from_body_extra(self, body_extra: dict[str, Any] | None) -> str:
+        """Extract stage from body_extra for audit."""
+        if body_extra and isinstance(body_extra, dict):
+            return str(body_extra.get("_stage", "unknown"))
+        return "unknown"
+
     def complete(
         self,
         *,
@@ -584,7 +592,22 @@ class KimiChatTransport(ChatTransport):
         body_extra: dict[str, Any] | None = None,
         max_completion_tokens: int = V4_MAX_COMPLETION_TOKENS,
         temperature: float = 0.3,
+        event_id: str | None = None,
+        stage: str | None = None,
     ) -> ChatCompletionResult:
+        """Execute Kimi chat completion with budget guard.
+
+        Args:
+            messages: Chat messages
+            body_extra: Extra body parameters (may include _stage for audit)
+            max_completion_tokens: Maximum completion tokens
+            temperature: Sampling temperature
+            event_id: Story identifier for budget tracking
+            stage: Operation stage (initial_writer, schema_fallback, etc.)
+        """
+        effective_event_id = event_id or self.event_id
+        effective_stage = stage or self._get_stage_from_body_extra(body_extra)
+
         if not self.allowed:
             return ChatCompletionResult(
                 ok=False,
@@ -601,6 +624,36 @@ class KimiChatTransport(ChatTransport):
                 provider=self.provider_name,
                 model=self.model,
             )
+
+        # Budget guard check
+        if effective_event_id:
+            from newsagent_v2.providers.kimi_guard import KimiGuard, KimiBudgetError
+
+            guard = KimiGuard(event_id=effective_event_id)
+            check = guard.check_before_request(
+                messages=messages,
+                max_completion_tokens=max_completion_tokens,
+                stage=effective_stage,
+            )
+            if not check.allowed:
+                error_msg = f"KIMI_BUDGET_EXCEEDED: {check.reason or check.error}"
+                return ChatCompletionResult(
+                    ok=False,
+                    error=error_msg,
+                    error_type=INFRA_OTHER,
+                    provider=self.provider_name,
+                    model=self.model,
+                )
+        else:
+            # Fail closed - no budget context
+            return ChatCompletionResult(
+                ok=False,
+                error="KIMI_BUDGET_EXCEEDED: MISSING_EVENT_BUDGET_CONTEXT",
+                error_type=INFRA_OTHER,
+                provider=self.provider_name,
+                model=self.model,
+            )
+
         import requests
 
         body: dict[str, Any] = {
@@ -615,6 +668,8 @@ class KimiChatTransport(ChatTransport):
                 extra["max_tokens"] = extra.pop("max_completion_tokens")
             # Drop Groq-only reasoning knobs if present.
             extra.pop("reasoning_effort", None)
+            # Drop internal stage marker if present
+            extra.pop("_stage", None)
             body.update(extra)
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -636,6 +691,19 @@ class KimiChatTransport(ChatTransport):
             )
             status = getattr(response, "status_code", None)
             payload = response.json() if hasattr(response, "json") else response
+
+            # Extract usage for reconciliation
+            usage = extract_usage(payload) if isinstance(payload, dict) else {}
+
+            # Reconcile budget (even on error responses)
+            reconcile_info = None
+            if effective_event_id:
+                reconcile_info = guard.reconcile_after_request(
+                    success=(status is not None and int(status) < 400),
+                    usage=usage if usage else None,
+                    http_status=int(status) if status else None,
+                )
+
             if status and int(status) >= 400:
                 message = f"HTTP {status}"
                 if isinstance(payload, dict):
@@ -665,13 +733,21 @@ class KimiChatTransport(ChatTransport):
                 ok=True,
                 payload=payload if isinstance(payload, dict) else None,
                 content=content,
-                usage=extract_usage(payload) if isinstance(payload, dict) else {},
+                usage=usage,
                 provider=self.provider_name,
                 model=self.model,
                 finish_reason=str(finish_reason) if finish_reason else None,
                 request_shape=request_shape,
             )
         except Exception as exc:  # noqa: BLE001
+            # Reconcile on exception
+            if effective_event_id:
+                guard.reconcile_after_request(
+                    success=False,
+                    usage=None,
+                    http_status=None,
+                    error=str(exc),
+                )
             return ChatCompletionResult(
                 ok=False,
                 error=sanitize_provider_log_blob(str(exc))[:400],
@@ -734,6 +810,7 @@ def build_transport(
         return KimiChatTransport(
             api_key=key,
             model=model or "moonshotai.kimi-k2.5",
+            base_url=str((environ or {}).get(ENV_KIMI_BASE_URL) or "").strip(),
             allowed=bool(allow_kimi),
             http_post=http_post,
             timeout_seconds=max(timeout_seconds, 180),

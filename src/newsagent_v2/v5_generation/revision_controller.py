@@ -494,6 +494,30 @@ class RevisionController:
                 })
         article_input["evidence"] = evidence_list
         
+        # === BUDGET RETRIEVAL FOR REVISION ===
+        # MUST reuse existing budget - do NOT create fresh empty budget for revision
+        from newsagent_v2.providers.kimi_budget import KimiBudgetStore, KimiBudgetManager
+
+        budget_store = KimiBudgetStore(
+            self.version_store.root if self.version_store else None
+        )
+        budget_manager = KimiBudgetManager(budget_store)
+
+        # Get or create budget - for revisions, this is existing story (is_new_story=False)
+        # Safe migration: if budget doesn't exist, marks as legacy_unknown rather than zero
+        story_budget = budget_manager.store.get_or_create_for_story(
+            event_id, is_new_story=False
+        )
+
+        # Fail closed if budget is BLOCKED or global circuit is open
+        if story_budget.status == "BLOCKED":
+            return {
+                "ok": False,
+                "error": "KIMI_BUDGET_EXCEEDED",
+                "reason": "MAX_TOTAL_TOKENS_PER_STORY",
+                "notes": "Story budget already exhausted or blocked",
+            }
+
         # === BUILD PROPER STORY WITH V1 EVIDENCE ===
         story = {
             "event_id": event_id,
@@ -511,7 +535,7 @@ class RevisionController:
                 "evidence_unit_count": len(evidence_units),
             }
         }
-        
+
         # Inject V1 evidence packet for reference
         story["_evidence_packet_v1"] = evidence_packet
 
@@ -527,7 +551,8 @@ class RevisionController:
             writer = build_v4_writer(
                 environ=self.environ,
                 enable_failover=False,
-                max_calls=24,
+                max_calls=5,  # Reduced from 24 to safer defensive limit
+                event_id=event_id,
             )
 
             # Get attempts root for V2
@@ -558,6 +583,19 @@ class RevisionController:
             article_hash = hashlib.sha256(article_content.encode("utf-8")).hexdigest()
 
             # Store new version with link to V1 evidence
+            from newsagent_v2.v5_generation.depth_cost_helpers import merge_usage
+
+            prior_article = self.version_store.get_article(event_id, current_version) or {}
+            prior_meta = dict(prior_article.get("metadata") or {})
+            prior_billable = dict(prior_meta.get("billable_usage") or {})
+            new_text = dict(compiled.kimi_usage or {})
+            if new_text:
+                new_text.setdefault("provider", compiled.writer_provider)
+                new_text.setdefault("model", compiled.writer_model)
+            writer_calls = int(compiled.writer_calls or 0)
+            merged_text = merge_usage(prior_billable.get("text") or prior_meta.get("text_usage"), new_text, provider_calls=writer_calls)
+            merged_image = dict(prior_billable.get("image") or prior_meta.get("image_usage") or {})
+
             self.version_store.save_article(
                 event_id=event_id,
                 version=new_version,
@@ -575,6 +613,10 @@ class RevisionController:
                     "evidence_reused_from": current_version,
                     "evidence_fact_count": len(authorized_facts),
                     "attempts_root": str(attempts_root_v2),
+                    "text_usage": merged_text,
+                    "image_usage": merged_image,
+                    "billable_usage": {"text": merged_text, "image": merged_image},
+                    "depth_status": prior_meta.get("depth_status"),
                 },
             )
 
@@ -586,6 +628,8 @@ class RevisionController:
                 "evidence_reused": True,
                 "evidence_unit_count": len(evidence_units),
                 "evidence_source": current_version,
+                "text_usage": merged_text,
+                "image_usage": merged_image,
             }
 
         except Exception as e:
@@ -648,6 +692,32 @@ class RevisionController:
             image_hash = result.get("branded_image_hash", "")
 
             # Store new version
+            from newsagent_v2.v5_generation.depth_cost_helpers import merge_usage
+
+            art_ver = article_version or "v1"
+            art = self.version_store.get_article(event.event_id, art_ver) or {}
+            meta = dict(art.get("metadata") or {})
+            billable = dict(meta.get("billable_usage") or {})
+            new_image = {
+                "provider": result.get("provider"),
+                "model": result.get("model"),
+                "requests": result.get("image_request_count") or 1,
+                "provider_reported_usage": result.get("provider_reported_usage"),
+                "provider_reported_cost_usd": result.get("provider_reported_cost_usd"),
+            }
+            merged_image = merge_usage(billable.get("image") or meta.get("image_usage"), new_image, provider_calls=1)
+            merged_text = dict(billable.get("text") or meta.get("text_usage") or {})
+            if art:
+                meta["image_usage"] = merged_image
+                meta["billable_usage"] = {"text": merged_text, "image": merged_image}
+                self.version_store.save_article(
+                    event.event_id, art_ver, art.get("article") or {},
+                    art.get("article_hash") or "", art.get("qa_result") or {}, meta,
+                )
+            result = dict(result)
+            result["image_usage"] = merged_image
+            result["text_usage"] = merged_text
+
             self.version_store.save_image(
                 event_id=event.event_id,
                 version=new_version,

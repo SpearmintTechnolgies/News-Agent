@@ -50,7 +50,12 @@ def resolve_candidate_scan_limit(
     return max(MIN_CANDIDATE_SCAN_LIMIT, min(MAX_CANDIDATE_SCAN_LIMIT, value))
 
 
-def cluster_to_story(cluster: EventCluster, *, original_rank: int) -> dict[str, Any]:
+def cluster_to_story(
+    cluster: EventCluster,
+    *,
+    original_rank: int,
+    article_readiness: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     candidate = {
         "event_id": cluster.event_id,
         "representative_title": cluster.representative.title,
@@ -60,12 +65,19 @@ def cluster_to_story(cluster: EventCluster, *, original_rank: int) -> dict[str, 
         "source_count": cluster.source_count,
         "evidence": [item.to_dict() for item in cluster.members],
     }
+    readiness = dict(article_readiness) if isinstance(article_readiness, dict) else None
+    if readiness is not None:
+        candidate["article_readiness"] = readiness
+    article_input = build_article_input(candidate)
+    if readiness is not None:
+        article_input["article_readiness"] = readiness
     return {
         "event_id": cluster.event_id,
-        "article_input": build_article_input(candidate),
+        "article_input": article_input,
         "article_url": cluster.representative.url,
         "source_count": cluster.source_count,
         "original_rank": original_rank,
+        "article_readiness": readiness,
     }
 
 

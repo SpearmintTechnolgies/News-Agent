@@ -28,6 +28,11 @@ def approval_caption(
     total: int | None = None,
     article_type: str | None = None,
     body_words: int | None = None,
+    kimi_usage: dict | None = None,
+    wordpress_draft: dict | None = None,
+    categories: list[str] | None = None,
+    tags: list[str] | None = None,
+    seo_status: str | None = None,
 ) -> str:
     count = MAKE_STORY_COUNT if total is None else int(total)
     summary = short_summary(dek)
@@ -41,6 +46,33 @@ def approval_caption(
             lines.append(f"Words: {body_words}")
         else:
             lines.extend(["", f"Words: {body_words}"])
+    if kimi_usage:
+        def _usage(name: str) -> str:
+            value = kimi_usage.get(name)
+            return str(value) if value is not None else "n/a"
+
+        lines.extend(
+            [
+                "",
+                f"Kimi: {_usage('request_count')} requests",
+                f"Tokens: {_usage('prompt_tokens')} prompt / {_usage('completion_tokens')} completion / {_usage('total_tokens')} total",
+                f"Kimi status: {_usage('status')}",
+                f"Kimi cost: {_usage('cost_display')}",
+            ]
+        )
+    if wordpress_draft:
+        lines.extend(
+            [
+                "",
+                f"WP draft: {wordpress_draft.get('wp_url') or 'n/a'} ({wordpress_draft.get('status') or 'n/a'})",
+            ]
+        )
+    if categories is not None:
+        lines.append(f"Categories: {', '.join(categories) or 'none'}")
+    if tags is not None:
+        lines.append(f"Tags: {', '.join(tags) or 'none'}")
+    if seo_status:
+        lines.append(f"SEO: {seo_status}")
     return "\n".join(lines).strip()
 
 

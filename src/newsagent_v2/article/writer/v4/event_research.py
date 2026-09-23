@@ -18,12 +18,18 @@ from newsagent_v2.article.enrich import (
 )
 from newsagent_v2.article.qa.textutil import NUMBER_TOKEN_RE, word_count
 from newsagent_v2.article.writer.controlled.capacity import article_input_for_ledgers
+from newsagent_v2.discovery.provenance import (
+    PRIMARY_ROLES as _PRIMARY_ROLES,
+    PRIMARY_SOURCE_TYPES as _PRIMARY_SOURCE_TYPES,
+    normalize_source_role,
+    normalize_source_type,
+)
 
 # V4 fetches more independent pack sources than the shared default (2).
 V4_MAX_SOURCES_PER_EVENT = 6
 
-PRIMARY_SOURCE_TYPES = frozenset({"regulator", "company", "official", "government"})
-PRIMARY_ROLES = frozenset({"primary_evidence"})
+PRIMARY_SOURCE_TYPES = frozenset(set(_PRIMARY_SOURCE_TYPES) | {"regulator", "company", "official", "government", "official_regulator", "crypto_company", "exchange"})
+PRIMARY_ROLES = frozenset(set(_PRIMARY_ROLES) | {"primary_evidence"})
 
 SearchFn = Callable[[list[str], dict[str, Any]], list[dict[str, Any]]]
 
@@ -128,11 +134,12 @@ def build_event_search_queries(story: dict[str, Any], pack: dict[str, Any]) -> l
 
 
 def _classify_source_row(row: dict[str, Any]) -> str:
-    role = str(row.get("source_role") or "").strip().lower()
-    stype = str(row.get("source_type") or "").strip().lower()
-    if role in PRIMARY_ROLES or stype in PRIMARY_SOURCE_TYPES:
+    role = normalize_source_role(row.get("source_role"), source_type=row.get("source_type"))
+    stype = normalize_source_type(row.get("source_type"))
+    raw_type = str(row.get("source_type") or "").strip().lower()
+    if role in PRIMARY_ROLES or stype in PRIMARY_SOURCE_TYPES or raw_type in PRIMARY_SOURCE_TYPES:
         return "primary"
-    if role == "newsroom" or stype in {"newsroom", "news", "press"}:
+    if role == "discovery" or stype in {"crypto_publication", "financial_news", "newsroom", "news", "press"} or raw_type in {"newsroom", "news", "press"}:
         return "news"
     return "other"
 
@@ -154,7 +161,14 @@ def _merge_search_hits(
         if not url or url in by_url:
             continue
         row = dict(hit)
-        row.setdefault("source_role", hit.get("source_role") or "search_hit")
+        row["source_role"] = normalize_source_role(hit.get("source_role") or row.get("source_role") or "search_hit", source_type=hit.get("source_type"))
+        row["source_type"] = normalize_source_type(hit.get("source_type") or row.get("source_type"))
+        if hit.get("source_id"):
+            row["source_id"] = hit.get("source_id")
+        if hit.get("provenance"):
+            row["provenance"] = hit.get("provenance")
+        elif not row.get("provenance"):
+            row["provenance"] = "search_fn"
         row.setdefault("research_only", True)
         by_url[url] = row
         ordered.append(row)

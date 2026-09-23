@@ -121,6 +121,51 @@ class VersionStore:
         write_json_utf8(path, research)
         return path
 
+    def save_recovery_history(
+        self,
+        event_id: str,
+        history: list[dict[str, Any]],
+    ) -> Path:
+        """Persist internal QA recovery diagnostics separately from user output."""
+        dirs = self._ensure_dirs(event_id)
+        path = dirs["root"] / "recovery_history.json"
+        write_json_utf8(
+            path,
+            {
+                "event_id": event_id,
+                "schema_version": "qa-recovery-v1",
+                "history": history,
+            },
+        )
+        return path
+
+    def save_generation_diagnostics(
+        self,
+        event_id: str,
+        diagnostics: dict[str, Any],
+    ) -> Path:
+        """Persist redacted generation diagnostics without article content."""
+        dirs = self._ensure_dirs(event_id)
+        path = dirs["root"] / "generation_diagnostics.json"
+        write_json_utf8(
+            path,
+            {
+                "event_id": event_id,
+                "schema_version": "generation-diagnostics-v1",
+                "diagnostics": diagnostics,
+            },
+        )
+        return path
+
+    def get_recovery_history(self, event_id: str) -> dict[str, Any] | None:
+        path = self._ensure_dirs(event_id)["root"] / "recovery_history.json"
+        if not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     # FactBank Storage
 
     def save_factbank(

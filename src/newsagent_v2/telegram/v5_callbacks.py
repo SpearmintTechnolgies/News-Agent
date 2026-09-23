@@ -125,6 +125,12 @@ class V5CallbackHandler:
         if action not in valid_actions:
             return None
 
+        if not parts[1]:
+            return None
+
+        if action in {RUN_PREFIX, FOLLOW_PREFIX, IGNORE_PREFIX, SEENEXT_PREFIX} and len(parts) != 2:
+            return None
+
         result: dict[str, str] = {"action": action, "event_id": parts[1]}
         if len(parts) > 2:
             result["extra"] = parts[2]

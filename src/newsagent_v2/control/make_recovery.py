@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import asdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,6 +62,13 @@ from newsagent_v2.image.validate import file_sha256
 from newsagent_v2.telegram.cards import approval_caption
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.config import TelegramConfig
+from newsagent_v2.article.writer.v4.article_cost_telemetry import (
+    compute_cost_from_tokens,
+    extract_token_usage,
+    resolve_verified_kimi_pricing,
+)
+from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
+from newsagent_v2.wordpress.draft_store import WordPressDraftStore
 
 MAX_CANDIDATE_GENERATIONS = 3
 LOGO_PATH = Path(__file__).resolve().parents[3] / "brand" / "coinnetwork_logo.png"
@@ -112,6 +120,40 @@ _SECRET_KEY_FRAGMENTS = (
 def _sha256_payload(payload: Any) -> str:
     blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
+
+
+def _review_kimi_usage(
+    compiled: CompileResult,
+    writer_state: dict[str, Any] | None,
+    environ: dict[str, str],
+) -> dict[str, Any] | None:
+    state = writer_state or {}
+    diagnostic = compiled.diagnostic if isinstance(compiled.diagnostic, dict) else {}
+    raw = state.get("kimi_usage") or diagnostic.get("kimi_usage") or diagnostic.get("usage")
+    if not isinstance(raw, dict):
+        return None
+    tokens = extract_token_usage(raw)
+    total = tokens["total_tokens"]
+    pricing = resolve_verified_kimi_pricing(environ, usage=raw)
+    costs = compute_cost_from_tokens(
+        input_tokens=tokens["input_tokens"],
+        output_tokens=tokens["output_tokens"],
+        pricing=pricing,
+    )
+    cost = costs.get("article_generation_cost_usd")
+    cost_available = isinstance(cost, (int, float)) and not isinstance(cost, bool)
+    return {
+        "request_count": int(raw.get("request_count") or raw.get("generation_calls") or 0),
+        "prompt_tokens": tokens["input_tokens"],
+        "completion_tokens": tokens["output_tokens"],
+        "total_tokens": total,
+        "status": str(raw.get("status") or ("HIGH" if (total or 0) > 10000 else "NORMAL")),
+        "cost_usd": cost,
+        "cost_inr": costs.get("article_generation_cost_inr"),
+        "cost_available": cost_available,
+        "pricing_source": costs.get("pricing_source"),
+        "cost_display": str(cost) if cost_available else "unavailable",
+    }
 
 
 def _redact_secrets(value: Any) -> Any:
@@ -446,6 +488,12 @@ def qwen_compile_fn(environ: dict[str, str], *, http_post: Any = None) -> Callab
         kimi = KimiK25ProseRenderer(environ=fallback_env, allow_real_http=True, max_calls=2)
         compiled = compile_editorial_article(story, renderer=kimi)
         state["kimi_calls"] += int(kimi.generation_calls)
+        state["kimi_usage"] = {
+            **kimi.usage,
+            "generation_calls": kimi.generation_calls,
+            "provider": kimi.provider_name,
+            "model": kimi.model_name,
+        }
         compiled.notes = (
             compiled.notes
             + f" writer=kimi_k25 kimi_calls={kimi.generation_calls} total_kimi_calls={state['kimi_calls']}"
@@ -567,6 +615,8 @@ def run_make_top1(
     research_fn: Callable[..., Any] | None = None,
     max_generations: int = MAX_CANDIDATE_GENERATIONS,
     stories: list[dict[str, Any]] | None = None,
+    wordpress_lifecycle: WordPressDraftLifecycle | None = None,
+    wordpress_transport: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Shared /make Top-1 path: recover article, then Flux, then Telegram."""
     if stories is None:
@@ -594,6 +644,8 @@ def run_make_top1(
         writer_model=writer_model,
     )
     wp_on, wp_missing = wordpress_publish_enabled(environ)
+    if wordpress_lifecycle is not None:
+        wp_on, wp_missing = True, []
     telemetry = {
         "writer": writer_label,
         "kimi_calls": int((writer_state or {}).get("kimi_calls") or 0),
@@ -638,6 +690,7 @@ def run_make_top1(
     story["article"] = article
     story["qa_result"] = qa
     story["qa_publishable"] = True
+    story["kimi_usage"] = _review_kimi_usage(compiled, writer_state, environ)
     image = (image_fn or build_flux_make_image_fn(environ))(story)
     telemetry["image_request_count"] = int(image.get("image_request_count") or 0)
     batch_id = f"make-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
@@ -662,6 +715,7 @@ def run_make_top1(
         "wordpress_disabled": not wp_on,
         "publish_on_approve": wp_on,
         "article_sha256": _sha256_payload(article),
+        "kimi_usage": story.get("kimi_usage"),
     }
     if not image.get("success"):
         persist_story_artifacts(store=store, batch_id=batch_id, row=row)
@@ -682,6 +736,39 @@ def run_make_top1(
 
     row["final_image_path"] = image.get("final_path")
     row["deliverable"] = True
+    if wp_on or wordpress_lifecycle is not None:
+        if wordpress_lifecycle is None:
+            from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+            from newsagent_v2.wordpress.config import load_wordpress_config
+
+            wordpress_lifecycle = WordPressDraftLifecycle(
+                config=load_wordpress_config(environ),
+                transport=wordpress_transport or build_live_wordpress_transport(),
+                store=WordPressDraftStore(),
+            )
+        article_input = story.get("article_input") if isinstance(story.get("article_input"), dict) else {}
+        categories = article.get("categories")
+        if not isinstance(categories, list):
+            categories = [article.get("category")] if article.get("category") else []
+        tags = article.get("tags") if isinstance(article.get("tags"), list) else []
+        draft = wordpress_lifecycle.create_or_update_draft(
+            event_id=event_id,
+            article=article,
+            article_version="v1",
+            image_path=str(image.get("final_path")) if image.get("final_path") else None,
+            image_version="v1",
+            categories=[str(item) for item in categories if item],
+            tags=[str(item) for item in tags if item],
+            evidence=article_input.get("evidence") if isinstance(article_input.get("evidence"), list) else None,
+            topic=str(article.get("category") or story.get("topic") or ""),
+        )
+        draft_data = asdict(draft)
+        row["wordpress_draft"] = draft_data
+        row["wp_post_id"] = draft.wp_post_id
+        row["wp_url"] = draft.wp_url
+        row["categories"] = [str(item) for item in categories if item]
+        row["tags"] = [str(item) for item in tags if item]
+        row["seo_status"] = draft.seo_validation.status if draft.seo_validation else "unavailable"
     persist_story_artifacts(store=store, batch_id=batch_id, row=row)
     extra = store.read_story(batch_id, event_id) or {}
     extra.update(

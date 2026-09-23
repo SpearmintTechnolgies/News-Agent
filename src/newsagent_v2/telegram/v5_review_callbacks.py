@@ -17,6 +17,8 @@ from newsagent_v2.v5_generation.persistent_review import (
 from newsagent_v2.v5_generation.persistent_store import PersistentV5Store
 from newsagent_v2.v5_generation.revision_controller import RevisionController
 from newsagent_v2.v5_generation.version_store import VersionStore
+from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
+from newsagent_v2.publication.master_index import MasterIndexStore
 
 DATA_ROOT = Path("./data/v5_state")
 
@@ -30,11 +32,17 @@ class V5ReviewCallbackHandler:
         revision_controller: RevisionController,
         version_store: VersionStore,
         persistent_store: PersistentV5Store | None = None,
+        wordpress_lifecycle: WordPressDraftLifecycle | None = None,
+        master_index: MasterIndexStore | None = None,
+        environ: dict[str, str] | None = None,
     ) -> None:
         self.review_store = review_store
         self.revision_controller = revision_controller
         self.version_store = version_store
         self.persistent_store = persistent_store
+        self.wordpress_lifecycle = wordpress_lifecycle
+        self.master_index = master_index or MasterIndexStore()
+        self.environ = environ or {}
     
     def parse_callback(self, data: str) -> dict[str, str] | None:
         """Parse callback data: action:event_id:version[:extra]"""
@@ -52,7 +60,7 @@ class V5ReviewCallbackHandler:
             "rate_article", "rate_image",  # Show rating UI
             "save_rate_article", "save_rate_image",  # Save rating
             "feedback_article", "feedback_image",  # Enter feedback mode
-            "revise", "approve", "reject", "publish",
+            "revise", "edit", "approve", "reject", "publish", "unpublish",
             "view_full",  # View full article (idempotent/read-only)
         }
         
@@ -249,6 +257,131 @@ class V5ReviewCallbackHandler:
             "action": "feedback_cancelled",
             "message": "❌ Feedback cancelled.",
         }
+
+    def handle_edit_start(self, event_id: str, version: str, chat_id: str) -> dict[str, Any]:
+        """Collect one precise edit instruction for the current article."""
+        if self.persistent_store and chat_id:
+            self.persistent_store.set_awaiting_feedback(
+                chat_id=chat_id, event_id=event_id, artifact_type="edit", version=version,
+            )
+        return {
+            "ok": True, "action": "edit_mode", "event_id": event_id, "version": version,
+            "awaiting_edit": True,
+            "message": "✍️ Tell me the exact change to make to the current article.",
+        }
+
+    def handle_edit_instruction(self, event_id: str, version: str, instruction: str) -> dict[str, Any]:
+        """Apply a deterministic, grounded edit and update the existing WP draft."""
+        article_data = self.version_store.get_article(event_id, version)
+        if not article_data:
+            return {"ok": False, "reason": "article_not_found", "message": "Current article was not found."}
+        article = dict(article_data.get("article") or {})
+        original_body = str(article.get("article_body") or "")
+        updated = self._apply_precise_edit(article, instruction)
+        if updated is None:
+            return {"ok": False, "reason": "unsupported_edit", "message": "That edit is not a supported precise change or is not grounded in the current article."}
+
+        from newsagent_v2.article.qa.runner import run_article_qa
+        article_input = (article_data.get("metadata") or {}).get("article_input") or article.get("article_input") or {}
+        qa = run_article_qa(updated, article_input, skip_copyright_similarity=True)
+        if not qa.get("qa_publishable"):
+            return {"ok": False, "reason": "edit_qa_failed", "message": "The requested edit failed article QA/grounding and was not saved."}
+
+        new_version = self.revision_controller._calculate_next_version(version)
+        import hashlib
+        article_hash = hashlib.sha256(str(updated.get("article_body") or "").encode("utf-8")).hexdigest()
+        self.version_store.save_article(
+            event_id, new_version, updated, article_hash, qa,
+            {"article_input": article_input, "edit_instruction": instruction, "edited_from": version},
+        )
+
+        draft_data = self._update_existing_draft(event_id, updated, new_version, article_input)
+        if not draft_data.get("ok"):
+            return draft_data
+        if draft_data.get("seo_status") != "PASS":
+            return {"ok": False, "reason": "edit_seo_failed", "message": "The requested edit did not pass SEO validation and was not sent for review."}
+        old_metadata = article_data.get("metadata") or {}
+        draft_data["text_usage"] = old_metadata.get("text_usage") or {}
+        draft_data["image_usage"] = old_metadata.get("image_usage") or {}
+        return {
+            "ok": True, "action": "edit_complete", "event_id": event_id,
+            "article_version": new_version, "image_version": self.version_store.get_current_version(event_id, "image"),
+            "canonical_title": updated.get("headline") or "Unknown", "send_review_package": True,
+            "wordpress_draft": draft_data, "text_usage": draft_data.get("text_usage") or {},
+            "image_usage": draft_data.get("image_usage") or {},
+        }
+
+    def _apply_precise_edit(self, article: dict[str, Any], instruction: str) -> dict[str, Any] | None:
+        import re
+        text = instruction.strip()
+        body = str(article.get("article_body") or "")
+        candidate = dict(article)
+        match = re.match(r"change\s+the\s+headline\s+to\s*[:\-]?\s*(.+)$", text, re.I)
+        if match:
+            value = match.group(1).strip().strip('"')
+            if value and self._grounded_edit_text(value, body):
+                candidate["headline"] = value
+                return candidate
+            return None
+        match = re.match(r"replace\s+(.+?)\s+with\s+(.+)$", text, re.I)
+        if match:
+            old, new = match.group(1).strip().strip('"'), match.group(2).strip().strip('"')
+            if old and old in body and self._grounded_edit_text(new, body):
+                candidate["article_body"] = body.replace(old, new, 1)
+                return candidate
+            return None
+        match = re.match(r"change\s+the\s+second\s+sentence\s+of\s+the\s+intro\s+to\s*[:\-]?\s*(.+)$", text, re.I)
+        if match:
+            paragraphs = body.split("\n\n")
+            sentences = re.split(r"(?<=[.!?])\s+", paragraphs[0].strip())
+            value = match.group(1).strip().strip('"')
+            if len(sentences) >= 2 and value and self._grounded_edit_text(value, body):
+                sentences[1] = value
+                paragraphs[0] = " ".join(sentences)
+                candidate["article_body"] = "\n\n".join(paragraphs)
+                return candidate
+            return None
+        match = re.match(r"remove\s+the\s+last\s+sentence\s+from\s+paragraph\s+(\d+)", text, re.I)
+        if match:
+            index = int(match.group(1)) - 1
+            paragraphs = body.split("\n\n")
+            if 0 <= index < len(paragraphs):
+                sentences = re.split(r"(?<=[.!?])\s+", paragraphs[index].strip())
+                if len(sentences) > 1:
+                    paragraphs[index] = " ".join(sentences[:-1]).strip()
+                    candidate["article_body"] = "\n\n".join(paragraphs)
+                    return candidate
+        return None
+
+    @staticmethod
+    def _grounded_edit_text(value: str, body: str) -> bool:
+        words = [word.lower() for word in value.split() if len(word) > 2]
+        source = body.lower()
+        return bool(words) and all(word in source for word in words)
+
+    def _update_existing_draft(self, event_id: str, article: dict[str, Any], version: str, article_input: dict[str, Any]) -> dict[str, Any]:
+        if self.wordpress_lifecycle is None:
+            return {"ok": False, "reason": "wordpress_not_configured", "message": "WordPress draft lifecycle is not configured."}
+        image_version = self.version_store.get_current_version(event_id, "image")
+        image_path = self.version_store.get_image_path(event_id, image_version) if image_version else None
+        categories = article.get("categories") if isinstance(article.get("categories"), list) else []
+        if not categories and article.get("category"):
+            categories = [article["category"]]
+        tags = article.get("tags") if isinstance(article.get("tags"), list) else []
+        result = self.wordpress_lifecycle.create_or_update_draft(
+            event_id=event_id, article=article, article_version=version,
+            image_path=str(image_path) if image_path else None, image_version=image_version,
+            categories=[str(item) for item in categories], tags=[str(item) for item in tags],
+            evidence=article_input.get("evidence") if isinstance(article_input, dict) else None,
+            topic=str(article.get("category") or ""),
+        )
+        from dataclasses import asdict
+        data = asdict(result)
+        data["ok"] = result.ok
+        data["seo_status"] = result.seo_validation.status if result.seo_validation else "unavailable"
+        data["categories"] = [str(item) for item in categories]
+        data["tags"] = [str(item) for item in tags]
+        return data
     
     def handle_revise(
         self,
@@ -440,7 +573,7 @@ class V5ReviewCallbackHandler:
         
         # Check WordPress preflight
         from newsagent_v2.v5_generation.provider_preflight import ProviderPreflight
-        preflight = ProviderPreflight()
+        preflight = ProviderPreflight(environ=self.environ or None)
         wp_status = preflight.check_wordpress()
         
         if wp_status.status != "READY":
@@ -470,65 +603,96 @@ class V5ReviewCallbackHandler:
         
         # PUBLISH TO WORDPRESS
         try:
-            from newsagent_v2.publish.wordpress import WordPressPublisher
-            
-            # Build publication package
-            package = {
-                "event_id": event_id,
-                "article_version": approval.article_version,
-                "article_hash": approval.article_hash,
-                "image_version": approval.image_version,
-                "image_hash": approval.image_hash,
-            }
-            
-            # Get article content
+            if self.wordpress_lifecycle is not None:
+                draft_result = self.wordpress_lifecycle.publish_draft(event_id)
+                if not draft_result.ok:
+                    return {"ok": False, "reason": "publish_failed", "message": draft_result.error or "WordPress publish failed"}
+                self._save_publication(event_id, draft_result.wp_url, str(draft_result.wp_post_id))
+                self.master_index.record_publication(
+                    event_id=event_id, canonical_url=draft_result.wp_url or "",
+                    wp_post_id=draft_result.wp_post_id,
+                    article_version=approval.article_version,
+                    image_version=approval.image_version,
+                )
+                return {"ok": True, "action": "publish", "event_id": event_id,
+                        "url": draft_result.wp_url, "post_id": draft_result.wp_post_id,
+                        "message": f"✅ Published\n{draft_result.wp_url}"}
+
+            import os
+            from newsagent_v2.wordpress.adapter import (
+                build_live_wordpress_transport,
+                publish_frozen_story,
+            )
+            from newsagent_v2.wordpress.config import load_wordpress_config
+
+            # Load the exact frozen, approved artifacts.
             article = self.version_store.get_article(event_id, approval.article_version)
             if not article:
                 return {"ok": False, "reason": "article_not_found"}
-            
-            # Initialize WordPress publisher
-            wp = WordPressPublisher()
-            
-            # Publish
-            result = wp.publish_article(
-                title=article.get("title", ""),
-                content=article.get("article_body", ""),
-                featured_image=self.version_store.get_image_path(event_id, approval.image_version) if approval.image_version else None,
+
+            image_path = (
+                self.version_store.get_image_path(event_id, approval.image_version)
+                if approval.image_version
+                else None
             )
-            
+
+            # Real WordPress REST configuration + transport.
+            config = load_wordpress_config(dict(os.environ))
+            transport = build_live_wordpress_transport()
+
+            # SAFETY: integration testing creates a WordPress DRAFT only.
+            result = publish_frozen_story(
+                config=config,
+                article=article,
+                image_path=image_path,
+                transport=transport,
+                status="draft",
+            )
+
             if result.get("ok"):
-                # Save publication record
-                self._save_publication(event_id, result.get("url"), result.get("post_id"))
-                
+                self._save_publication(
+                    event_id,
+                    result.get("url"),
+                    result.get("post_id"),
+                )
                 return {
                     "ok": True,
                     "action": "publish",
                     "event_id": event_id,
                     "url": result.get("url"),
                     "post_id": result.get("post_id"),
-                    "message": f"✅ Published!\n{result.get('url')}",
+                    "message": f"WordPress draft created.\n{result.get('url')}",
                 }
-            else:
-                return {
-                    "ok": False,
-                    "reason": "publish_failed",
-                    "message": f"WordPress error: {result.get('error')}",
-                }
-                
-        except ImportError:
-            # WordPress publisher not available
+
             return {
                 "ok": False,
-                "reason": "wordpress_not_available",
-                "message": "WordPress publisher not available. Package preserved.",
+                "reason": "publish_failed",
+                "message": f"WordPress error: {result.get('error')}",
             }
+
         except Exception as e:
             return {
                 "ok": False,
                 "reason": "publish_exception",
-                "message": f"Publish failed: {str(e)[:100]}",
+                "message": f"WordPress draft failed: {str(e)[:100]}",
             }
-    
+
+    def handle_unpublish(self, event_id: str) -> dict[str, Any]:
+        """Revert a published post and remove it from internal-link selection."""
+        if self.wordpress_lifecycle is None:
+            return {"ok": False, "reason": "wordpress_not_configured"}
+        result = self.wordpress_lifecycle.unpublish_draft(event_id)
+        if not result.ok:
+            return {"ok": False, "reason": "unpublish_failed", "message": result.error or "Unpublish failed"}
+        self._remove_publication(event_id)
+        return {
+            "ok": True,
+            "action": "unpublish",
+            "event_id": event_id,
+            "post_id": result.wp_post_id,
+            "status": "draft",
+        }
+
     def _get_publication(self, event_id: str) -> dict[str, Any] | None:
         """Check if already published."""
         # Load from persistent store
@@ -540,6 +704,9 @@ class V5ReviewCallbackHandler:
             except Exception:
                 return None
         return None
+
+    def _remove_publication(self, event_id: str) -> None:
+        self.master_index.remove_publication(event_id)
     
     def _save_publication(self, event_id: str, url: str, post_id: str) -> None:
         """Save publication record."""
@@ -582,12 +749,16 @@ class V5ReviewCallbackHandler:
             return self.handle_feedback_cancel(event_id, chat_id)
         elif action == "revise":
             return self.handle_revise(event_id, version, job_id)
+        elif action == "edit":
+            return self.handle_edit_start(event_id, version, chat_id)
         elif action == "approve":
             return self.handle_approve(event_id, reviewer, job_id)
         elif action == "reject":
             return self.handle_reject(event_id, reviewer)
         elif action == "publish":
             return self.handle_publish(event_id, reviewer, job_id)
+        elif action == "unpublish":
+            return self.handle_unpublish(event_id)
         elif action == "view_full":
             return self.handle_view_full(event_id, version, artifact_type=extra or "article")
         
@@ -654,6 +825,10 @@ class V5ReviewCallbackHandler:
         event_id = awaiting["event_id"]
         artifact_type = awaiting["artifact_type"]
         version = awaiting["version"]
+
+        if artifact_type == "edit":
+            self.persistent_store.clear_awaiting_feedback(chat_id)
+            return self.handle_edit_instruction(event_id, version, text)
         
         # Capture the feedback
         result = self.capture_feedback(

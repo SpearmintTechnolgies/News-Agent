@@ -195,11 +195,17 @@ def run_v4_final_pipeline(
 
         discovered = (discover_fn or discover_ranked_top5)()
         ranked = list(discovered.get("ranked_clusters") or [])
+        readiness_audit = discovered.get("article_readiness")
+        readiness_audit = readiness_audit if isinstance(readiness_audit, dict) else {}
         stories_collected = int(discovered.get("collected") or 0)
         stories_after_gates = stories_collected - len(discovered.get("rejected") or [])
         scan_limit = resolve_candidate_scan_limit(env)
         stories = [
-            cluster_to_story(cluster, original_rank=i)
+            cluster_to_story(
+                cluster,
+                original_rank=i,
+                article_readiness=readiness_audit.get(cluster.event_id),
+            )
             for i, cluster in enumerate(ranked[:scan_limit], start=1)
         ]
 
@@ -240,7 +246,8 @@ def run_v4_final_pipeline(
                 break
             event_id = str(story.get("event_id") or f"rank-{index}")
             try:
-                researched = research_event(story)
+                from newsagent_v2.v5_generation.source_expansion_adapter import default_search_fn_for_story
+                researched = research_event(story, search_fn=default_search_fn_for_story(story))
                 pack = researched.pack
                 bank = build_fact_bank(event_id=event_id, pack=pack)
                 base_depth = assess_evidence_capacity(bank, research=researched)

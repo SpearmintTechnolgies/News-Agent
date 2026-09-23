@@ -1,8 +1,8 @@
-"""V4 compile: Evidence Packet → free writer → verify → repair → full QA."""
+﻿"""V4 compile: Evidence Packet â†’ free writer â†’ verify â†’ repair â†’ full QA."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -15,6 +15,7 @@ from newsagent_v2.article.writer.controlled.capacity import article_input_for_le
 from newsagent_v2.article.writer.controlled.failures import classify_qa_failure
 from newsagent_v2.article.writer.evidence_ledger import build_evidence_ledgers
 from newsagent_v2.article.writer.v4.assemble import assemble_v4_article
+from newsagent_v2.article.writer.v4.sanitize import sanitize_editorial_artifacts
 from newsagent_v2.article.writer.v4.evidence_depth import (
     ARTICLE_FULL,
     check_v4_article_depth,
@@ -77,6 +78,7 @@ class V4CompileResult:
     depth: dict[str, Any] = field(default_factory=dict)
     factbank: dict[str, Any] = field(default_factory=dict)
     research: dict[str, Any] = field(default_factory=dict)
+    kimi_usage: dict[str, Any] | None = None  # Structured Kimi usage summary
 
 
 def compile_v4_article(
@@ -104,7 +106,8 @@ def compile_v4_article(
                     or working.get("event_id")
                     or f"rank-{rank}"
                 )
-            researched = research_event(working)
+            from newsagent_v2.v5_generation.source_expansion_adapter import default_search_fn_for_story
+            researched = research_event(working, search_fn=default_search_fn_for_story(working))
             pack = researched.pack
             working = researched.story if isinstance(researched.story, dict) else working
             research_meta = researched.as_dict()
@@ -148,7 +151,7 @@ def compile_v4_article(
                 source = unit.get("source", "").strip()
                 if source:
                     source_names.append(source)
-        
+
         packet = fact_bank_to_writer_packet(
             bank,
             story_topic=str(working.get("representative_title") or ""),
@@ -385,18 +388,35 @@ def compile_v4_article(
     # Legacy expansion append path removed from active V4 success path.
     # Fresh regeneration replaces the whole article when underproduced.
 
+    assemble_input = dict(pack)
+    if depth is not None:
+        assemble_input["article_type"] = depth.article_type
     article = assemble_v4_article(
         event_id=event_id,
         native=expanded,
         ledgers=ledgers,
-        article_input=pack,
+        article_input=assemble_input,
         report=report3,
     )
+    article = sanitize_editorial_artifacts(article)
     qa_mode = depth.qa_article_mode if depth else "normal"
+    # Keep production/demo hard minimum (normally 500). Never replace it with
+    # depth.recommended_word_min — that previously let ~284-word articles QA-pass.
+    _base_depth_policy = active_normal_depth_policy()
+    qa_depth_policy = (
+        replace(
+            _base_depth_policy,
+            target_min_words=depth.recommended_word_min,
+            target_max_words=depth.recommended_word_max,
+        )
+        if depth
+        else _base_depth_policy
+    )
     qa = run_article_qa(
         article,
         pack,
         article_mode=qa_mode,
+        depth_policy=qa_depth_policy,
         skip_copyright_similarity=True,
     )
     # V4 type-aware depth gate (absolute 120; FULL 250; STANDARD 150; LIMITED 120).
@@ -581,6 +601,17 @@ def compile_v4_article(
             article=article,
             qa=qa,
         )
+    # Build Kimi usage summary if Kimi was the provider
+    kimi_usage = None
+    if str(rendered.provider or "").lower() == "kimi" and event_id:
+        from newsagent_v2.providers.kimi_budget import get_budget_manager
+
+        budget_manager = get_budget_manager()
+        kimi_usage = budget_manager.build_story_usage_summary(event_id)
+        if "error" not in kimi_usage:
+            if 35 < len(kimi_usage.get("percent_used", "0%")) < 50:  # >10K starts HIGH
+                pass  # status already set by build_story_usage_summary
+
     return V4CompileResult(
         ok=publishable,
         event_id=event_id,
@@ -615,4 +646,5 @@ def compile_v4_article(
         depth=depth_dict,
         factbank=factbank_meta,
         research=research_meta,
+        kimi_usage=kimi_usage,
     )

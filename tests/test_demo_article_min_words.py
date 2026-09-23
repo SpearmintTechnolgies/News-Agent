@@ -57,8 +57,8 @@ class DemoArticleMinWordsTests(unittest.TestCase):
                 os.environ[key] = value
 
     def test_production_constant_unchanged(self) -> None:
-        self.assertEqual(NORMAL_ARTICLE_POLICY.hard_minimum_words, 350)
-        self.assertEqual(PRODUCTION_HARD_MINIMUM_WORDS, 350)
+        self.assertEqual(NORMAL_ARTICLE_POLICY.hard_minimum_words, 600)
+        self.assertEqual(PRODUCTION_HARD_MINIMUM_WORDS, 600)
 
     def test_119_words_fails_length_under_demo_120(self) -> None:
         os.environ["ARTICLE_MIN_WORDS"] = "120"
