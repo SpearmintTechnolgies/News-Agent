@@ -16,7 +16,8 @@ _STRONG_CHROME_RE = re.compile(
     r"produced in accordance with|editorial (policy|guidelines|standards)|"
     r"(this|the) (content|article) (is|was) (for informational|not intended)|"
     r"not (financial|investment|trading) advice|do your own research|"
-    r"the views (and opinions )?expressed|^disclaimer:|^disclosure:|all rights reserved|"
+    r"the views (and opinions )?expressed|^disclaimer\s*:|^disclosure\s*:|all rights reserved|"
+    r"ai[- ]generated (content|output)|readers are advised to|do not warrant|disclaim any liability|"
     r"this (article|story|post) (is|was) posted in|check it out for more|"
     r"^transparency note|(produced|written|generated) with the (assistance|help|use) of (ai|artificial intelligence)|"
     r"^(written|edited|reviewed|fact[- ]checked|reporting) by\b|"
@@ -61,6 +62,7 @@ _TAIL_MARKER_RE = re.compile(
 _SENTENCE_END_RE = re.compile(r"[.!?…:\"”’)\]]\s*$")
 _MD_LINK_RE = re.compile(r"!?\[([^\]]*)\]\(([^)\s]+)[^)]*\)")
 _MD_PREFIX_RE = re.compile(r"^\s*(?:[#>*\-+]+|\d+[.)])\s*")
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]{0,200}>")
 _WS_RE = re.compile(r"\s+")
 
 
@@ -68,6 +70,7 @@ def strip_markdown(text: str) -> tuple[str, list[str]]:
     """Return plain text and the link targets that were embedded in it."""
     links = [m.group(2) for m in _MD_LINK_RE.finditer(text)]
     plain = _MD_LINK_RE.sub(lambda m: m.group(1), text)
+    plain = _HTML_TAG_RE.sub("", plain)
     plain = plain.replace("**", "").replace("__", "")
     plain = _MD_PREFIX_RE.sub("", plain)
     plain = re.sub(r"(?<!\w)[*_`](?!\s)|(?<!\s)[*_`](?!\w)", "", plain)
