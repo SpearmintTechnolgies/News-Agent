@@ -85,6 +85,14 @@ def _is_titlecase_list(text: str) -> bool:
     return capped / len(tokens) >= 0.7 and not _SENTENCE_END_RE.search(text)
 
 
+def has_chrome_phrase(text: str) -> bool:
+    """Boilerplate wording only, without the length/shape heuristics used for scraped blocks."""
+    words = text.split()
+    return bool(
+        _STRONG_CHROME_RE.search(text) or (len(words) <= _WEAK_MAX_WORDS and _WEAK_CHROME_RE.search(text))
+    )
+
+
 def is_chrome(paragraph: str) -> bool:
     text = paragraph.strip()
     if not text:

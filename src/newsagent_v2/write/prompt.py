@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from newsagent_v2.facts.bank import Fact, FactBank, Quote
+from newsagent_v2.research.dossier import display_publisher
 
 BODY_MIN_WORDS = 900
 BODY_ASK_WORDS = 1000
@@ -21,7 +22,9 @@ GROUNDING
 - Facts reported by only one outlet must be attributed in the sentence ("according to CNBC", "Reuters reported"). Facts with corroboration 2+ may be stated plainly.
 - Opinions, forecasts and price targets are always attributed to the person or firm that made them.
 - If facts conflict, say so and attribute each version.
-- Paraphrase. Never copy more than eight consecutive words from a fact, except names, titles, figures and direct quotes.
+- Facts are reporter's notes, not sentences to reuse. Rewrite each one in your own words: change the sentence structure and the verbs,
+  combine related facts, and lead with what matters. Never copy more than eight consecutive words from a fact, except names, official
+  titles, figures and direct quotes. Copied sentences are rejected by the copy checker.
 
 QUOTES
 - Use quotation marks only for text copied exactly, character for character, from the QUOTES list, and cite its Q ID in that paragraph.
@@ -68,7 +71,11 @@ Use four to six sections. "quotes" may be an empty list."""
 
 
 def fact_payload(fact: Fact) -> dict[str, Any]:
-    out: dict[str, Any] = {"id": fact.id, "text": fact.text, "reported_by": sorted(set(fact.publishers))}
+    out: dict[str, Any] = {
+        "id": fact.id,
+        "text": fact.text,
+        "reported_by": sorted({display_publisher(p) for p in fact.publishers}),
+    }
     if fact.corroboration >= 2:
         out["corroboration"] = fact.corroboration
     if fact.primary:
@@ -79,7 +86,7 @@ def fact_payload(fact: Fact) -> dict[str, Any]:
 
 
 def quote_payload(qid: str, quote: Quote) -> dict[str, Any]:
-    return {"id": qid, "speaker": quote.speaker, "text": quote.text, "reported_by": quote.publisher}
+    return {"id": qid, "speaker": quote.speaker, "text": quote.text, "reported_by": display_publisher(quote.publisher)}
 
 
 def select_facts(bank: FactBank, limit: int = 140) -> list[Fact]:

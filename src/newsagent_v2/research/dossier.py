@@ -23,6 +23,18 @@ def host_of(url: str) -> str:
         return ""
 
 
+def display_publisher(name: str) -> str:
+    """Readable outlet name for prose: "finance.biggo.com" -> "Biggo", "CryptoTicker.io" -> "CryptoTicker"."""
+    name = (name or "").strip()
+    labels = name.lower().removeprefix("www.").split(".")
+    if " " in name or len(labels) < 2 or not all(labels):
+        return name
+    original = name.split(".")
+    brand_index = len(labels) - 3 if len(labels) >= 3 and labels[-2] in {"co", "com", "org", "gov"} else len(labels) - 2
+    brand = original[max(brand_index, 0)]
+    return brand if any(c.isupper() for c in brand) else brand.capitalize()
+
+
 @dataclass
 class SourceDoc:
     url: str
