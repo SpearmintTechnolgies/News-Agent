@@ -19,6 +19,7 @@ Generation support via GenerationWorker with RunStoryAdapter.
 from __future__ import annotations
 
 import atexit
+import html
 import os
 import signal
 import sys
@@ -26,8 +27,19 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, "src")
+
+# Load project .env so the bot can be started without exporting vars in the shell.
+try:
+    from dotenv import load_dotenv
+
+    _env_path = Path(__file__).resolve().parent / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path, override=True)
+except ImportError:
+    pass
 
 from newsagent_v2.approval.store import ApprovalStore
 from newsagent_v2.telegram.singleton import (
@@ -70,7 +82,12 @@ V5_STATE_DIR = Path("./data/v5_state")
 
 def log_event(event: str) -> None:
     ts = datetime.now().isoformat()
-    print(f"[{ts}] {event}", flush=True)
+    line = f"[{ts}] {event}"
+    try:
+        print(line, flush=True)
+    except UnicodeEncodeError:
+        # Windows cp1252 consoles choke on arrows/emoji in log lines.
+        print(line.encode("ascii", "replace").decode("ascii"), flush=True)
 
 
 def load_persisted_offset() -> int | None:
@@ -118,6 +135,64 @@ def safe_get_message_text(update: dict) -> str:
         return (msg.get("text", "") or "").strip()
     except Exception:
         return ""
+
+
+_CHAT_SYSTEM_PROMPT = (
+    "You are the News Agent Telegram assistant for CoinNetwork.\n"
+    "Be brief, friendly, and practical (2–6 short sentences).\n"
+    "You help operate this bot: /make discovers stories; then RUN STORY → "
+    "GENERATE NOW → APPROVE → PUBLISH.\n"
+    "Answer normal chat questions normally.\n"
+    "Do not invent live news facts or claim a story was generated unless told.\n"
+    "Plain text only — no markdown fences, no HTML tags."
+)
+
+
+def hermes_chat_reply(user_text: str, environ: dict[str, str] | None = None) -> str:
+    """Ask Hermes/Kimi to interpret a free-form Telegram message."""
+    import requests
+
+    env = environ if environ is not None else os.environ
+    key = str(env.get("NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY") or "").strip()
+    if not key:
+        return "Writer chat is not configured (missing Hermes API key). Send /make or /help."
+
+    base = str(
+        env.get("NEWSAGENT_V2_V4_KIMI_BASE_URL")
+        or "https://gemini.warriorfinance.online/v1"
+    ).rstrip("/")
+    model = str(env.get("NEWSAGENT_V2_V4_WRITER_MODEL") or "moonshotai.kimi-k3").strip()
+    url = f"{base}/chat/completions"
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": _CHAT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_text[:2000]},
+        ],
+        "max_tokens": 350,
+        "temperature": 0.4,
+    }
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    response = requests.post(url, headers=headers, json=body, timeout=60)
+    if response.status_code >= 400:
+        raise RuntimeError(f"Hermes HTTP {response.status_code}")
+    payload = response.json()
+    choices = payload.get("choices") or []
+    if not choices or not isinstance(choices[0], dict):
+        raise RuntimeError("Hermes returned no choices")
+    message = choices[0].get("message") or {}
+    content = str(message.get("content") or "").strip()
+    if not content:
+        raise RuntimeError("Hermes returned empty content")
+    # Strip common model fences; Telegram uses HTML parse mode.
+    if content.startswith("```"):
+        content = content.strip("`")
+        if content.lower().startswith("text"):
+            content = content[4:].lstrip()
+    return content[:3500]
 
 
 def safe_get_callback_data(update: dict) -> str | None:
@@ -503,7 +578,12 @@ def execute_callback(
             log_event(f"[CALLBACK] [TELEGRAM] cards_sent={cards_sent}")
             
             # Send navigation if more exist
-            total = len(discovery.get_ranked_events() or [])
+            ranked = []
+            if hasattr(discovery, "get_ranked_events"):
+                ranked = discovery.get_ranked_events() or []
+            elif hasattr(discovery, "_ranked_events"):
+                ranked = list(getattr(discovery, "_ranked_events") or [])
+            total = len(ranked)
             if offset + len(events_to_send) < total:
                 client.send_message(
                     chat_id=config.test_chat_id,
@@ -635,10 +715,37 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
     else:
         log_event(f"[PREFLIGHT] Writer: {writer_ready.status}, Image: {image_ready.status}")
     
-    # Initialize version/approval stores for adapter
+    # Initialize version/approval stores for adapter.
+    # MUST match GenerationWorker default (output/v5_stories). A separate
+    # data/v5_versions root made APPROVE/PUBLISH unable to find frozen articles.
     from pathlib import Path as _Path
-    runtime.version_store = VersionStore(root=_Path("./data/v5_versions"))
+    from newsagent_v2.v5_generation.version_store import DEFAULT_STORE_ROOT
+
+    version_root_env = str(os.environ.get("V5_VERSION_STORE_ROOT") or "").strip()
+    version_root = _Path(version_root_env) if version_root_env else DEFAULT_STORE_ROOT
+    runtime.version_store = VersionStore(root=version_root)
     runtime.approval_store = ApprovalStore(root=_Path("./data/v5_approval"))
+    log_event(f"[STORE] version_store={runtime.version_store.root}")
+
+    # Wire WordPress draft lifecycle when credentials are present so GENERATE
+    # creates a draft and PUBLISH can promote it.
+    wordpress_lifecycle = None
+    try:
+        from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+        from newsagent_v2.wordpress.config import load_wordpress_config
+        from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
+
+        wp_status = runtime.preflight.check_wordpress()
+        if wp_status.status == "READY":
+            wordpress_lifecycle = WordPressDraftLifecycle(
+                config=load_wordpress_config(os.environ),
+                transport=build_live_wordpress_transport(),
+            )
+            log_event("[PREFLIGHT] WordPress draft lifecycle READY")
+        else:
+            log_event(f"[PREFLIGHT] WordPress: {wp_status.status} (publish disabled)")
+    except Exception as exc:  # noqa: BLE001 — keep bot up if WP wiring fails
+        log_event(f"[PREFLIGHT] WordPress lifecycle unavailable: {exc}")
     
     # Create the adapter
     runtime._controlled_e2e = os.environ.get("NEWSAGENT_V5_CONTROLLED_E2E", "").lower() == "true"
@@ -661,6 +768,8 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
         revision_controller=runtime.revision_controller,
         version_store=runtime.version_store,
         persistent_store=runtime.persistent_store,
+        wordpress_lifecycle=wordpress_lifecycle,
+        environ=os.environ,
     )
     
     # Run reconciliation for any interrupted jobs
@@ -675,6 +784,7 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
         config=runtime.config,
         persistent_store=runtime.persistent_store,
         environ=os.environ,
+        wordpress_lifecycle=wordpress_lifecycle,
     )
     
     runtime.event_store = EventStore(root=_Path("./data/events"))
@@ -736,12 +846,12 @@ def main() -> int:
     log_event("=" * 60)
     log_event("")
     log_event("Listening for commands...")
-    log_event("  - /make  → Run V5 discovery")
+    log_event("  - /make  -> Run V5 discovery")
     log_event("  - [Buttons] RUN/FOLLOW/IGNORE/SEE NEXT")
     if runtime._controlled_e2e:
         log_event("  - [E2E MODE] RUN STORY does NOT auto-generate")
     else:
-        log_event("  - RUN STORY → Async generation")
+        log_event("  - RUN STORY -> Async generation")
     log_event("Press Ctrl+C to stop")
     log_event(f"offset_before={runtime.offset}")
     log_event("")
@@ -839,8 +949,8 @@ def main() -> int:
                             if feedback_result:
                                 log_event(f"[FEEDBACK] captured for event={feedback_result.get('event_id')}")
                                 # Send confirmation
-                                client.send_message(
-                                    chat_id=config.test_chat_id,
+                                runtime.client.send_message(
+                                    chat_id=runtime.config.test_chat_id,
                                     text=feedback_result.get("message", "✅ Feedback saved."),
                                     parse_mode="HTML",
                                 )
@@ -848,9 +958,28 @@ def main() -> int:
                                 continue
 
                         # ==== COMMAND HANDLING ====
-                        cmd = text.split()[0] if text else ""
+                        raw_text = (text or "").strip()
+                        cmd_token = raw_text.split()[0] if raw_text else ""
+                        # /make@BotName → /make; hey! → hey
+                        cmd = cmd_token.split("@", 1)[0].lower()
+                        cmd_key = cmd.strip("!.?,:;…")
+                        greetings = frozenset(
+                            {"/start", "/help", "hey", "hi", "hello", "heloo", "hola"}
+                        )
+                        log_event(f"[MESSAGE] text={raw_text!r} cmd={cmd_key!r}")
 
-                        if cmd == "/make":
+                        def _reply(body: str) -> None:
+                            send_result = runtime.client.send_message(
+                                chat_id=runtime.config.test_chat_id,
+                                text=html.escape(body),
+                            )
+                            if not send_result.get("ok"):
+                                log_event(
+                                    f"[MESSAGE] send_failed err={send_result.get('error')!r} "
+                                    f"desc={send_result.get('telegram_description')!r}"
+                                )
+
+                        if cmd_key == "/make":
                             result = execute_make_with_acknowledgement(
                                 client=runtime.client,
                                 config=runtime.config,
@@ -866,8 +995,32 @@ def main() -> int:
                                 log_event(f"[MAKE] success cards_sent={result.get('cards_sent', 0)}")
                             else:
                                 log_event(f"[MAKE] failed: {result.get('error')}")
+                        elif cmd_key in greetings:
+                            _reply(
+                                "👋 News Agent is online.\n\n"
+                                "Commands:\n"
+                                "• /make — discover top stories\n"
+                                "• Then use RUN STORY → GENERATE NOW → APPROVE → PUBLISH\n\n"
+                                "You can also just chat — ask me anything about the workflow."
+                            )
+                            log_event(f"[MESSAGE] help_reply cmd={cmd_key!r}")
                         else:
-                            log_event(f"[MESSAGE] unrecognized command: {cmd}")
+                            try:
+                                log_event(f"[MESSAGE] hermes_chat start cmd={cmd_key!r}")
+                                chat_answer = hermes_chat_reply(raw_text, os.environ)
+                                _reply(chat_answer)
+                                log_event(
+                                    f"[MESSAGE] hermes_chat ok chars={len(chat_answer)}"
+                                )
+                            except Exception as chat_error:
+                                log_event(
+                                    f"[MESSAGE] hermes_chat failed: "
+                                    f"{type(chat_error).__name__}: {chat_error}"
+                                )
+                                _reply(
+                                    "I couldn't reach Hermes just now. "
+                                    "Send /make to discover stories, or /help for commands."
+                                )
 
                     else:
                         log_event(f"[SKIP] unknown update type: {list(update.keys())}")

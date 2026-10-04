@@ -13,7 +13,10 @@ from typing import Any, Callable
 
 from newsagent_v2.article.qa import run_article_qa
 from newsagent_v2.article.qa.textutil import split_sentences
-from newsagent_v2.article.writer.v4.sanitize import sanitize_editorial_artifacts
+from newsagent_v2.article.writer.v4.sanitize import (
+    drop_unsupported_quotes,
+    sanitize_editorial_artifacts,
+)
 from newsagent_v2.article.writer.controlled.failures import (
     EDITORIAL_CLEANLINESS_FAILED,
     GROUNDING_FAILED,
@@ -82,6 +85,28 @@ def _sanitize_mechanics(article: dict[str, Any]) -> None:
             kept.append(sentence.strip())
     if kept:
         article["article_body"] = " ".join(kept)
+    # Coerce bare URL/source strings into schema-valid evidence ref objects.
+    used = article.get("evidence_used")
+    if isinstance(used, list):
+        normalized: list[dict[str, Any]] = []
+        seen_urls: set[str] = set()
+        for ref in used:
+            if isinstance(ref, dict):
+                url = str(ref.get("url") or "").strip()
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    normalized.append(ref)
+                continue
+            if isinstance(ref, str) and ref.strip():
+                text = ref.strip()
+                if text in seen_urls:
+                    continue
+                seen_urls.add(text)
+                if text.startswith("http://") or text.startswith("https://"):
+                    normalized.append({"url": text})
+                else:
+                    normalized.append({"url": text, "source": text})
+        article["evidence_used"] = normalized
 
 
 def _remove_affected_sentences(article: dict[str, Any], affected: list[str]) -> None:
@@ -154,12 +179,51 @@ def recover_article(
         affected = _affected(current_qa)
         action = ""
         evidence_added: list[dict[str, Any]] = []
+        # #region agent log
+        try:
+            import json as _json, time as _time
+            from pathlib import Path as _Path
+            _codes = [str(i.get("code") or "") for i in failure_issues]
+            _payload = {
+                "sessionId": "7f9dc8",
+                "hypothesisId": "C",
+                "location": "recovery.py:recover_article",
+                "message": "recovery_cycle_class",
+                "data": {
+                    "attempt": attempt,
+                    "classified_failure": failure,
+                    "critical_codes": _codes,
+                    "has_quote_codes": any("quote" in c for c in _codes),
+                    "has_editorial": EDITORIAL_CLEANLINESS_FAILED in _codes,
+                },
+                "timestamp": int(_time.time() * 1000),
+            }
+            with (_Path("debug-7f9dc8.log")).open("a", encoding="utf-8") as _f:
+                _f.write(_json.dumps(_payload) + "\n")
+        except Exception:
+            pass
+        # #endregion
+        codes = {str(i.get("code") or "") for i in failure_issues}
+        has_quote_issues = any("quote" in c for c in codes)
+
         if failure == MECHANICS_FAILED:
             _sanitize_mechanics(working_article)
-            action = "deterministic mechanics repair"
+            if has_quote_issues:
+                sanitize_editorial_artifacts(working_article)
+                drop_unsupported_quotes(working_article, working_input)
+                action = "deterministic mechanics repair + quote cleanup"
+            else:
+                action = "deterministic mechanics repair"
         elif failure == EDITORIAL_CLEANLINESS_FAILED:
+            # Editorial path also unwraps unmapped nickname quotes and strips
+            # near-dups/feed chrome so quote failures co-traveling with editorial
+            # are not stranded by classify priority.
             sanitize_editorial_artifacts(working_article)
-            action = "deterministic editorial sanitization"
+            if has_quote_issues:
+                drop_unsupported_quotes(working_article, working_input)
+                action = "deterministic editorial sanitization + quote repair"
+            else:
+                action = "deterministic editorial sanitization"
         elif failure == GROUNDING_FAILED:
             if research_fn is not None:
                 evidence_added = _merge_evidence(working_input, research_fn(working_input, affected))
@@ -168,8 +232,11 @@ def recover_article(
             _remove_affected_sentences(working_article, affected)
             action = "targeted gap research, evidence mapping rebuild, affected section repair"
         else:
+            # Quote-primary path: also run editorial sanitize so near-dups/chrome clear.
+            sanitize_editorial_artifacts(working_article)
+            drop_unsupported_quotes(working_article, working_input)
             verified = bool(verify_quotes and verify_quotes(working_article, working_input, affected))
-            if not verified:
+            if not verified and affected:
                 _remove_affected_sentences(working_article, affected)
             action = "quote evidence verification and surgical attribution repair"
         current_qa = run_qa(working_article, working_input)

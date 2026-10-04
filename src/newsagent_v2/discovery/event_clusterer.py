@@ -157,13 +157,35 @@ class NewsEvent:
 
     @property
     def age_hours(self) -> float:
-        """Calculate age of event in hours."""
-        try:
-            first = datetime.fromisoformat(self.first_seen.replace("Z", "+00:00"))
-            now = datetime.now(timezone.utc)
-            return round((now - first).total_seconds() / 3600, 2)
-        except Exception:
-            return 0.0
+        """Hours since earliest source publication (fallback: first_seen).
+
+        Uses report published_at so ranking/freshness reflect how old the news
+        is, not when this process clustered it.
+        """
+        now = datetime.now(timezone.utc)
+        earliest: datetime | None = None
+        for report in self.reports or []:
+            raw = getattr(report, "published_at", None)
+            if not raw:
+                continue
+            try:
+                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.astimezone(timezone.utc)
+            except Exception:
+                continue
+            if earliest is None or dt < earliest:
+                earliest = dt
+        if earliest is None:
+            try:
+                earliest = datetime.fromisoformat(self.first_seen.replace("Z", "+00:00"))
+                if earliest.tzinfo is None:
+                    earliest = earliest.replace(tzinfo=timezone.utc)
+                earliest = earliest.astimezone(timezone.utc)
+            except Exception:
+                return 0.0
+        return round((now - earliest).total_seconds() / 3600, 2)
 
     @property
     def coverage_velocity(self) -> float:

@@ -19,7 +19,7 @@ from newsagent_v2.providers.groq_article import BATCH_MAX_COMPLETION_TOKENS
 
 KEY_ENV = "NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY"
 BASE_URL = "https://bedrock-mantle.us-east-1.api.aws/v1"
-KIMI_MODEL = "moonshotai.kimi-k2.5"
+KIMI_MODEL = "moonshotai.kimi-k3"
 PROVIDER_NAME = "bedrock_mantle"
 DEFAULT_TIMEOUT_SECONDS = 180
 ERROR_MESSAGE_MAX_CHARS = 500
@@ -481,20 +481,27 @@ def _message_content(payload: dict[str, Any]) -> str | dict[str, Any] | None:
 def _extract_json_object(raw: str) -> dict[str, Any]:
     text = _THINK_RE.sub("", raw).strip()
     text = _FENCE_RE.sub("", text).strip()
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict):
-            return parsed
-    except json.JSONDecodeError as exc:
-        raise ValueError("provider content was not valid JSON") from exc
+    candidates = [text]
+    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
+    if fence:
+        candidates.insert(0, fence.group(1).strip())
     start = text.find("{")
     end = text.rfind("}")
-    if start < 0 or end <= start:
-        raise ValueError("provider content was not valid JSON")
-    parsed = json.loads(text[start : end + 1])
-    if not isinstance(parsed, dict):
-        raise ValueError("provider JSON was not an object")
-    return parsed
+    if start >= 0 and end > start:
+        candidates.append(text[start : end + 1])
+    last_exc: Exception | None = None
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            last_exc = exc
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        last_exc = ValueError("provider JSON was not an object")
+    if last_exc is not None:
+        raise ValueError("provider content was not valid JSON") from last_exc
+    raise ValueError("provider content was not valid JSON")
 
 
 def parse_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:

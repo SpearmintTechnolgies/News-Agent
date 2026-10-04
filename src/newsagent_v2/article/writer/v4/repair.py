@@ -12,7 +12,10 @@ from typing import Any
 from newsagent_v2.article.qa.similarity import EXACT_PHRASE_N, check_similarity
 from newsagent_v2.article.qa.textutil import number_tokens, split_sentences, word_count, words
 from newsagent_v2.article.writer.evidence_ledger import EvidenceLedgers
-from newsagent_v2.article.writer.v4.packet import WriterEvidencePacket
+from newsagent_v2.article.writer.v4.packet import (
+    WriterEvidencePacket,
+    _is_boilerplate_proposition as _packet_is_boilerplate_proposition,
+)
 from newsagent_v2.article.writer.v4.verify import (
     STATUS_AMBIGUOUS,
     STATUS_QUOTE_BAD,
@@ -75,7 +78,10 @@ def is_sentence_fragment(text: str) -> bool:
 
 
 def is_boilerplate_proposition(text: str) -> bool:
-    return bool(_BOILERPLATE_RE.search(text or ""))
+    # Keep legacy editorial-policy patterns and shared chrome/byline filter.
+    return bool(_BOILERPLATE_RE.search(text or "")) or _packet_is_boilerplate_proposition(
+        text or ""
+    )
 
 
 def is_complete_newsroom_sentence(text: str) -> bool:
@@ -1330,14 +1336,34 @@ def repair_unsupported_propositions(
             replacement = candidate
             break
         if replacement is None:
-            actions.append(
-                RepairAction(
-                    kind="unsupported_proposition_unresolved",
-                    detail="no safe authorized newsroom replacement for unsupported unit",
-                    before=sentence,
-                    after="",
+            # Prefer dropping unsupported synthesis over leaving a QA-critical sentence.
+            probe = deepcopy(working)
+            probe.article_body = re.sub(
+                r"\s{2,}",
+                " ",
+                probe.article_body.replace(sentence, " ", 1),
+            ).strip()
+            if probe.article_body and paragraph_integrity_ok(
+                probe.article_body, prior_body=working.article_body
+            ):
+                working = probe
+                actions.append(
+                    RepairAction(
+                        kind="unsupported_proposition_dropped",
+                        detail="dropped unsupported unit with no safe authorized replacement",
+                        before=sentence,
+                        after="",
+                    )
                 )
-            )
+            else:
+                actions.append(
+                    RepairAction(
+                        kind="unsupported_proposition_unresolved",
+                        detail="no safe authorized newsroom replacement for unsupported unit",
+                        before=sentence,
+                        after="",
+                    )
+                )
 
     final_report = verify_v4_native(working, packet=packet, ledgers=ledgers)
     still_unsupported = any(

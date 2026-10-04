@@ -122,19 +122,40 @@ class ProviderPreflight:
             )
         
         all_set = all(v == "SET" for v in envs.values())
-        
-        if all_set:
+        if not all_set:
             return ProviderStatus(
                 provider=IMAGE_PROVIDER_VERTEX,
-                status="READY",
-                configured_model=model,
+                status="MISSING_CONFIG",
+                configured_model=None,
                 credential_envs=envs,
             )
-        
+
+        # Env vars alone are not enough: google-auth + credential file must work.
+        try:
+            import google.auth  # noqa: F401
+        except Exception:
+            return ProviderStatus(
+                provider=IMAGE_PROVIDER_VERTEX,
+                status="MISSING_CONFIG",
+                configured_model=None,
+                credential_envs=envs,
+                notes="python_package:google-auth is not installed",
+            )
+
+        creds_path = str(self.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+        if not creds_path or not Path(creds_path).is_file():
+            return ProviderStatus(
+                provider=IMAGE_PROVIDER_VERTEX,
+                status="MISSING_CONFIG",
+                configured_model=None,
+                credential_envs=envs,
+                notes="GOOGLE_APPLICATION_CREDENTIALS path missing or unreadable",
+            )
+
         return ProviderStatus(
             provider=IMAGE_PROVIDER_VERTEX,
-            status="MISSING_CONFIG",
-            configured_model=None,
+            status="READY",
+            configured_model=model,
             credential_envs=envs,
         )
     

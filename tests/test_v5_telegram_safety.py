@@ -1,4 +1,4 @@
-﻿"""Regression tests for V5 Telegram safety bugs.
+"""Regression tests for V5 Telegram safety bugs.
 
 Covers:
 - Single-instance guard
@@ -37,19 +37,23 @@ class TestSingletonLock:
             assert acquire_singleton_lock() is True
             release_singleton_lock()
     
-    def test_second_acquire_fails(self, tmp_path: Path):
+    def test_second_acquire_fails(self, tmp_path: Path, monkeypatch):
         """Second instance should fail with SingletonError."""
-        with patch("newsagent_v2.telegram.singleton.LOCK_FILE", tmp_path / "test.lock"):
-            # First acquire
-            acquire_singleton_lock()
-            
-            # Second should fail
-            with pytest.raises(SingletonError) as exc:
-                acquire_singleton_lock()
-            assert "already running" in str(exc.value)
-            
-            release_singleton_lock()
-    
+        import os
+        from newsagent_v2.telegram import singleton
+
+        lock = tmp_path / "test.lock"
+        monkeypatch.setattr(singleton, "LOCK_FILE", lock)
+
+        # Simulate another live process holding the lock
+        other_pid = os.getpid() + 99999
+        lock.write_text(str(other_pid), encoding="utf-8")
+        monkeypatch.setattr(singleton, "_pid_is_running", lambda pid: pid == other_pid)
+
+        with pytest.raises(SingletonError) as exc:
+            singleton.acquire_singleton_lock()
+        assert "already running" in str(exc.value)
+
     def test_stale_lock_detected(self, tmp_path: Path):
         """Stale lock from dead process should be replaceable."""
         with patch("newsagent_v2.telegram.singleton.LOCK_FILE", tmp_path / "test.lock"):

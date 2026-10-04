@@ -77,6 +77,8 @@ def _overlap(left: str, right: str) -> float:
 
 
 def _proposition_rows(authorized_propositions: Sequence[Any] | None) -> list[dict[str, Any]]:
+    from newsagent_v2.article.writer.v4.packet import _is_boilerplate_proposition
+
     rows: list[dict[str, Any]] = []
     if not authorized_propositions:
         return rows
@@ -88,7 +90,7 @@ def _proposition_rows(authorized_propositions: Sequence[Any] | None) -> list[dic
                 or item.get("claim")
                 or ""
             ).strip()
-            if not prop:
+            if not prop or _is_boilerplate_proposition(prop):
                 continue
             kind = str(item.get("kind") or "fact").strip().lower()
             if kind == "connective":
@@ -108,7 +110,7 @@ def _proposition_rows(authorized_propositions: Sequence[Any] | None) -> list[dic
             if kind == "connective":
                 continue
             prop = str(getattr(item, "proposition", None) or getattr(item, "text", None) or "").strip()
-            if not prop:
+            if not prop or _is_boilerplate_proposition(prop):
                 continue
             rows.append(
                 {

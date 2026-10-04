@@ -151,6 +151,25 @@ def expand_sources_for_event(
     query_hints: list[str] | None = None,
 ) -> ExpansionResult:
     """Expand sources for an event using CollectorV2 + SourceRegistry (zero-LLM)."""
+    import os
+
+    # Offline / unit-test escape hatch — never touch the network.
+    if os.environ.get("NEWSAGENT_V5_SKIP_SOURCE_EXPANSION", "").lower() in {
+        "1", "true", "yes",
+    }:
+        return ExpansionResult(
+            candidates_considered=0,
+            sources_matched=0,
+            sources_added=[],
+            primary_sources_retained=0,
+            independent_domains=[],
+            failed_sources=[],
+            diagnostics={
+                "skipped": True,
+                "reason": "NEWSAGENT_V5_SKIP_SOURCE_EXPANSION",
+            },
+        )
+
     event_title = str(event.get("representative_title") or event.get("canonical_title") or "").strip()
     event_id = str(event.get("event_id") or "")
 
@@ -227,10 +246,20 @@ def expand_sources_for_event(
         if r.get("url")
     }
 
+    # Keep expansion in the same freshness window as /make discovery.
+    from newsagent_v2.control.make_v5_bridge import discovery_max_age_hours
+    from newsagent_v2.discovery.freshness import FreshnessConfig, FreshnessEngine
+
+    expansion_freshness = FreshnessEngine(
+        FreshnessConfig(max_age_hours=discovery_max_age_hours())
+    )
+
     scored_candidates: list[tuple[RawNewsItem, float, bool]] = []
     for item in all_items:
         url_lower = item.canonical_url.lower().rstrip("/")
         if url_lower in existing_urls:
+            continue
+        if not expansion_freshness.check(item).accepted:
             continue
         score = _calculate_relevance_score(
             event_title, event_entities, event_topic, item, query_boost=query_boost

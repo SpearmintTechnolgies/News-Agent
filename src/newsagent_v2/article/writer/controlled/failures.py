@@ -51,6 +51,7 @@ QUOTE_CODES = frozenset(
         "direct_quote_no_source",
         "quote_missing_evidence",
         "quote_claim_no_evidence",
+        "quote_unsupported_evidence",
     }
 )
 SIMILARITY_CODES = frozenset({"exact_phrase_overlap", "high_sentence_similarity"})

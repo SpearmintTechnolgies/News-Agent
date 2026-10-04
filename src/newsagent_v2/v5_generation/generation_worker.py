@@ -99,6 +99,40 @@ class GenerationWorker:
                 text=text,
                 parse_mode="HTML",
             )
+
+    def _send_partial_image(
+        self,
+        event: NewsEvent,
+        result: dict[str, Any],
+        job: GenerationJob,
+    ) -> None:
+        """Send a generated hero image even when article generation failed."""
+        from pathlib import Path
+
+        from newsagent_v2.v5_generation.version_store import VersionStore
+
+        image_path = result.get("image_path")
+        if not image_path and result.get("image_version"):
+            version_root = self.environ.get("V5_VERSION_STORE_ROOT")
+            store = VersionStore(root=Path(version_root) if version_root else None)
+            path_obj = store.get_image_path(event.event_id, str(result.get("image_version")))
+            image_path = str(path_obj) if path_obj else None
+        if not image_path:
+            usage = result.get("image_usage") if isinstance(result.get("image_usage"), dict) else {}
+            image_path = usage.get("final_path")
+        path = Path(str(image_path or ""))
+        if not path.is_file():
+            return
+        try:
+            self.client.send_photo(
+                chat_id=self.config.test_chat_id,
+                photo_name=path.name,
+                photo_bytes=path.read_bytes(),
+                caption=f"🖼 Image ready (article failed)\n{event.canonical_title}",
+            )
+        except Exception:
+            # Delivery must never crash the worker thread.
+            return
     
     def run_generation(self, event: NewsEvent, job: GenerationJob) -> dict[str, Any]:
         """Run full generation pipeline.
@@ -146,24 +180,46 @@ class GenerationWorker:
                 article_record = version_store.get_article(event.event_id, result.get("article_version"))
                 article_body = str((article_record or {}).get("article", {}).get("article_body") or "")
                 from newsagent_v2.article.qa.textutil import word_count
+                from newsagent_v2.article.qa.policy import resolve_article_hard_minimum_words
+
                 words = word_count(article_body)
-                depth_status = result.get("depth_status") or (article_record or {}).get("metadata", {}).get("depth_status")
-                if words < 400:
+                meta = (article_record or {}).get("metadata") or {}
+                depth_status = result.get("depth_status") or meta.get("depth_status")
+                evidence_limited = bool(
+                    result.get("evidence_limited")
+                    or meta.get("evidence_limited")
+                    or result.get("evidence_capacity") == "LIMITED"
+                    or meta.get("evidence_capacity") == "LIMITED"
+                    or result.get("article_type") == "LIMITED_DEPTH_BRIEF"
+                    or meta.get("article_type") == "LIMITED_DEPTH_BRIEF"
+                )
+                hard_min, demo_length_floor = resolve_article_hard_minimum_words(self.environ)
+                # Production keeps the 500 post-recovery gate; demo length floor
+                # (NEWSAGENT_V2_DEMO_ARTICLE_MIN_WORDS) is honored when active.
+                target_floor = int(hard_min) if demo_length_floor else 500
+                hard_floor = 200 if evidence_limited else 400
+                if words < hard_floor:
                     result = {
                         **result,
                         "ok": False,
-                        "error": "Article did not meet the 400 grounded-word floor after recovery.",
+                        "error": (
+                            f"Article did not meet the {hard_floor} grounded-word "
+                            "floor after recovery."
+                        ),
                     }
                     self.persistent_store.update_job_state(
                         job.job_id, "FAILED_FINAL", error=result["error"],
                     )
                     self._report_failure(job, "article_depth", result["error"])
                     return result
-                if words < 500 and depth_status != "DEPTH_FALLBACK_PASS":
+                if words < target_floor and depth_status != "DEPTH_FALLBACK_PASS":
                     result = {
                         **result,
                         "ok": False,
-                        "error": "Article did not meet the 500 grounded-word minimum after recovery.",
+                        "error": (
+                            f"Article did not meet the {target_floor} grounded-word "
+                            "minimum after recovery."
+                        ),
                     }
                     self.persistent_store.update_job_state(
                         job.job_id, "FAILED_FINAL", error=result["error"],
@@ -238,7 +294,12 @@ class GenerationWorker:
                     job.job_id,
                     "FAILED_FINAL",
                     error=error,
+                    image_version=result.get("image_version"),
+                    image_hash=result.get("image_hash"),
                 )
+                # Deliver hero image even when article QA/provider failed.
+                if result.get("image_version") or result.get("image_path"):
+                    self._send_partial_image(event, result, job)
                 self._report_failure(job, "generation", error)
             
             return result
@@ -309,11 +370,15 @@ class GenerationWorker:
             return None
         article = article_record.get("article", {})
         from newsagent_v2.article.qa.textutil import word_count
+        from newsagent_v2.article.qa.policy import resolve_article_hard_minimum_words
+
         words = word_count(str(article.get("article_body") or ""))
         depth_status = result.get("depth_status") or (article_record.get("metadata") or {}).get("depth_status")
+        hard_min, demo_length_floor = resolve_article_hard_minimum_words(self.environ)
+        target_floor = int(hard_min) if demo_length_floor else 500
         if words < 400:
             return None
-        if words < 500 and depth_status != "DEPTH_FALLBACK_PASS":
+        if words < target_floor and depth_status != "DEPTH_FALLBACK_PASS":
             return None
         categories = article.get("categories") if isinstance(article.get("categories"), list) else []
         if article.get("category") and not categories:

@@ -125,7 +125,8 @@ class ReviewSystem:
         self._ratings: list[Rating] = []
         self._feedback: list[Feedback] = []
         self._approvals: list[Approval] = []
-        self._lock = threading.Lock()
+        # RLock: get_stats() holds the lock and calls get_ratings/get_feedback/etc.
+        self._lock = threading.RLock()
 
     # Ratings
 

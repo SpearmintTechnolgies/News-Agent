@@ -1,4 +1,4 @@
-﻿"""Tests for V5 Generation Pipeline.
+"""Tests for V5 Generation Pipeline.
 
 Tests cover:
 - RUN STORY adapter
@@ -13,6 +13,7 @@ Tests cover:
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +27,12 @@ from newsagent_v2.v5_generation.revision_controller import RevisionController, R
 from newsagent_v2.v5_generation.review_system import Feedback, Rating, ReviewSystem
 from newsagent_v2.v5_generation.run_story_adapter import GenerationJob, RunStoryAdapter
 from newsagent_v2.v5_generation.version_store import VersionStore
+
+
+@pytest.fixture(autouse=True)
+def _skip_live_source_expansion(monkeypatch):
+    """Keep unit tests offline — never hit live RSS during expansion/research."""
+    monkeypatch.setenv("NEWSAGENT_V5_SKIP_SOURCE_EXPANSION", "true")
 
 
 class TestCoverageGap:
@@ -316,13 +323,19 @@ class TestReviewSystem:
 class TestGenerationJob:
     """Test generation job management."""
 
+    @pytest.fixture(autouse=True)
+    def _offline_expansion(self):
+        """Unit tests must not hit live RSS feeds via source expansion."""
+        # Applied via environ on each adapter constructed below.
+        self._offline_environ = {"NEWSAGENT_V5_SKIP_SOURCE_EXPANSION": "true"}
+
     def test_job_creation(self, tmp_path: Path):
         """Test job creation."""
         store = VersionStore(root=tmp_path)
         adapter = RunStoryAdapter(
             version_store=store,
             approval_store=None,
-            environ={},
+            environ=self._offline_environ,
         )
 
         event = NewsEvent(
@@ -342,7 +355,7 @@ class TestGenerationJob:
         adapter = RunStoryAdapter(
             version_store=store,
             approval_store=None,
-            environ={},
+            environ={"NEWSAGENT_V5_SKIP_SOURCE_EXPANSION": "true"},
         )
 
         event = NewsEvent(
@@ -381,7 +394,7 @@ class TestGenerationJob:
         adapter = RunStoryAdapter(
             version_store=store,
             approval_store=None,
-            environ={},
+            environ={"NEWSAGENT_V5_SKIP_SOURCE_EXPANSION": "true"},
         )
 
         # Use unique event ID to avoid test pollution

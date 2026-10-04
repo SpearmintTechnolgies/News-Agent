@@ -1,4 +1,4 @@
-﻿"""Regression tests for V5 Telegram bot startup construction.
+"""Regression tests for V5 Telegram bot startup construction.
 
 Validates that runtime construction succeeds without live Telegram/paid providers.
 """
@@ -11,6 +11,7 @@ sys.path.insert(0, "src")
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from typing import Any
+import os
 
 import pytest
 
@@ -38,21 +39,32 @@ class TestStartupConstruction:
         # If we get here, all imports succeeded
         assert True
     
-    def test_singleton_file_based_detection(self):
+    def test_singleton_file_based_detection(self, tmp_path, monkeypatch):
         """Singleton lock file must detect running processes correctly."""
-        from newsagent_v2.telegram.singleton import acquire_singleton_lock, release_singleton_lock
-        
-        # First acquire should succeed
-        assert acquire_singleton_lock() is True
-        
-        # Second acquire should fail
-        from newsagent_v2.telegram.singleton import SingletonError
-        with pytest.raises(SingletonError) as exc:
-            acquire_singleton_lock()
+        from newsagent_v2.telegram import singleton
+
+        lock = tmp_path / ".v5_bot_lock"
+        monkeypatch.setattr(singleton, "LOCK_FILE", lock)
+
+        # Fresh acquire succeeds
+        assert singleton.acquire_singleton_lock() is True
+        assert lock.exists()
+        assert lock.read_text(encoding="utf-8").strip() == str(os.getpid())
+
+        # Simulate another live process holding the lock
+        other_pid = os.getpid() + 99999
+        lock.write_text(str(other_pid), encoding="utf-8")
+        monkeypatch.setattr(singleton, "_pid_is_running", lambda pid: pid == other_pid)
+
+        with pytest.raises(singleton.SingletonError) as exc:
+            singleton.acquire_singleton_lock()
         assert "already running" in str(exc.value)
-        
-        # Cleanup
-        release_singleton_lock()
+        assert str(other_pid) in str(exc.value)
+
+        # Stale lock (dead PID) is stolen
+        monkeypatch.setattr(singleton, "_pid_is_running", lambda pid: False)
+        assert singleton.acquire_singleton_lock() is True
+        singleton.release_singleton_lock()
     
     def test_v5_bot_state_construction(self):
         """V5BotState must construct without errors."""

@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable
 
@@ -46,7 +47,41 @@ from newsagent_v2.v5_generation.evidence_dimensions import (
 
 
 MAX_SOURCE_EXPANSION_ROUNDS = MAX_EXPANSION_ROUNDS
+DEFAULT_MAX_AGE_HOURS = 24.0
+MAX_AGE_ENV = "NEWSAGENT_V5_MAX_AGE_HOURS"
 logger = logging.getLogger(__name__)
+
+
+def discovery_max_age_hours(environ: dict[str, str] | None = None) -> float:
+    """Max accepted item age for /make discovery (default 24h)."""
+    env = environ if environ is not None else os.environ
+    raw = str(env.get(MAX_AGE_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_MAX_AGE_HOURS
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_MAX_AGE_HOURS
+    return value if value > 0 else DEFAULT_MAX_AGE_HOURS
+
+
+def _earliest_published_epoch(event: NewsEvent) -> float:
+    """Unix epoch of earliest report published_at (0 if unknown)."""
+    best: float | None = None
+    for report in event.reports or []:
+        raw = getattr(report, "published_at", None)
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            ts = dt.timestamp()
+        except Exception:
+            continue
+        if best is None or ts < best:
+            best = ts
+    return best or 0.0
 
 
 def _log_discovery_timing(stage: str, started: float, **extra: Any) -> float:
@@ -301,14 +336,21 @@ class V5DiscoveryPipeline:
         # 2. FreshnessEngine and NicheFilter expect RawNewsItem
         normalized = raw_items
 
-        # 3. Freshness filter
+        # 3. Freshness filter — prefer latest news (default 24h, was 48h)
         t1 = perf_counter()
-        freshness = FreshnessEngine(FreshnessConfig(max_age_hours=48))
+        max_age_hours = discovery_max_age_hours()
+        freshness = FreshnessEngine(FreshnessConfig(max_age_hours=max_age_hours))
         fresh_items = []
         for item in normalized:
             result = freshness.check(item)
             if result.accepted:
                 fresh_items.append(item)
+        logger.info(
+            "[DISCOVERY] freshness max_age_hours=%.1f accepted=%s rejected=%s",
+            max_age_hours,
+            len(fresh_items),
+            len(normalized) - len(fresh_items),
+        )
 
         # 4. Niche filter
         from newsagent_v2.discovery.niche_filter import RelevanceDecision
@@ -469,21 +511,40 @@ class V5DiscoveryPipeline:
         return self._ranked_events
 
     def _rank_events(self, events: list[NewsEvent]) -> list[NewsEvent]:
-        """Rank events by intelligence signals."""
+        """Rank by intelligence, with strong preference for newer publish times."""
         def score(event: NewsEvent) -> float:
             if event.intelligence is None:
-                return 0.0
-            # Breaking score + momentum + novelty
-            s = event.intelligence.breaking.score * 3.0  # Weight breaking heavily
-            s += event.intelligence.momentum.score * 2.0
-            s += event.intelligence.novelty.score * 1.0
-            return s
-        
-        return sorted(events, key=score, reverse=True)
+                base = 0.0
+            else:
+                # Breaking score + momentum + novelty
+                base = event.intelligence.breaking.score * 3.0
+                base += event.intelligence.momentum.score * 2.0
+                base += event.intelligence.novelty.score * 1.0
+            age = event.age_hours
+            if age <= 6:
+                base += 2.5
+            elif age <= 12:
+                base += 1.8
+            elif age <= 24:
+                base += 1.0
+            elif age <= 36:
+                base += 0.2
+            return base
+
+        # Higher score first; for ties, newer earliest-publish wins.
+        return sorted(
+            events,
+            key=lambda e: (score(e), _earliest_published_epoch(e)),
+            reverse=True,
+        )
     
     def get_top_events(self, count: int = 5, offset: int = 0) -> list[NewsEvent]:
         """Get events by rank position."""
         return self._ranked_events[offset:offset + count]
+
+    def get_ranked_events(self) -> list[NewsEvent]:
+        """Return all ranked events from the latest discovery run."""
+        return list(self._ranked_events)
     
     def send_to_telegram(
         self,

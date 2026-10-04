@@ -20,6 +20,7 @@ from newsagent_v2.article.writer.v4.provider import (
     INFRA_FAILOVER_TYPES,
     INFRA_OTHER,
     INFRA_RATE_LIMIT,
+    KIMI_V4_MAX_COMPLETION_TOKENS,
     PROVIDER_KIMI,
     V4_MAX_COMPLETION_TOKENS,
     ChatTransport,
@@ -40,10 +41,11 @@ from newsagent_v2.providers.groq_editorial import (
 V4_WRITER_PROVIDER = "groq"
 V4_WRITER_MODEL = "qwen/qwen3.8-27b"
 V4_FALLBACK_MODEL = "openai/gpt-oss-20b"
-V4_KIMI_MODEL = "moonshotai.kimi-k2.5"
+V4_KIMI_MODEL = "moonshotai.kimi-k3"
 # Still blocked by default; ALLOW_KIMI / ALLOW_PAID_QWEN unlock explicitly.
 FORBIDDEN_WRITERS = frozenset(
     {
+        "moonshotai.kimi-k3",
         "moonshotai.kimi-k2.5",
         "kimi",
         "vllm-local/qwen3.8-27b",
@@ -222,7 +224,13 @@ def build_v4_writer_messages(
     word_range: tuple[int, int] | None = None,
 ) -> list[dict[str, str]]:
     prefer = word_range or (290, 330)
-    hard = (250, 400) if (article_type or "").upper() in {"", "FULL_ARTICLE"} else prefer
+    if word_range is not None:
+        # Explicit range wins (e.g. Kimi production path clearing the 600-word floor).
+        hard = (max(250, int(prefer[0]) - 50), int(prefer[1]) + 100)
+    elif (article_type or "").upper() in {"", "FULL_ARTICLE"}:
+        hard = (250, 400)
+    else:
+        hard = prefer
     if article_type and article_type.upper() == "LIMITED_DEPTH_BRIEF":
         instruction = (
             "Write a LIMITED_DEPTH_BRIEF from authorized_facts only. "
@@ -247,13 +255,21 @@ def build_v4_writer_messages(
     else:
         instruction = (
             "Write the article now using only authorized_facts and authorized_quotes. "
+            f"Target {prefer[0]}–{prefer[1]} BODY words "
+            f"(hard band {hard[0]}–{hard[1]} BODY words). "
             "Where authorized facts support it, include a grounded Conclusion / What Happens Next "
             "and 2–4 FAQs with answers restating those facts only — no filler or speculation."
         )
     system = V4_SYSTEM_PROMPT
+    if word_range is not None:
+        system = (
+            system
+            + f"\nFor this request ignore the default 250–400 band; "
+            f"write {prefer[0]}–{prefer[1]} BODY words (hard band {hard[0]}–{hard[1]})."
+        )
     if regeneration:
         system = (
-            V4_SYSTEM_PROMPT
+            system
             + "\nThis is a FRESH regeneration. Prior article text is unavailable and must not be invented."
         )
     evidence = _generation_packet_dict(packet)
@@ -286,6 +302,18 @@ def build_v4_writer_messages(
     ]
 
 
+def _strip_boilerplate_sentences(body: str) -> str:
+    """Drop scraped chrome/bylines that sometimes leak into article_body."""
+    from newsagent_v2.article.writer.v4.packet import _is_boilerplate_proposition
+
+    text = str(body or "").strip()
+    if not text:
+        return text
+    parts = re.split(r"(?<=[.!?])\s+|\n+", text)
+    kept = [part.strip() for part in parts if part.strip() and not _is_boilerplate_proposition(part)]
+    return " ".join(kept).strip() if kept else text
+
+
 def parse_v4_native(payload: Any) -> V4NativeArticle:
     if isinstance(payload, str):
         text = payload.strip()
@@ -304,10 +332,11 @@ def parse_v4_native(payload: Any) -> V4NativeArticle:
     if not isinstance(payload, dict):
         raise ValueError("native is not an object")
     # Reject V3 proof fields if accidentally present — ignore them, do not require them.
+    body = _strip_boilerplate_sentences(str(payload.get("article_body") or "").strip())
     native = V4NativeArticle(
         headline=str(payload.get("headline") or "").strip(),
         dek=str(payload.get("dek") or "").strip(),
-        article_body=str(payload.get("article_body") or "").strip(),
+        article_body=body,
         seo_title=str(payload.get("seo_title") or "").strip(),
         meta_description=str(payload.get("meta_description") or "").strip(),
         slug=str(payload.get("slug") or "").strip(),
@@ -418,7 +447,41 @@ class V4NaturalProseWriter:
             )
             self.last_result = result
             return result
-        messages = build_v4_writer_messages(packet, regeneration=regeneration)
+        # Kimi can clear the production 600-word floor in one pass; Groq stays on
+        # the short native + expansion path because of the 900 OTPM cap.
+        kimi = self.provider == PROVIDER_KIMI
+        max_tokens = KIMI_V4_MAX_COMPLETION_TOKENS if kimi else V4_MAX_COMPLETION_TOKENS
+        n_facts = len(packet.authorized_facts)
+        if kimi:
+            # Scale length to usable facts so thin packets do not force invention.
+            if n_facts >= 16:
+                word_range = (650, 850)
+            elif n_facts >= 10:
+                word_range = (600, 720)
+            else:
+                word_range = (500, 650)
+        else:
+            word_range = None
+        messages = build_v4_writer_messages(
+            packet,
+            regeneration=regeneration,
+            article_type="FULL_ARTICLE",
+            word_range=word_range,
+        )
+        if kimi:
+            messages = [
+                messages[0],
+                {
+                    "role": "system",
+                    "content": (
+                        "Never paste website chrome, navigation, cookie notices, "
+                        "share widgets, bylines like 'first appeared on', or .gov banner text. "
+                        "If a fact looks like page chrome, ignore it. "
+                        "Prefer a shorter fully grounded article over padded speculation."
+                    ),
+                },
+                *messages[1:],
+            ]
         diagnostic = {
             "provider": self.provider,
             "model": self.model,
@@ -429,38 +492,50 @@ class V4NaturalProseWriter:
             "has_relationship_requirement": False,
             "body_word_target_present": "250" in messages[0]["content"] and "400" in messages[0]["content"],
             "reasoning_effort": reasoning_effort_for_model(self.model),
-            "max_completion_tokens": V4_MAX_COMPLETION_TOKENS,
+            "max_completion_tokens": max_tokens,
             "regeneration": bool(regeneration),
         }
-        body_extra: dict[str, Any] = {
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "v4_natural_article",
-                    "strict": True,
-                    "schema": V4_JSON_SCHEMA,
+        # Mantle/Kimi historically ignores or mishandles json_schema and returns
+        # prose/fenced JSON; ask for JSON in-prompt only for that provider.
+        body_extra: dict[str, Any] = {}
+        if not kimi:
+            body_extra = {
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "v4_natural_article",
+                        "strict": True,
+                        "schema": V4_JSON_SCHEMA,
+                    },
                 },
-            },
-        }
+            }
         self.generation_calls += 1
         started = perf_counter()
 
         # Add stage marker for Kimi budget tracking
-        if self.provider == PROVIDER_KIMI and body_extra:
+        if kimi:
             body_extra = {**body_extra, "_stage": "initial_writer"}
+            messages = list(messages) + [
+                {"role": "user", "content": "Return ONLY a single JSON object. No markdown fences."}
+            ]
 
         response = self.transport.complete(
             messages=messages,
-            body_extra=body_extra,
-            max_completion_tokens=V4_MAX_COMPLETION_TOKENS,
+            body_extra=body_extra or None,
+            max_completion_tokens=max_tokens,
             temperature=0.3,
             event_id=self.event_id,
         )
-        # Soft retry without json_schema if model rejects schema mode.
+        # Soft retry without json_schema if model rejects schema mode or returns
+        # non-JSON / fenced prose despite HTTP 200 (common on Mantle/Kimi).
+        _err_l = str(response.error or "").lower()
         if (not response.ok) and (
-            "json_schema" in str(response.error or "").lower()
-            or "response_format" in str(response.error or "").lower()
-            or "failed to generate json" in str(response.error or "").lower()
+            "json_schema" in _err_l
+            or "response_format" in _err_l
+            or "failed to generate json" in _err_l
+            or "not valid json" in _err_l
+            or "json was not an object" in _err_l
+            or "malformed provider response" in _err_l
         ):
             soft_messages = list(messages) + [
                 {"role": "user", "content": "Return ONLY the JSON object. No markdown."}
@@ -468,7 +543,7 @@ class V4NaturalProseWriter:
             response = self.transport.complete(
                 messages=soft_messages,
                 body_extra={"_stage": "schema_fallback"},
-                max_completion_tokens=V4_MAX_COMPLETION_TOKENS,
+                max_completion_tokens=max_tokens,
                 temperature=0.3,
                 event_id=self.event_id,
             )

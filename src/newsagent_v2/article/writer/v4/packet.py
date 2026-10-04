@@ -2,11 +2,49 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from newsagent_v2.article.writer.controlled.semantic import semantic_fact_from_claim
 from newsagent_v2.article.writer.evidence_ledger import EvidenceLedgers, LedgerClaim, LedgerQuote
+
+# Common scraped chrome / bylines that must not enter the writer packet.
+_BOILERPLATE_FACT_RE = re.compile(
+    r"("
+    r"skip to (search|main content)|"
+    r"official website of the united states|"
+    r"here'?s how you know|"
+    r"\.gov website belongs to an official|"
+    r"secure \.gov websites use https|"
+    r"first appeared on|"
+    r"appeared first on|"
+    r"this post .+ first appeared|"
+    r"bitcoin magazine .{0,80}proposes|"
+    r"proposes new rules on crypto custody the regulator|"
+    r"share (this|on)|"
+    r"subscribe to (our )?newsletter|"
+    r"cookie (policy|consent|settings)|"
+    r"all rights reserved|"
+    r"espa[nñ]ol\s+sections|"
+    r"\bsections?\b.{0,20}\b(?:bitcoin|defi|ethereum|nfts?|web3)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_boilerplate_proposition(text: str) -> bool:
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return True
+    if _BOILERPLATE_FACT_RE.search(cleaned):
+        return True
+    # Ultra-short chrome leftovers.
+    if len(cleaned.split()) < 6 and any(
+        token in cleaned.lower() for token in ("skip to", ".gov", "https", "cookie")
+    ):
+        return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -145,7 +183,14 @@ def build_writer_evidence_packet(
     """Deterministic compact packet from ledgers. No LLM. No plan graph."""
     pack = article_input if isinstance(article_input, dict) else {}
     topic = str(story_topic or pack.get("representative_title") or pack.get("title") or event_id).strip()
-    facts = tuple(_fact_from_claim(row) for row in ledgers.claims[:max_facts])
+    selected: list[AuthorizedFact] = []
+    for row in ledgers.claims:
+        if _is_boilerplate_proposition(getattr(row, "text", "") or ""):
+            continue
+        selected.append(_fact_from_claim(row))
+        if len(selected) >= max_facts:
+            break
+    facts = tuple(selected)
     quotes = tuple(_quote_from_ledger(row) for row in ledgers.quotes[:8])
     entities: list[str] = []
     for fact in facts:

@@ -64,7 +64,26 @@ BOILERPLATE_RE = re.compile(
     r"(cookie|subscribe|newsletter|sign[\s-]?up|related stories|"
     r"advert|advertisement|promo|paywall|privacy policy|terms of service|"
     r"share this|follow us|all rights reserved|enable javascript|"
-    r"continue reading|log in to comment)",
+    r"continue reading|log in to comment|"
+    r"espa[nñ]ol\s+sections|"
+    r"\b(bitcoin|defi|ethereum|nfts?)\b.{0,40}\b(regulation|web3|business|ecosystem)\b|"
+    r"skip to (main )?content|menu\s+close|accept (all )?cookies)",
+    re.IGNORECASE,
+)
+_META_DESC_RE = re.compile(
+    r'<meta\b[^>]*\b(?:name|property)\s*=\s*["\'](?:og:description|twitter:description|description)["\'][^>]*>',
+    re.IGNORECASE,
+)
+_META_CONTENT_RE = re.compile(
+    r'\bcontent\s*=\s*["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_NAV_CHROME_RE = re.compile(
+    r"("
+    r"espa[nñ]ol\s+sections|"
+    r"^(?:home|news|markets|videos?|podcasts?)\s+(?:home|news|markets)|"
+    r"\bsections?\b.{0,20}\b(?:bitcoin|defi|ethereum|nfts?|web3)\b"
+    r")",
     re.IGNORECASE,
 )
 ATTRIBUTION_RE = re.compile(
@@ -154,6 +173,42 @@ class _TextCollector(HTMLParser):
         return bodies
 
 
+def _meta_descriptions(html: str) -> list[str]:
+    """Pull og/twitter/meta description when body extract is JS-nav chrome only."""
+    found: list[str] = []
+    seen: set[str] = set()
+    for tag in _META_DESC_RE.findall(html or ""):
+        match = _META_CONTENT_RE.search(tag)
+        if not match:
+            continue
+        text = " ".join(str(match.group(1) or "").split()).strip()
+        if word_count(text) < MIN_SNIPPET_WORDS:
+            continue
+        if _NAV_CHROME_RE.search(text) or BOILERPLATE_RE.search(text):
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append(text)
+    return found
+
+
+def _looks_like_nav_chrome(text: str) -> bool:
+    cleaned = " ".join(str(text or "").split()).strip()
+    if not cleaned:
+        return True
+    if _NAV_CHROME_RE.search(cleaned):
+        return True
+    # Dense keyword menus with almost no verbs/punctuation.
+    tokens = cleaned.split()
+    if len(tokens) <= 16 and cleaned.count(" ") >= 3 and cleaned.count(".") == 0:
+        titleish = sum(1 for t in tokens if t[:1].isupper())
+        if titleish >= max(3, len(tokens) // 2):
+            return True
+    return False
+
+
 def _ld_article_bodies(node: Any) -> list[str]:
     found: list[str] = []
     if isinstance(node, list):
@@ -214,7 +269,13 @@ def extract_factual_snippets(html: str) -> dict[str, Any]:
         parser.feed(html)
         parser.close()
     except Exception:
-        return {"title": None, "snippets": [], "extraction_method": "parse_failed"}
+        return {
+            "title": None,
+            "snippets": [],
+            "extracted_text": "",
+            "extraction_method": "parse_failed",
+            "research_only": True,
+        }
     snippets: list[str] = []
     method = "paragraphs"
     for body in parser.json_ld_bodies():
@@ -227,19 +288,34 @@ def extract_factual_snippets(html: str) -> dict[str, Any]:
             if method != "jsonld_articleBody":
                 method = "visible_text"
             snippets.extend(extra)
+    # JS-heavy publishers often leave only nav chrome in visible text while
+    # still shipping a usable meta/og description — prefer that over menus.
+    meta_bits = _meta_descriptions(html)
+    if meta_bits and (
+        not snippets or all(_looks_like_nav_chrome(item) for item in snippets)
+    ):
+        method = "meta_description"
+        snippets = list(meta_bits) + [s for s in snippets if not _looks_like_nav_chrome(s)]
     cleaned: list[str] = []
     seen: set[str] = set()
     for item in snippets:
         key = re.sub(r"\s+", " ", item.lower())
-        if key in seen or BOILERPLATE_RE.search(item):
+        if key in seen or BOILERPLATE_RE.search(item) or _looks_like_nav_chrome(item):
             continue
         seen.add(key)
         cleaned.append(item)
         if len(cleaned) >= MAX_SNIPPETS_PER_SOURCE:
             break
     text = clean_extracted_article_text(" ".join(cleaned))
-    cleaned = _select_snippets(text)
+    cleaned = _select_snippets(text) if text else []
     text = " ".join(cleaned) if cleaned else text
+    if _looks_like_nav_chrome(text):
+        text = ""
+        cleaned = []
+    if not text and meta_bits:
+        method = "meta_description"
+        cleaned = [bit for bit in meta_bits if not _looks_like_nav_chrome(bit)]
+        text = " ".join(cleaned)
     if len(text) > MAX_EXTRACTED_CHARS:
         text = text[:MAX_EXTRACTED_CHARS].rsplit(" ", 1)[0]
         cleaned = _select_snippets(text)
@@ -248,7 +324,7 @@ def extract_factual_snippets(html: str) -> dict[str, Any]:
         "title": parser.title,
         "snippets": cleaned,
         "extracted_text": text,
-        "extraction_method": method,
+        "extraction_method": method if text else "empty_or_js_only_body",
         "research_only": True,
     }
 
@@ -258,7 +334,7 @@ def _select_snippets(text: str) -> list[str]:
     for sentence in split_sentences(text):
         if word_count(sentence) < MIN_SNIPPET_WORDS:
             continue
-        if BOILERPLATE_RE.search(sentence):
+        if BOILERPLATE_RE.search(sentence) or _looks_like_nav_chrome(sentence):
             continue
         if NUMBER_TOKEN_RE.search(sentence) or ATTRIBUTION_RE.search(sentence) or word_count(sentence) >= 12:
             out.append(sentence.strip())
@@ -329,13 +405,22 @@ def enrich_evidence_list(
                     item["access_blocked"] = True
                 else:
                     extracted = extract_factual_snippets(html)
-                    item["extracted_text"] = extracted.get("extracted_text") or ""
-                    item["factual_snippets"] = extracted.get("snippets") or []
-                    item["extraction_method"] = (
-                        extracted.get("extraction_method")
-                        if item["extracted_text"]
-                        else "empty_or_js_only_body"
-                    )
+                    extracted_text = str(extracted.get("extracted_text") or "").strip()
+                    snippets = list(extracted.get("snippets") or [])
+                    # Prefer RSS/title summary over nav-chrome "extracts".
+                    summary = str(item.get("summary") or "").strip()
+                    if (not extracted_text or _looks_like_nav_chrome(extracted_text)) and summary:
+                        extracted_text = summary
+                        snippets = _select_snippets(summary) or [summary]
+                        item["extraction_method"] = "summary_fallback"
+                    else:
+                        item["extraction_method"] = (
+                            extracted.get("extraction_method")
+                            if extracted_text
+                            else "empty_or_js_only_body"
+                        )
+                    item["extracted_text"] = extracted_text
+                    item["factual_snippets"] = snippets
                     if extracted.get("title") and not item.get("title"):
                         item["title"] = extracted["title"]
                     item["resolved_url"] = final_url
@@ -343,6 +428,16 @@ def enrich_evidence_list(
                 item["extraction_method"] = f"fetch_failed_{status}"
                 item["extracted_text"] = ""
                 item["factual_snippets"] = []
+        # Paywalled / blocked / empty fetches: still keep summary as research text.
+        if not str(item.get("extracted_text") or "").strip():
+            summary = str(item.get("summary") or "").strip()
+            if summary:
+                item["extracted_text"] = summary
+                item["factual_snippets"] = _select_snippets(summary) or [summary]
+                if not item.get("extraction_method") or str(item.get("extraction_method")).startswith(
+                    ("fetch_", "access_", "empty_")
+                ):
+                    item["extraction_method"] = "summary_fallback"
         out.append(item)
     # Keep original order by URL after enrichment of ranked copies.
     by_url = {str(row.get("url")): row for row in out}

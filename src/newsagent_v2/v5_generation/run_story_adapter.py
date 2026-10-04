@@ -118,28 +118,35 @@ class RunStoryAdapter:
         ]
         
         # EXPAND SOURCES: Try to find corroborating sources for this event
-        # This is the ZERO-LLM deterministic expansion that was missing in V5
-        event_reports = [r.to_dict() for r in event.reports]
-        try:
-            expansion = expand_sources_for_event(
-                event={
-                    "event_id": event.event_id,
-                    "representative_title": event.canonical_title,
-                    "canonical_title": event.canonical_title,
-                    "topic": event.topic,
-                    "entities": list(event.entities),
-                },
-                event_entities=list(event.entities),
-                event_topic=event.topic,
-                event_reports=event_reports,
-            )
-            
-            # Add expanded sources to evidence
-            if expansion.sources_added:
-                evidence.extend(expansion.sources_added)
-        except Exception:
-            # Expansion failure should not block the pipeline
-            expansion = None
+        # This is the ZERO-LLM deterministic expansion that was missing in V5.
+        # Skip when explicitly disabled (unit tests / offline / controlled dry-runs).
+        expansion = None
+        skip_expansion = (
+            self.environ.get("NEWSAGENT_V5_SKIP_SOURCE_EXPANSION", "").lower()
+            in {"1", "true", "yes"}
+        )
+        if not skip_expansion:
+            event_reports = [r.to_dict() for r in event.reports]
+            try:
+                expansion = expand_sources_for_event(
+                    event={
+                        "event_id": event.event_id,
+                        "representative_title": event.canonical_title,
+                        "canonical_title": event.canonical_title,
+                        "topic": event.topic,
+                        "entities": list(event.entities),
+                    },
+                    event_entities=list(event.entities),
+                    event_topic=event.topic,
+                    event_reports=event_reports,
+                )
+                
+                # Add expanded sources to evidence
+                if expansion.sources_added:
+                    evidence.extend(expansion.sources_added)
+            except Exception:
+                # Expansion failure should not block the pipeline
+                expansion = None
 
         article_input = {
             "event_id": event.event_id,
@@ -240,6 +247,11 @@ class RunStoryAdapter:
             else:
                 job.state = "FAILED"
                 job.error = USER_FAILURE_MESSAGE
+                # Preserve any article/image artifacts produced before failure.
+                if result.get("article_version"):
+                    job.article_version = result.get("article_version")
+                if result.get("image_version"):
+                    job.image_version = result.get("image_version")
                 
                 # PERSIST FULL FAILURE DIAGNOSTICS
                 # Store all available failure telemetry for forensic analysis
@@ -276,6 +288,8 @@ class RunStoryAdapter:
                     "vertex_calls": result.get("vertex_calls"),
                     # Attempt path for forensics
                     "attempt_path": result.get("attempt_path"),
+                    "image_version": result.get("image_version"),
+                    "image_failed": result.get("image_failed"),
                 }
 
             self._update_job(job)
@@ -285,8 +299,11 @@ class RunStoryAdapter:
                 "new": is_new,
                 "job_id": job.job_id,
                 "state": job.state,
-                "article_version": job.article_version,
-                "image_version": job.image_version,
+                "article_version": job.article_version or result.get("article_version"),
+                "image_version": job.image_version or result.get("image_version"),
+                "image_path": result.get("image_path"),
+                "image_hash": result.get("image_hash"),
+                "image_usage": result.get("image_usage"),
                 "error": job.error,
                 "result": result,
             }
@@ -439,20 +456,26 @@ class RunStoryAdapter:
                 "image_calls": 0,
             }
         
-        # GATE: Must have RICH or MEDIUM capacity for normal article generation
-        # LIMITED depth briefs gate separately if configured
+        # GATE: LIMITED capacity still may write a LIMITED_DEPTH_BRIEF when we
+        # have retrieved source text and at least two unique propositions.
+        # Hard-blocking all LIMITED here contradicted compile/writer brief path.
         if depth and depth.evidence_capacity == "LIMITED":
-            diagnostics["pre_writer_gate_passed"] = False
-            diagnostics["gate_failure_reason"] = "LIMITED_EVIDENCE_CAPACITY"
-            return {
-                "ok": False,
-                "error": "INSUFFICIENT_EVIDENCE",
-                "notes": f"Pre-writer evidence gate blocked: LIMITED capacity, {unique_props} propositions",
-                "diagnostics": diagnostics,
-                "writer_calls": 0,
-                "kimi_calls": 0,
-                "image_calls": 0,
-            }
+            if unique_props < 2 or int(diagnostics.get("sources_retrieved") or 0) < 1:
+                diagnostics["pre_writer_gate_passed"] = False
+                diagnostics["gate_failure_reason"] = "LIMITED_EVIDENCE_CAPACITY"
+                return {
+                    "ok": False,
+                    "error": "INSUFFICIENT_EVIDENCE",
+                    "notes": (
+                        f"Pre-writer evidence gate blocked: LIMITED capacity, "
+                        f"{unique_props} propositions"
+                    ),
+                    "diagnostics": diagnostics,
+                    "writer_calls": 0,
+                    "kimi_calls": 0,
+                    "image_calls": 0,
+                }
+            diagnostics["gate_path"] = "LIMITED_DEPTH_BRIEF"
         
         diagnostics["pre_writer_gate_passed"] = True
 
@@ -500,11 +523,22 @@ class RunStoryAdapter:
                 return research_event(targeted, search_fn=default_search_fn_for_story(targeted))
 
             def _rebuild_mapping(article: dict[str, Any], input_data: dict[str, Any]) -> None:
-                article["evidence_used"] = [
-                    row.get("url") or row.get("source")
-                    for row in input_data.get("evidence", [])
-                    if isinstance(row, dict) and (row.get("url") or row.get("source"))
-                ]
+                # Schema requires evidence_used entries to be ref objects, not bare URLs.
+                refs: list[dict[str, Any]] = []
+                seen: set[str] = set()
+                for row in input_data.get("evidence", []) or []:
+                    if not isinstance(row, dict):
+                        continue
+                    url = str(row.get("url") or "").strip()
+                    if not url or url in seen:
+                        continue
+                    seen.add(url)
+                    ref: dict[str, Any] = {"url": url}
+                    source = str(row.get("source") or "").strip()
+                    if source:
+                        ref["source"] = source
+                    refs.append(ref)
+                article["evidence_used"] = refs
 
             recovered = recover_article(
                 compiled.article,
@@ -526,12 +560,16 @@ class RunStoryAdapter:
                 self.version_store.save_recovery_history(event.event_id, recovery_history)
 
         # Audited depth fallback AFTER bounded recovery only (never on first short draft).
+        # Always recount from the post-recovery body — compiled.final_words is the
+        # pre-sanitize draft length and would skip the 500-599 fallback band.
         depth_meta: dict = {"depth_status": None}
         body_for_depth = ""
         if compiled.article:
             body_for_depth = str(compiled.article.get("article_body") or "")
         from newsagent_v2.article.qa.textutil import word_count as _wc
-        words_now = int(compiled.final_words or _wc(body_for_depth) or 0)
+        words_now = int(_wc(body_for_depth) or 0)
+        if words_now and compiled.final_words != words_now:
+            compiled.final_words = words_now
         if compiled.article and (not compiled.ok or words_now < 600):
             depth_meta = apply_depth_fallback(
                 article=compiled.article,
@@ -548,6 +586,37 @@ class RunStoryAdapter:
                 compiled.final_words = words_now
 
         if not compiled.ok or not compiled.article:
+            # #region agent log
+            try:
+                import json as _json, time as _time
+                from pathlib import Path as _Path
+                _payload = {
+                    "sessionId": "7f9dc8",
+                    "hypothesisId": "E",
+                    "location": "run_story_adapter.py:run_story",
+                    "message": "generation_failed_final",
+                    "data": {
+                        "event_id": event.event_id,
+                        "failure_class": compiled.failure_class,
+                        "critical_codes": list(compiled.critical_codes or []),
+                        "notes": compiled.notes,
+                        "recovery_cycles": len(recovery_history or []),
+                        "recovery_actions": [
+                            (h or {}).get("recovery_action")
+                            for h in (recovery_history or [])
+                            if isinstance(h, dict)
+                        ],
+                        "writer_calls": compiled.writer_calls,
+                        "final_words": compiled.final_words,
+                        "evidence_capacity": compiled.evidence_capacity,
+                    },
+                    "timestamp": int(_time.time() * 1000),
+                }
+                with (_Path("debug-7f9dc8.log")).open("a", encoding="utf-8") as _f:
+                    _f.write(_json.dumps(_payload) + "\n")
+            except Exception:
+                pass
+            # #endregion
             failure_result = {
                 "ok": False,
                 "error": "Article could not be completed reliably after automatic verification. Please retry.",
@@ -573,6 +642,55 @@ class RunStoryAdapter:
                 "writer_provider": compiled.writer_provider,
                 "kimi_usage": compiled.kimi_usage,
             }
+            # Still attempt a hero image from the event/partial draft so GENERATE NOW
+            # is not blank when the writer hits rate limits / QA failures.
+            stub_article = compiled.article if isinstance(compiled.article, dict) else None
+            if not stub_article:
+                stub_article = {
+                    "headline": event.canonical_title,
+                    "slug": str(event.event_id),
+                    "seo_title": str(event.canonical_title or "")[:70],
+                    "meta_description": str(event.canonical_title or "")[:160],
+                    "body": str(event.canonical_title or ""),
+                    "key_points": [],
+                    "entities": [
+                        {"name": str(ent)}
+                        for ent in list(event.entities or [])[:8]
+                        if str(ent or "").strip()
+                    ],
+                }
+            image_result = self._generate_image(
+                event_id=event.event_id,
+                article=stub_article,
+                article_hash=self._calculate_sha256(str(stub_article.get("body") or event.canonical_title or "")),
+                job_id=job.job_id,
+            )
+            failure_result["image_usage"] = image_result
+            if image_result.get("success"):
+                image_path = image_result.get("final_path")
+                image_hash = image_result.get("branded_image_hash") or self._calculate_sha256("")
+                if self.version_store and image_path:
+                    self.version_store.save_image(
+                        event_id=event.event_id,
+                        version="v1",
+                        image_path=str(image_path),
+                        image_hash=str(image_hash),
+                        metadata={
+                            "raw_image_hash": image_result.get("raw_image_hash"),
+                            "provider": image_result.get("provider"),
+                            "model": image_result.get("model"),
+                            "generated_despite_article_failure": True,
+                        },
+                    )
+                failure_result["image_version"] = "v1"
+                failure_result["image_hash"] = image_hash
+                failure_result["image_path"] = image_path
+                failure_result["image_failed"] = False
+            else:
+                failure_result["image_failed"] = True
+                failure_result["image_failure_code"] = (
+                    image_result.get("image_failure_code") or image_result.get("reason")
+                )
             if self.version_store:
                 self.version_store.save_generation_diagnostics(
                     event.event_id,
@@ -643,16 +761,37 @@ class RunStoryAdapter:
         )
 
         if not image_result.get("success"):
-            # Image failed - still return article
-            return {
-                "ok": True,
+            # Image is required for a successful V5 generation pass.
+            failure_code = str(
+                image_result.get("image_failure_code")
+                or image_result.get("reason")
+                or "image_generation_failed"
+            )
+            failure_result = {
+                "ok": False,
+                "error": f"Image generation failed: {failure_code}",
+                "failure_class": "IMAGE_GENERATION_FAILED",
                 "article_version": "v1",
                 "image_version": None,
                 "image_failed": True,
                 "article_hash": article_hash,
                 "text_usage": compiled.kimi_usage,
                 "image_usage": image_result,
+                "image_failure_code": failure_code,
             }
+            if self.version_store:
+                self.version_store.save_generation_diagnostics(
+                    event.event_id,
+                    {
+                        "ok": False,
+                        "failure_class": "IMAGE_GENERATION_FAILED",
+                        "notes": failure_code,
+                        "image_failure_code": failure_code,
+                        "writer_model": compiled.writer_model,
+                        "writer_provider": compiled.writer_provider,
+                    },
+                )
+            return failure_result
 
         image_path = image_result.get("final_path")
         image_hash = image_result.get("branded_image_hash") or self._calculate_sha256("")

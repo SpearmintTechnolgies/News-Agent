@@ -105,6 +105,8 @@ def test_render_card_includes_url():
 
     assert card.get("event_id") == "evt-test"
     assert "reply_markup" in card
+    assert "First published: 1 Jan 2024, 00:00 UTC" in card["text"]
+    assert "Source times:" not in card["text"]
 
     rows = card["reply_markup"].get("inline_keyboard", [])
 
@@ -120,6 +122,64 @@ def test_render_card_includes_url():
     assert found_open_source, "Should have OPEN SOURCE button"
 
     print("[PASS] Full card render includes OPEN SOURCE with correct URL")
+
+
+def test_card_shows_earliest_published_not_retrieved():
+    """Slug age uses earliest published_at across sources, not fetch time."""
+    event = NewsEvent(
+        event_id="evt-age",
+        canonical_title="Age Test",
+        topic="Crypto",
+    )
+    event.reports = [
+        EventReport(
+            report_id="rpt-1",
+            source="CoinDesk",
+            source_id="coindesk",
+            source_authority=0.8,
+            headline="Newer",
+            url="https://coindesk.com/a",
+            published_at="2026-10-03T18:00:00Z",
+            retrieved_at="2026-10-04T11:00:00Z",
+            description="",
+            entities=[],
+            raw_item_id="raw-1",
+        ),
+        EventReport(
+            report_id="rpt-2",
+            source="Decrypt",
+            source_id="decrypt",
+            source_authority=0.7,
+            headline="Older",
+            url="https://decrypt.co/a",
+            published_at="2026-10-01T09:30:00Z",
+            retrieved_at="2026-10-04T11:05:00Z",
+            description="",
+            entities=[],
+            raw_item_id="raw-2",
+        ),
+        EventReport(
+            report_id="rpt-3",
+            source="NoPub",
+            source_id="nopub",
+            source_authority=0.5,
+            headline="Fetch only",
+            url="https://example.com/a",
+            published_at=None,
+            retrieved_at="2026-10-04T12:00:00Z",
+            description="",
+            entities=[],
+            raw_item_id="raw-3",
+        ),
+    ]
+
+    card = render_card_from_event(event, rank=1, total_events=5)
+    assert "First published: 1 Oct 2026, 09:30 UTC" in card["text"]
+    assert "Source times:" not in card["text"]
+    assert "18:00 UTC" not in card["text"]
+    assert "12:00 UTC" not in card["text"]
+    assert "11:00 UTC" not in card["text"]
+    print("[PASS] Earliest published_at used for news age")
 
 
 def test_primary_url_property():

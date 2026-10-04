@@ -1,5 +1,5 @@
 # ============================================================
-# SECRETS / CREDENTIALS — NEVER COMMIT
+# SECRETS / CREDENTIALS ï¿½ NEVER COMMIT
 # ============================================================
 .env
 .env.*
@@ -13,6 +13,7 @@ credentials*.json
 service-account*.json
 *service_account*.json
 google-credentials*.json
+prefab-segment-*.json
 
 # ============================================================
 # PYTHON

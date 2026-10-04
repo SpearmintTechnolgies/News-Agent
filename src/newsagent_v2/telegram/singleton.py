@@ -13,10 +13,37 @@ from pathlib import Path
 # Lock file location - same directory as bot for visibility
 LOCK_FILE = Path(__file__).parent.parent.parent.parent / ".v5_bot_lock"
 
+# PROCESS_QUERY_LIMITED_INFORMATION — enough to detect liveness without
+# needing terminate rights (OpenProcess(1) = PROCESS_TERMINATE fails
+# spuriously on STATUS_DELETE_PENDING / protected PIDs).
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
 
 class SingletonError(RuntimeError):
     """Raised when another V5 bot instance is already running."""
     pass
+
+
+def _pid_is_running(pid: int) -> bool:
+    """Return True if *pid* appears to be a live process."""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+        kernel = ctypes.windll.kernel32
+        handle = kernel.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle:
+            kernel.CloseHandle(handle)
+            return True
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Process exists but we lack signal rights — treat as running.
+        return True
 
 
 def acquire_singleton_lock() -> bool:
@@ -35,30 +62,13 @@ def acquire_singleton_lock() -> bool:
     
     if LOCK_FILE.exists():
         try:
-            stale_pid = int(LOCK_FILE.read_text().strip())
+            stale_pid = int(LOCK_FILE.read_text(encoding="utf-8").strip())
             
-            # Check if process is actually running
-            if sys.platform == "win32":
-                import ctypes
-                kernel = ctypes.windll.kernel32
-                handle = kernel.OpenProcess(1, False, stale_pid)
-                if handle:
-                    kernel.CloseHandle(handle)
-                    # Process exists - another bot is running
-                    raise SingletonError(
-                        f"V5 Telegram bot already running (PID {stale_pid}). "
-                        "Refusing second instance."
-                    )
-            else:
-                # Unix: check if process exists
-                try:
-                    os.kill(stale_pid, 0)
-                    raise SingletonError(
-                        f"V5 Telegram bot already running (PID {stale_pid}). "
-                        "Refusing second instance."
-                    )
-                except ProcessLookupError:
-                    pass  # Process doesn't exist, lock is stale
+            if _pid_is_running(stale_pid) and stale_pid != current_pid:
+                raise SingletonError(
+                    f"V5 Telegram bot already running (PID {stale_pid}). "
+                    "Refusing second instance."
+                )
             
             # Stale lock - remove it
             try:
@@ -66,6 +76,8 @@ def acquire_singleton_lock() -> bool:
             except OSError:
                 pass
                 
+        except SingletonError:
+            raise
         except (ValueError, OSError):
             # Corrupt lock file - remove it
             try:
@@ -75,7 +87,7 @@ def acquire_singleton_lock() -> bool:
     
     # Acquire lock
     try:
-        LOCK_FILE.write_text(str(current_pid))
+        LOCK_FILE.write_text(str(current_pid), encoding="utf-8")
         return True
     except OSError as e:
         raise SingletonError(f"Cannot acquire singleton lock: {e}")
@@ -88,7 +100,7 @@ def release_singleton_lock() -> None:
             # Only remove if it's our lock
             current_pid = os.getpid()
             try:
-                lock_pid = int(LOCK_FILE.read_text().strip())
+                lock_pid = int(LOCK_FILE.read_text(encoding="utf-8").strip())
                 if lock_pid == current_pid:
                     LOCK_FILE.unlink()
             except (ValueError, OSError):
@@ -106,21 +118,9 @@ def is_another_instance_running() -> tuple[bool, int | None]:
         return False, None
     
     try:
-        lock_pid = int(LOCK_FILE.read_text().strip())
-        
-        if sys.platform == "win32":
-            import ctypes
-            kernel = ctypes.windll.kernel32
-            handle = kernel.OpenProcess(1, False, lock_pid)
-            if handle:
-                kernel.CloseHandle(handle)
-                return True, lock_pid
-            return False, None
-        else:
-            try:
-                os.kill(lock_pid, 0)
-                return True, lock_pid
-            except ProcessLookupError:
-                return False, None
+        lock_pid = int(LOCK_FILE.read_text(encoding="utf-8").strip())
+        if _pid_is_running(lock_pid):
+            return True, lock_pid
+        return False, None
     except (ValueError, OSError):
         return False, None

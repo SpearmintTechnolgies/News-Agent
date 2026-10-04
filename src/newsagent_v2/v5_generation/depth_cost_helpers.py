@@ -12,11 +12,19 @@ DEPTH_FALLBACK_PASS = "DEPTH_FALLBACK_PASS"
 DEPTH_NORMAL_PASS = "DEPTH_NORMAL_PASS"
 DEPTH_FAIL = "DEPTH_FAIL"
 SUPPRESSIBLE_DEPTH_CODE = "below_article_minimum_length"
+SUPPRESSIBLE_DEPTH_CODES = frozenset(
+    {
+        "below_article_minimum_length",
+        "below_absolute_publication_minimum",
+    }
+)
 # Depth bands (output words): 600+ normal; 500-599 fallback; 400-499 exceptional; <400 hard block.
+# LIMITED_DEPTH_BRIEF may fall back from 200.
 NORMAL_PASS_MIN = 600
 STANDARD_FALLBACK_MIN = 500
 ABSOLUTE_HARD_MIN = NORMAL_PASS_MIN  # alias: normal generation-ready threshold
 FALLBACK_FLOOR = 400
+LIMITED_FALLBACK_FLOOR = 200
 EXCEPTIONAL_FALLBACK_MIN = FALLBACK_FLOOR
 DEFAULT_VERTEX_MODEL = "gemini-3.1-flash-image"
 
@@ -358,11 +366,20 @@ def apply_depth_fallback(
       >=600 normal pass
       500-599 fallback after bounded recovery
       400-499 exceptional fallback after recovery exhausted
-      <400 hard block
+      <400 hard block (LIMITED_DEPTH_BRIEF may use 200+)
     Does not pad article body.
     """
     history = list(recovery_history or [])
     recovery_exhausted = bool(history) and not recovery_succeeded
+    qa_metrics = (qa or {}).get("metrics") if isinstance(qa, dict) else {}
+    evidence_limited = bool(
+        (isinstance(qa, dict) and qa.get("evidence_limited"))
+        or (isinstance(qa_metrics, dict) and qa_metrics.get("evidence_limited"))
+        or (isinstance(qa, dict) and qa.get("evidence_capacity") == "LIMITED")
+        or (isinstance(qa_metrics, dict) and qa_metrics.get("evidence_capacity") == "LIMITED")
+        or (isinstance(article, dict) and article.get("article_type") == "LIMITED_DEPTH_BRIEF")
+    )
+    floor = LIMITED_FALLBACK_FLOOR if evidence_limited else FALLBACK_FLOOR
     result: dict[str, Any] = {
         "depth_status": DEPTH_FAIL,
         "final_word_count": word_count,
@@ -382,13 +399,13 @@ def apply_depth_fallback(
             result["ok"] = False
         return result
 
-    if word_count < FALLBACK_FLOOR:
+    if word_count < floor:
         result["depth_status"] = DEPTH_FAIL
         result["ok"] = False
         result["reason"] = "below_hard_block_floor"
         return result
 
-    # 400-599: require exhausted recovery; 400-499 marked exceptional
+    # Below normal band: require exhausted recovery; mark exceptional under 500.
     if not recovery_exhausted:
         result["depth_status"] = DEPTH_FAIL
         result["ok"] = False
@@ -399,8 +416,16 @@ def apply_depth_fallback(
 
     qa = dict(qa or {})
     failures = [dict(item) for item in (qa.get("critical_failures") or []) if isinstance(item, dict)]
-    other = [item for item in failures if str(item.get("code") or "") != SUPPRESSIBLE_DEPTH_CODE]
-    length_hits = [item for item in failures if str(item.get("code") or "") == SUPPRESSIBLE_DEPTH_CODE]
+    other = [
+        item
+        for item in failures
+        if str(item.get("code") or "") not in SUPPRESSIBLE_DEPTH_CODES
+    ]
+    length_hits = [
+        item
+        for item in failures
+        if str(item.get("code") or "") in SUPPRESSIBLE_DEPTH_CODES
+    ]
     if not length_hits:
         # no length critical to suppress; still blocked if other criticals or soft fail
         result["ok"] = False
@@ -412,24 +437,31 @@ def apply_depth_fallback(
         result["remaining_critical_codes"] = [str(i.get("code")) for i in other]
         return result
 
-    # Suppress ONLY below_article_minimum_length and recompute QA flags
+    # Suppress length-floor criticals and recompute QA flags
     from newsagent_v2.article.qa.result import build_qa_result, SEVERITY_CRITICAL, SEVERITY_WARNING
 
     warnings = [dict(item) for item in (qa.get("warnings") or []) if isinstance(item, dict)]
-    # keep suppressed code as an informational warning for audit
-    warnings.append(
-        {
-            "code": SUPPRESSIBLE_DEPTH_CODE,
-            "message": f"suppressed for {DEPTH_FALLBACK_PASS}: {word_count} words after exhausted bounded recovery",
-            "severity": SEVERITY_WARNING,
-            "module": "depth",
-        }
-    )
+    # keep suppressed codes as informational warnings for audit
+    for hit in length_hits:
+        code = str(hit.get("code") or SUPPRESSIBLE_DEPTH_CODE)
+        warnings.append(
+            {
+                "code": code,
+                "message": (
+                    f"suppressed for {DEPTH_FALLBACK_PASS}: {word_count} words "
+                    "after exhausted bounded recovery"
+                ),
+                "severity": SEVERITY_WARNING,
+                "module": "depth",
+            }
+        )
     metrics = dict(qa.get("metrics") or {})
     metrics["depth_status"] = DEPTH_FALLBACK_PASS
     metrics["depth_fallback_word_count"] = word_count
     metrics["depth_fallback_recovery_exhausted"] = True
-    metrics["depth_fallback_suppressed_critical"] = SUPPRESSIBLE_DEPTH_CODE
+    metrics["depth_fallback_suppressed_critical"] = ",".join(
+        sorted({str(item.get("code") or "") for item in length_hits})
+    )
     new_qa = build_qa_result(
         event_id=qa.get("event_id"),
         issues=other + warnings,
@@ -438,7 +470,7 @@ def apply_depth_fallback(
     # build_qa_result treats warnings by severity — ensure suppressed not critical
     new_qa["critical_failures"] = [
         item for item in new_qa.get("critical_failures") or []
-        if str(item.get("code") or "") != SUPPRESSIBLE_DEPTH_CODE
+        if str(item.get("code") or "") not in SUPPRESSIBLE_DEPTH_CODES
     ]
     new_qa["critical_count"] = len(new_qa["critical_failures"])
     publishable = new_qa["critical_count"] == 0

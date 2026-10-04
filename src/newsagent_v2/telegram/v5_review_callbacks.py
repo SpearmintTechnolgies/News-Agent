@@ -605,6 +605,44 @@ class V5ReviewCallbackHandler:
         try:
             if self.wordpress_lifecycle is not None:
                 draft_result = self.wordpress_lifecycle.publish_draft(event_id)
+                # If GENERATE never created a draft (older runs), create it now then publish.
+                if (
+                    not draft_result.ok
+                    and getattr(draft_result, "error_code", None) == "draft_not_found"
+                ):
+                    article_record = self.version_store.get_article(
+                        event_id, approval.article_version
+                    )
+                    if not article_record:
+                        return {
+                            "ok": False,
+                            "reason": "article_not_found",
+                            "message": "Approved article artifacts were not found.",
+                        }
+                    article = article_record.get("article") or {}
+                    image_path = (
+                        self.version_store.get_image_path(event_id, approval.image_version)
+                        if approval.image_version
+                        else None
+                    )
+                    created = self.wordpress_lifecycle.create_or_update_draft(
+                        event_id=event_id,
+                        article=article,
+                        article_version=approval.article_version,
+                        image_path=str(image_path) if image_path else None,
+                        image_version=approval.image_version,
+                        categories=[str(article.get("category") or "")],
+                        tags=[],
+                        evidence=[],
+                        topic=str(article.get("category") or ""),
+                    )
+                    if not created.ok:
+                        return {
+                            "ok": False,
+                            "reason": "draft_create_failed",
+                            "message": created.error or "WordPress draft creation failed",
+                        }
+                    draft_result = self.wordpress_lifecycle.publish_draft(event_id)
                 if not draft_result.ok:
                     return {"ok": False, "reason": "publish_failed", "message": draft_result.error or "WordPress publish failed"}
                 self._save_publication(event_id, draft_result.wp_url, str(draft_result.wp_post_id))

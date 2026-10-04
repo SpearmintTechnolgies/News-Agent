@@ -9,7 +9,9 @@ from newsagent_v2.article.qa.result import SEVERITY_CRITICAL, issue
 
 WINDOWS_PATH_RE = re.compile(r"[A-Za-z]:\\|/Users/|/home/")
 ENV_RE = re.compile(
-    r"\b(?:GROQ_API_KEY|OPENAI_API_KEY|API_KEY|AUTHORIZATION|os\.environ)\b",
+    # Do not match ordinary English "authorization" (e.g. regulatory text).
+    r"\b(?:GROQ_API_KEY|OPENAI_API_KEY|API_KEY|os\.environ)\b|"
+    r"authorization\s*[:=]",
     re.IGNORECASE,
 )
 LOCALHOST_RE = re.compile(r"\b(?:localhost|127\.0\.0\.1)\b", re.IGNORECASE)

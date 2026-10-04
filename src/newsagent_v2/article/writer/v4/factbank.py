@@ -230,12 +230,17 @@ def build_fact_bank(
     ledgers: EvidenceLedgers | None = None,
 ) -> FactBank:
     """Extract atomic propositions from every useful source unit; dedupe; keep conflicts."""
+    from newsagent_v2.article.writer.v4.packet import _is_boilerplate_proposition
+
     base = ledgers or build_evidence_ledgers(pack)
     raw: list[FactProposition] = []
     for idx, claim in enumerate(base.claims, start=1):
-        raw.append(
-            _claim_to_proposition(claim, pack=pack, prop_id=f"P{idx:02d}")
-        )
+        prop = _claim_to_proposition(claim, pack=pack, prop_id=f"P{idx:02d}")
+        # Drop nav/chrome before capacity scoring — junk props were inflating
+        # unique_proposition_count while starving the writer packet.
+        if _is_boilerplate_proposition(prop.text):
+            continue
+        raw.append(prop)
 
     merged: list[FactProposition] = []
     merge_count = 0
@@ -330,35 +335,76 @@ def fact_bank_to_writer_packet(
     max_facts: int = 24,
 ) -> WriterEvidencePacket:
     """Semantic-only packet. No raw source prose fields."""
-    facts = tuple(
-        AuthorizedFact(
-            id=row.proposition_id,
-            proposition=row.text,
-            attribution=row.attribution,
-            numbers=row.numbers,
-            polarity=row.polarity,
-            modal=row.modality,
-            modality=row.modality,
-            provenance=row.source_ids,
-            subject=row.subject,
-            predicate=row.predicate,
-            object=row.object,
-            status=row.modality or ("negated" if row.polarity == "negated" else "affirmed"),
-            time=row.dates[0] if row.dates else "",
-            entities=row.entities,
+    from newsagent_v2.article.writer.v4.packet import _is_boilerplate_proposition
+
+    selected: list[AuthorizedFact] = []
+    for row in bank.propositions:
+        if _is_boilerplate_proposition(row.text):
+            continue
+        selected.append(
+            AuthorizedFact(
+                id=row.proposition_id,
+                proposition=row.text,
+                attribution=row.attribution,
+                numbers=row.numbers,
+                polarity=row.polarity,
+                modal=row.modality,
+                modality=row.modality,
+                provenance=row.source_ids,
+                subject=row.subject,
+                predicate=row.predicate,
+                object=row.object,
+                status=row.modality or ("negated" if row.polarity == "negated" else "affirmed"),
+                time=row.dates[0] if row.dates else "",
+                entities=row.entities,
+            )
         )
-        for row in bank.propositions[:max_facts]
-    )
+        if len(selected) >= max_facts:
+            break
+    facts = tuple(selected)
     entities: list[str] = []
     for fact in facts:
         for token in fact.entities:
             if token and token not in entities:
                 entities.append(token)
+    quotes: list[AuthorizedQuote] = []
+    for row in bank.quotes:
+        speaker = str(row.speaker or "").strip()
+        quote_text = str(row.exact_quote or "").strip()
+        if not quote_text:
+            continue
+        if _is_boilerplate_proposition(quote_text):
+            continue
+        if not speaker or speaker.lower() in {"unknown", "unknown speaker", "none", "n/a"}:
+            inferred = ""
+            needle = quote_text.strip().strip('"').strip("'")
+            for fact in facts:
+                if needle and needle in fact.proposition:
+                    match = re.search(
+                        r"([A-Z][\w .,'-]{2,80}?)\s+said\b",
+                        fact.proposition,
+                    )
+                    if match:
+                        inferred = match.group(1).strip(" ,.-")
+                        break
+            if not inferred:
+                # Unattributed orphan quotes fail fabricated_quote in QA.
+                continue
+            row = AuthorizedQuote(
+                id=row.id,
+                exact_quote=quote_text,
+                speaker=inferred,
+                provenance=row.provenance,
+            )
+            speaker = inferred
+        quotes.append(row)
+        if len(quotes) >= 8:
+            break
     return WriterEvidencePacket(
         event_id=bank.event_id,
         story_topic=story_topic or bank.event_id,
         authorized_facts=facts,
-        authorized_quotes=bank.quotes[:8],
+        authorized_quotes=tuple(quotes),
         authorized_entities=tuple(entities[:24]),
         source_context={
             "source_names": list(source_names or [])[:12],

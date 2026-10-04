@@ -27,6 +27,8 @@ STANDARD_RANGE = (500, 700)
 LIMITED_RANGE = (500, 600)
 LIMITED_RANGE_FLOOR = LIMITED_RANGE[0]
 ABSOLUTE_PUBLICATION_MINIMUM = 400
+# Thin LIMITED_DEPTH_BRIEF packs cannot honestly hit the 400 normal floor.
+LIMITED_ABSOLUTE_PUBLICATION_MINIMUM = 200
 
 
 @dataclass(frozen=True)
@@ -152,6 +154,8 @@ def assess_evidence_capacity(
         )
 
     # LIMITED: broad research may have run; unique verified facts remain thin.
+    # Use brief QA mode so thin-but-real packs are not scored against the
+    # normal 450/600 floor (matches top5_article_batch LIMITED path).
     return DepthDecision(
         evidence_capacity=CAPACITY_LIMITED,
         article_type=ARTICLE_LIMITED,
@@ -165,7 +169,7 @@ def assess_evidence_capacity(
         numeric_fact_count=stats["numeric"],
         attribution_count=stats["attributed"],
         evidence_limited=True,
-        qa_article_mode=ARTICLE_MODE_NORMAL,
+        qa_article_mode=ARTICLE_MODE_BRIEF,
         reason="limited_unique_coverage",
         research=research_dict,
     )
@@ -214,13 +218,20 @@ def check_v4_article_depth(
     body = article.get("article_body") if isinstance(article.get("article_body"), str) else ""
     words = word_count(body)
     issues: list[dict[str, Any]] = []
-    if words < ABSOLUTE_PUBLICATION_MINIMUM:
+    absolute_floor = ABSOLUTE_PUBLICATION_MINIMUM
+    if depth is not None and (
+        depth.evidence_limited
+        or depth.evidence_capacity == CAPACITY_LIMITED
+        or depth.article_type == ARTICLE_LIMITED
+    ):
+        absolute_floor = LIMITED_ABSOLUTE_PUBLICATION_MINIMUM
+    if words < absolute_floor:
         issues.append(
             issue(
                 code="below_absolute_publication_minimum",
                 message=(
                     f"article has {words} words; absolute publication minimum is "
-                    f"{ABSOLUTE_PUBLICATION_MINIMUM}"
+                    f"{absolute_floor}"
                 ),
                 severity=SEVERITY_CRITICAL,
                 module="depth",
@@ -229,8 +240,8 @@ def check_v4_article_depth(
         return issues
     if depth is None:
         return issues
-    # Hard-block only below 400; normal target is 600+. Recommended type/RICH targets are warnings only.
-    floor = int(depth.recommended_word_min or ABSOLUTE_PUBLICATION_MINIMUM)
+    # Hard-block only below absolute floor; normal target is 600+. Recommended type/RICH targets are warnings only.
+    floor = int(depth.recommended_word_min or absolute_floor)
     label = depth.article_type
     if words < floor:
         issues.append(

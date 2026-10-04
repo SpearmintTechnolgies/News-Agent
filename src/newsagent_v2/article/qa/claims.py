@@ -54,9 +54,16 @@ def check_claims(
         if isinstance(row, dict) and str(row.get("text") or "").strip()
     }
     body = str(article.get("article_body") or "")
-    for span in extract_quoted_spans(body):
+    # Match editorial cleanliness: ignore Conclusion/FAQ restatements for
+    # unmapped nickname/token quotes (e.g. Tieshun "Pacman" Roquerre).
+    from newsagent_v2.article.qa.editorial_cleanliness import _body_without_closing_sections
+
+    body_for_quote_map = _body_without_closing_sections(body)
+    _unmapped_spans: list[str] = []
+    for span in extract_quoted_spans(body_for_quote_map):
         row = quote_rows_by_text.get(span)
         if not isinstance(row, dict):
+            _unmapped_spans.append(span)
             issues.append(
                 issue(
                     code="quote_body_unmapped",
@@ -65,6 +72,28 @@ def check_claims(
                     module="claims",
                 )
             )
+    # #region agent log
+    if _unmapped_spans:
+        try:
+            import json as _json, time as _time
+            from pathlib import Path as _Path
+            _payload = {
+                "sessionId": "7f9dc8",
+                "hypothesisId": "D",
+                "location": "claims.py:check_claims",
+                "message": "unmapped_quote_spans",
+                "data": {
+                    "unmapped": _unmapped_spans[:20],
+                    "mapped_quote_count": len(quote_rows_by_text),
+                    "span_count": len(extract_quoted_spans(body)),
+                },
+                "timestamp": int(_time.time() * 1000),
+            }
+            with (_Path("debug-7f9dc8.log")).open("a", encoding="utf-8") as _f:
+                _f.write(_json.dumps(_payload) + "\n")
+        except Exception:
+            pass
+    # #endregion
 
     with_evidence = 0
     for i, claim in enumerate(claims):

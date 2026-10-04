@@ -1,4 +1,4 @@
-﻿"""V4 writer provider selection and OpenAI-compatible transports.
+"""V4 writer provider selection and OpenAI-compatible transports.
 
 Pipeline code stays provider-agnostic. Selection is env/config only.
 Kimi and paid private Qwen adapters exist but stay idle unless explicitly allowed.
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 from urllib.parse import urlparse
@@ -48,6 +49,34 @@ DEFAULT_MAX_PROVIDER_ATTEMPTS = 2
 KNOWN_GROQ_QWEN_OTPM_LIMIT = 1000
 V4_MAX_COMPLETION_TOKENS = 900  # must remain < KNOWN_GROQ_QWEN_OTPM_LIMIT
 assert V4_MAX_COMPLETION_TOKENS < KNOWN_GROQ_QWEN_OTPM_LIMIT
+# Mantle/Kimi budget hard max is 1500; use it so RICH drafts can clear the
+# production 600-word QA floor (Groq's 900-token cap does not apply here).
+KIMI_V4_MAX_COMPLETION_TOKENS = 1500
+
+# Same-org Groq failover cannot reset OTPM/ITPM; sleep+retry is the real recovery.
+GROQ_RATE_LIMIT_RETRIES = 2
+GROQ_RATE_LIMIT_WAIT_MIN_S = 5.0
+GROQ_RATE_LIMIT_WAIT_MAX_S = 60.0
+
+
+def _parse_retry_after_seconds(value: Any) -> float | None:
+    """Parse Retry-After / provider wait hint into seconds."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    match = re.search(r"(\d+(?:\.\d+)?)\s*s", text, flags=re.IGNORECASE)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
 
 # Infrastructure error classes â€” content QA failures must NOT failover.
 INFRA_RATE_LIMIT = "RATE_LIMIT"
@@ -253,7 +282,7 @@ def resolve_v4_provider_specs(environ: dict[str, str] | None) -> dict[str, Any]:
     elif primary.provider == PROVIDER_KIMI:
         primary = V4ProviderSpec(
             provider=PROVIDER_KIMI,
-            model=str(env.get(ENV_MODEL) or "moonshotai.kimi-k2.5").strip(),
+            model=str(env.get(ENV_MODEL) or "moonshotai.kimi-k3").strip(),
             chat_url="",
             api_key_env=KIMI_KEY_ENV,
             api_key_present=kimi_key,
@@ -325,6 +354,8 @@ class ChatTransport:
         body_extra: dict[str, Any] | None = None,
         max_completion_tokens: int = V4_MAX_COMPLETION_TOKENS,
         temperature: float = 0.3,
+        event_id: str | None = None,
+        stage: str | None = None,
     ) -> ChatCompletionResult:
         raise NotImplementedError
 
@@ -339,6 +370,39 @@ class GroqChatTransport(ChatTransport):
     chat_url: str = GROQ_CHAT_COMPLETIONS_URL
 
     def complete(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        body_extra: dict[str, Any] | None = None,
+        max_completion_tokens: int = V4_MAX_COMPLETION_TOKENS,
+        temperature: float = 0.3,
+        event_id: str | None = None,
+        stage: str | None = None,
+    ) -> ChatCompletionResult:
+        # event_id/stage are accepted for writer parity with Kimi; unused on Groq.
+        _ = (event_id, stage)
+        last: ChatCompletionResult | None = None
+        for attempt in range(GROQ_RATE_LIMIT_RETRIES + 1):
+            last = self._complete_once(
+                messages=messages,
+                body_extra=body_extra,
+                max_completion_tokens=max_completion_tokens,
+                temperature=temperature,
+            )
+            if last.ok or last.error_type != INFRA_RATE_LIMIT:
+                return last
+            if attempt >= GROQ_RATE_LIMIT_RETRIES:
+                return last
+            wait_s = _parse_retry_after_seconds(last.retry_after)
+            if wait_s is None:
+                # Also mine wait hint from error text ("try again in 33.1s").
+                wait_s = _parse_retry_after_seconds(last.error)
+            wait_s = max(GROQ_RATE_LIMIT_WAIT_MIN_S, min(float(wait_s or 35.0), GROQ_RATE_LIMIT_WAIT_MAX_S))
+            time.sleep(wait_s)
+        assert last is not None
+        return last
+
+    def _complete_once(
         self,
         *,
         messages: list[dict[str, str]],
@@ -487,7 +551,11 @@ class OpenAICompatibleTransport(ChatTransport):
         body_extra: dict[str, Any] | None = None,
         max_completion_tokens: int = V4_MAX_COMPLETION_TOKENS,
         temperature: float = 0.3,
+        event_id: str | None = None,
+        stage: str | None = None,
     ) -> ChatCompletionResult:
+        # event_id/stage are accepted for writer parity with Kimi; unused on Qwen.
+        _ = (event_id, stage)
         import requests
 
         body: dict[str, Any] = {
@@ -561,7 +629,7 @@ class KimiChatTransport(ChatTransport):
     """Bedrock Mantle Kimi K2.5. Live only when NEWSAGENT_V2_V4_ALLOW_KIMI is set."""
 
     api_key: str = ""
-    model: str = "moonshotai.kimi-k2.5"
+    model: str = "moonshotai.kimi-k3"
     provider_name: str = PROVIDER_KIMI
     allowed: bool = False
     http_post: Callable[..., Any] | None = None
@@ -725,7 +793,12 @@ class KimiChatTransport(ChatTransport):
             content = None
             finish_reason = None
             if isinstance(payload, dict):
-                content = parse_message_content(payload)
+                # Mantle/Kimi often returns fenced or brace-wrapped JSON; use the
+                # soft parser. On failure raise so the writer can soft-retry
+                # without json_schema.
+                from newsagent_v2.article.writer.bedrock_mantle import parse_chat_payload
+
+                content = parse_chat_payload(payload)
                 choices = payload.get("choices")
                 if isinstance(choices, list) and choices and isinstance(choices[0], dict):
                     finish_reason = choices[0].get("finish_reason")
@@ -809,7 +882,7 @@ def build_transport(
         key = str((environ or {}).get(KIMI_KEY_ENV) or "").strip()
         return KimiChatTransport(
             api_key=key,
-            model=model or "moonshotai.kimi-k2.5",
+            model=model or "moonshotai.kimi-k3",
             base_url=str((environ or {}).get(ENV_KIMI_BASE_URL) or "").strip(),
             allowed=bool(allow_kimi),
             http_post=http_post,

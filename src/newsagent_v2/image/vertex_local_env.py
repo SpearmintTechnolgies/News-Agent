@@ -15,8 +15,9 @@ LOCAL_CEO_VERTEX_PROJECT = "prefab-segment-500506-j4"
 LOCAL_CEO_VERTEX_LOCATION = "global"
 LOCAL_CEO_VERTEX_MODEL = "gemini-3.1-flash-image"
 
-# Prefer the Telegram Desktop path confirmed for the live CEO machine; fall back to Downloads.
+# Prefer the local workspace copy; then live CEO machine Telegram Desktop / Downloads.
 _LOCAL_CEO_CREDENTIAL_CANDIDATES: tuple[Path, ...] = (
+    Path(r"C:\Users\Ahmed Falah\Downloads\DA work\News agent\prefab-segment-500506-j4-8738a236f43e.json"),
     Path(r"C:\Users\Global\Downloads\Telegram Desktop\prefab-segment-500506-j4-8738a236f43e.json"),
     Path(r"C:\Users\Global\Downloads\prefab-segment-500506-j4-8738a236f43e.json"),
 )

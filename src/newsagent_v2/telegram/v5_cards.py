@@ -5,10 +5,57 @@ Simple, safe formatting compatible with actual NewsEvent structure.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from newsagent_v2.discovery.event_clusterer import NewsEvent
 from newsagent_v2.telegram.cards import html_caption
 from newsagent_v2.telegram.contract import CALLBACK_DATA_LIMIT
 from newsagent_v2.telegram.v5_callbacks import RUN_PREFIX, FOLLOW_PREFIX, IGNORE_PREFIX, SEENEXT_PREFIX
+
+
+def _parse_card_timestamp(raw: str | None) -> datetime | None:
+    """Parse ISO / Z timestamps; treat naive values as UTC."""
+    if not raw or not str(raw).strip():
+        return None
+    text = str(raw).strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def format_card_timestamp(raw: str | None) -> str | None:
+    """Human-readable UTC stamp for slug cards, e.g. '3 Oct 2026, 18:16 UTC'."""
+    dt = _parse_card_timestamp(raw)
+    if dt is None:
+        return None
+    return f"{dt.day} {dt.strftime('%b %Y, %H:%M UTC')}"
+
+
+def _published_times_by_source(event: NewsEvent) -> dict[str, datetime]:
+    """Earliest published_at per source (ignores fetch/retrieved times)."""
+    earliest: dict[str, datetime] = {}
+    for report in event.reports or []:
+        dt = _parse_card_timestamp(report.published_at)
+        if dt is None:
+            continue
+        name = (report.source or report.source_id or "source").strip() or "source"
+        prev = earliest.get(name)
+        if prev is None or dt < prev:
+            earliest[name] = dt
+    return earliest
+
+
+def earliest_published_timestamp(event: NewsEvent) -> str | None:
+    """Earliest published_at across all sources — primary news-age signal."""
+    times = list(_published_times_by_source(event).values())
+    if not times:
+        return None
+    earliest = min(times)
+    return f"{earliest.day} {earliest.strftime('%b %Y, %H:%M UTC')}"
 
 
 def compact_event_card(
@@ -28,6 +75,10 @@ def compact_event_card(
         "",
         f"Topic: {html_caption(event.topic)} | Reports: {len(event.reports)} | Sources: {source_count}",
     ]
+
+    first_published = earliest_published_timestamp(event)
+    if first_published:
+        lines.append(f"First published: {first_published}")
     
     # Add entities if available
     if event.entities:

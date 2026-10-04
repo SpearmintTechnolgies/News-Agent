@@ -1,4 +1,4 @@
-﻿"""V5 Provider Preflight Tests.
+"""V5 Provider Preflight Tests.
 
 Tests cover:
 - BOTH writer+image must be READY before generation
@@ -45,13 +45,15 @@ class TestProviderPreflight:
         status = preflight.check_writer()
         assert status.status == "MISSING_CREDENTIALS"
     
-    def test_image_ready_with_vertex_config(self) -> None:
+    def test_image_ready_with_vertex_config(self, tmp_path: Path) -> None:
         """Image ready when Vertex config is complete."""
+        creds = tmp_path / "creds.json"
+        creds.write_text("{}", encoding="utf-8")
         environ = {
             "NEWSAGENT_V2_VERTEX_ENABLED": "true",
             "NEWSAGENT_V2_VERTEX_PROJECT": "test-project",
             "NEWSAGENT_V2_VERTEX_LOCATION": "us-central1",
-            "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json",
+            "GOOGLE_APPLICATION_CREDENTIALS": str(creds),
         }
         preflight = ProviderPreflight(environ)
         
@@ -102,14 +104,16 @@ class TestProviderPreflight:
 class TestProviderPreflightFullReport:
     """Test full preflight report."""
     
-    def test_full_report_all_ready(self) -> None:
+    def test_full_report_all_ready(self, tmp_path: Path) -> None:
         """Full report when all providers ready."""
+        creds = tmp_path / "creds.json"
+        creds.write_text("{}", encoding="utf-8")
         environ = {
             "GROQ_API_KEY": "gsk_test_key",
             "NEWSAGENT_V2_VERTEX_ENABLED": "true",
             "NEWSAGENT_V2_VERTEX_PROJECT": "test-project",
             "NEWSAGENT_V2_VERTEX_LOCATION": "us-central1",
-            "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json",
+            "GOOGLE_APPLICATION_CREDENTIALS": str(creds),
             "NEWSAGENT_V2_WORDPRESS_BASE_URL": "https://example.com",
             "NEWSAGENT_V2_WORDPRESS_USERNAME": "admin",
             "NEWSAGENT_V2_WORDPRESS_APP_PASSWORD": "fake_pass",

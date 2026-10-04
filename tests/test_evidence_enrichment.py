@@ -139,6 +139,21 @@ class EvidenceEnrichmentTests(unittest.TestCase):
         self.assertNotIn("buy this token now", blob)
         self.assertEqual(extracted["research_only"], True)
 
+    def test_meta_description_beats_nav_chrome(self) -> None:
+        html = """
+        <html><head>
+          <title>Trump names Jay Clayton AI czar</title>
+          <meta name="description" content="Trump names Jay Clayton AI czar to lead the Super Intelligence Force, a task force due to report on AI risks within 120 days." />
+        </head><body>
+          <div>Español Sections Bitcoin DeFi Ethereum NFTs AI Agents Regulation Web3 Business Ecosystem</div>
+        </body></html>
+        """
+        extracted = extract_factual_snippets(html)
+        self.assertEqual(extracted["extraction_method"], "meta_description")
+        self.assertIn("jay clayton", extracted["extracted_text"].lower())
+        self.assertNotIn("español sections", extracted["extracted_text"].lower())
+        self.assertNotIn("bitcoin defi ethereum", extracted["extracted_text"].lower())
+
     def test_source_similarity_still_flags_copied_extracted_text(self) -> None:
         story = _thin_story("event-019", words=16)
         story["article_input"]["evidence"][0]["url"] = "https://example.com/event-019"

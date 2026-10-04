@@ -1,140 +1,94 @@
-﻿"""Deep runtime construction smoke test.
+"""Deep runtime construction smoke test.
 
-Actually instantiates build_runtime() with external operations mocked.
-Must reach GenerationWorker -> CostLedger without TypeError.
+Instantiates build_runtime() with Telegram/network mocked.
+Verifies the V5 object graph (GenerationWorker, PersistentV5Store, etc.).
 """
 
-import pytest
+from __future__ import annotations
+
+import os
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import os
-import tempfile
-import shutil
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
-def test_build_runtime_deep_construction():
-    """Test that build_runtime() actually constructs the full object graph."""
+def test_build_runtime_deep_construction(tmp_path: Path) -> None:
+    """build_runtime() must construct the full object graph without live network."""
+    state_dir = tmp_path / "state"
+    version_dir = tmp_path / "versions"
+    events_dir = tmp_path / "events"
+    data_dir = tmp_path / "data"
+    for d in (state_dir, version_dir, events_dir, data_dir):
+        d.mkdir(parents=True, exist_ok=True)
 
-    import tempfile
-    import shutil
+    (data_dir / "fake_creds.json").write_text(
+        '{"type": "service_account", "project_id": "test"}',
+        encoding="utf-8",
+    )
 
-    # Create temp directories
-    temp_dir = tempfile.mkdtemp()
-    state_dir = Path(temp_dir) / "state"
-    version_dir = Path(temp_dir) / "versions"
-    events_dir = Path(temp_dir) / "events"
-    data_dir = Path(temp_dir) / "data"
+    test_environ = {
+        "NEWSAGENT_V2_TELEGRAM_BOT_TOKEN": "123456:ABCDEF-fake-token-for-testing",
+        "NEWSAGENT_V2_TELEGRAM_TEST_CHAT_ID": "12345",
+        "GROQ_API_KEY": "TEST_GROQ_KEY",
+        "NEWSAGENT_V5_CONTROLLED_E2E": "true",
+        "NEWSAGENT_V2_VERTEX_ENABLED": "true",
+        "NEWSAGENT_V2_VERTEX_PROJECT": "test_project",
+        "NEWSAGENT_V2_VERTEX_LOCATION": "us-central1",
+        "NEWSAGENT_V2_VERTEX_MODEL": "gemini-1.0",
+        "GOOGLE_APPLICATION_CREDENTIALS": str(data_dir / "fake_creds.json"),
+    }
 
-    state_dir.mkdir(parents=True, exist_ok=True)
-    version_dir.mkdir(parents=True, exist_ok=True)
-    events_dir.mkdir(parents=True, exist_ok=True)
-    data_dir.mkdir(parents=True, exist_ok=True)
+    import importlib.util
 
+    spec = importlib.util.spec_from_file_location(
+        "start_v5_bot",
+        str(Path(__file__).parent.parent / "start_v5_bot.py"),
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+
+    original_environ = os.environ.copy()
     try:
-        # Mock environment with all required variables
-        test_environ = {
-            "NEWSAGENT_V2_TELEGRAM_BOT_TOKEN": "test_token_12345:fake_token_for_testing",
-            "NEWSAGENT_V2_TELEGRAM_TEST_CHAT_ID": "12345",
-            "GROQ_API_KEY": "TEST_GROQ_KEY",
-            "NEWSAGENT_V5_CONTROLLED_E2E": "true",
-            "NEWSAGENT_V2_VERTEX_ENABLED": "true",
-            "NEWSAGENT_V2_VERTEX_PROJECT": "test_project",
-            "NEWSAGENT_V2_VERTEX_LOCATION": "us-central1",
-            "NEWSAGENT_V2_VERTEX_MODEL": "gemini-1.0",
-            "GOOGLE_APPLICATION_CREDENTIALS": str(data_dir / "fake_creds.json"),
+        os.environ.clear()
+        os.environ.update(test_environ)
+
+        mock_client = MagicMock()
+        mock_client._post.return_value = {
+            "ok": True,
+            "payload": {"result": {"username": "test_bot", "id": 12345}},
         }
+        mock_client.send_message.return_value = {"ok": True, "message_id": 1}
 
-        # Create fake Google credentials file
-        (data_dir / "fake_creds.json").write_text('{"type": "service_account", "project_id": "test"}')
+        with (
+            patch("newsagent_v2.telegram.live_transport.create_live_transport", return_value=MagicMock()),
+            patch("newsagent_v2.telegram.client.TelegramTestClient", return_value=mock_client),
+            patch("newsagent_v2.telegram.singleton.acquire_singleton_lock", return_value=True),
+            patch("newsagent_v2.telegram.singleton.release_singleton_lock"),
+            patch("newsagent_v2.v5_generation.version_store.VersionStore") as mock_vs,
+            patch("newsagent_v2.approval.store.ApprovalStore") as mock_as,
+            patch("newsagent_v2.discovery.event_store.EventStore") as mock_es,
+        ):
+            mock_vs.return_value = MagicMock()
+            mock_as.return_value = MagicMock()
+            mock_es.return_value = MagicMock()
 
-        # Import here to get fresh module
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "start_v5_bot",
-            str(Path(__file__).parent.parent / "start_v5_bot.py")
-        )
-        module = importlib.util.module_from_spec(spec)
-
-        # Store original environ
-        original_environ = os.environ.copy()
-
-        try:
-            # Set test environment
-            os.environ.clear()
-            os.environ.update(test_environ)
-
-            # Pre-create the V5_STATE_DIR to avoid path issues
+            spec.loader.exec_module(module)
             module.V5_STATE_DIR = state_dir
 
-            # Mock the Telegram client and related classes BEFORE loading module
-            with patch("newsagent_v2.telegram.live_transport.create_live_transport") as mock_create_transport:
-                with patch("newsagent_v2.telegram.client.TelegramTestClient") as mock_client_class:
-                    with patch("newsagent_v2.v5_generation.persistent_store.DATA_ROOT", state_dir):
-                            with patch("newsagent_v2.discovery.event_store.DATA_ROOT", events_dir):
-                                # Setup mock client
-                                mock_client = Mock()
-                                mock_client.get_me.return_value = {"ok": True, "result": {"username": "test_bot", "id": 12345}}
-                                mock_client_class.return_value = mock_client
-                                mock_create_transport.return_value = Mock()
+            assert hasattr(module, "build_runtime")
+            runtime, bot_info = module.build_runtime()
 
-                                # Execute module (which calls build_runtime at module level? No, it's in main())
-                                # Actually we need to call build_runtime() specifically
-                                spec.loader.exec_module(module)
-
-                                # Now call build_runtime if it exists
-                                if hasattr(module, 'build_runtime'):
-                                    try:
-                                        runtime, bot_info = module.build_runtime()
-                                        print(f"SUCCESS: build_runtime() completed")
-                                        print(f"  runtime type: {type(runtime).__name__}")
-                                        print(f"  generation_worker type: {type(runtime.generation_worker).__name__ if runtime.generation_worker else 'None'}")
-                                        print(f"  CostLedger constructed: {runtime.generation_worker.ledger is not None if runtime.generation_worker else False}")
-                                    except Exception as e:
-                                        pytest.fail(f"build_runtime() failed: {type(e).__name__}: {e}")
-                                else:
-                                    pytest.fail("build_runtime not found in module")
-
-        finally:
-            # Restore original environ
-            os.environ.clear()
-            os.environ.update(original_environ)
-
+            assert runtime is not None
+            assert bot_info.get("username") == "test_bot"
+            assert runtime.generation_worker is not None
+            assert runtime.persistent_store is not None
+            assert runtime.preflight is not None
+            assert runtime.generation_worker.ledger is not None
+            assert runtime._controlled_e2e is True
     finally:
-        # Cleanup
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-def test_generation_worker_cost_ledger_construction():
-    """Direct test of GenerationWorker -> CostLedger construction."""
-    from newsagent_v2.v5_generation.generation_worker import GenerationWorker
-    from newsagent_v2.v5_generation.persistent_store import PersistentV5Store
-    from newsagent_v2.telegram.client import TelegramTestClient
-    from newsagent_v2.telegram.config import TelegramConfig
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create mocks
-        mock_client = Mock(spec=TelegramTestClient)
-        mock_config = Mock(spec=TelegramConfig)
-        mock_config.test_chat_id = "12345"
-
-        persistent_store = Mock(spec=PersistentV5Store)
-
-        # This should NOT raise TypeError
-        try:
-            worker = GenerationWorker(
-                client=mock_client,
-                config=mock_config,
-                persistent_store=persistent_store,
-                environ={"GROQ_API_KEY": "test"},
-            )
-        except TypeError as e:
-            pytest.fail(f"GenerationWorker construction failed: {e}")
-
-        # Verify ledger was created
-        assert worker.ledger is not None
-        print(f"GenerationWorker.ledger = {type(worker.ledger).__name__}")
-
-
+        os.environ.clear()
+        os.environ.update(original_environ)

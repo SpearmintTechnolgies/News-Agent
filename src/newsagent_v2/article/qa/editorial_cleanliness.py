@@ -20,6 +20,47 @@ from newsagent_v2.article.qa.textutil import split_sentences, word_count
 FAILURE_CODE = "EDITORIAL_CLEANLINESS_FAILED"
 MODULE = "editorial_cleanliness"
 
+# Grounded Conclusion/FAQ blocks intentionally restate authorized facts.
+# Exclude them from duplicate/debris checks so the append path does not
+# self-fail editorial cleanliness.
+_CLOSING_SECTION_CUT_RE = re.compile(
+    r"(?im)(?:^|\n|[^\S\n])\s*(?:#{1,6}\s*|\*\*)?(?:conclusion(?:\s*/\s*what happens next)?|what happens next|final thoughts|faqs?|frequently asked questions)\b[\s\S]*$"
+)
+
+
+def _body_without_closing_sections(body: str) -> str:
+    text = str(body or "")
+    match = _CLOSING_SECTION_CUT_RE.search(text)
+    # #region agent log
+    try:
+        import json as _json, time as _time
+        from pathlib import Path as _Path
+        _has_concl = "conclusion" in text.lower()
+        _payload = {
+            "sessionId": "7f9dc8",
+            "hypothesisId": "A",
+            "location": "editorial_cleanliness.py:_body_without_closing_sections",
+            "message": "closing_section_cut",
+            "data": {
+                "matched": bool(match),
+                "body_len": len(text),
+                "cut_at": match.start() if match else None,
+                "has_conclusion_token": _has_concl,
+                "midline_heading": bool(
+                    __import__("re").search(r"[^\n]#+\s*conclusion", text, __import__("re").I)
+                ),
+            },
+            "timestamp": int(_time.time() * 1000),
+        }
+        with (_Path("debug-7f9dc8.log")).open("a", encoding="utf-8") as _f:
+            _f.write(_json.dumps(_payload) + "\n")
+    except Exception:
+        pass
+    # #endregion
+    if not match:
+        return text
+    return text[: match.start()].rstrip()
+
 # Strong similarity thresholds — conservative by design.
 HEADLINE_EMBED_RATIO = 0.86
 DEK_EMBED_RATIO = 0.86
@@ -394,11 +435,12 @@ def evaluate_editorial_cleanliness(
     body = str(article.get("article_body") or "")
     headline = str(article.get("headline") or "")
     dek = str(article.get("dek") or "")
+    main_body = _body_without_closing_sections(body)
 
-    artifacts = check_source_artifacts(body)
-    hl_hits, dek_hits = check_embedded_headline_dek(body, headline=headline, dek=dek)
-    dup_sents, dup_paras = check_duplicate_prose(body)
-    debris = check_feed_debris(body)
+    artifacts = check_source_artifacts(main_body)
+    hl_hits, dek_hits = check_embedded_headline_dek(main_body, headline=headline, dek=dek)
+    dup_sents, dup_paras = check_duplicate_prose(main_body)
+    debris = check_feed_debris(main_body)
 
     # Feed debris that duplicates artifact hits is fine; headline_dek_block is additive.
     failed = bool(artifacts or hl_hits or dek_hits or dup_sents or dup_paras or debris)
