@@ -79,5 +79,5 @@ def test_gate_skips_thin_and_passes_rich():
     assert any("full sources" in r for r in gate.reasons)
 
     loose = GatePolicy(min_full_sources=1, min_publishers=1, min_research_words=100, min_core_facts=2,
-                       min_numeric_core_facts=1, min_corroborated_core_facts=0)
+                       min_numeric_core_facts=1, min_corroborated_core_facts=0, min_core_fact_words=10)
     assert assess_evidence(thin, build_fact_bank(thin), loose).passed

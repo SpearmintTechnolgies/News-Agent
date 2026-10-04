@@ -17,6 +17,7 @@ class GatePolicy:
     min_core_facts: int = 30
     min_numeric_core_facts: int = 4
     min_corroborated_core_facts: int = 3
+    min_core_fact_words: int = 700
 
 
 @dataclass
@@ -57,6 +58,8 @@ def assess_evidence(
          f"only {metrics['research_words']} words of research (need {rules.min_research_words})"),
         (metrics["core_facts"] >= rules.min_core_facts,
          f"only {metrics['core_facts']} distinct on-topic facts (need {rules.min_core_facts})"),
+        (metrics["fact_words"] >= rules.min_core_fact_words,
+         f"only {metrics['fact_words']} words of on-topic facts (need {rules.min_core_fact_words})"),
         (metrics["numeric_core_facts"] >= rules.min_numeric_core_facts,
          f"only {metrics['numeric_core_facts']} facts with figures (need {rules.min_numeric_core_facts})"),
         (metrics["corroborated_core_facts"] >= rules.min_corroborated_core_facts,

@@ -168,6 +168,10 @@ def _shingles(text: str, n: int = 6) -> set[tuple[str, ...]]:
     return {tuple(words[i : i + n]) for i in range(max(0, len(words) - n + 1))}
 
 
+def _looks_like_domain(name: str) -> bool:
+    return bool(re.fullmatch(r"(?:[\w-]+\.)+[a-z]{2,}", name.strip().lower()))
+
+
 def _url_key(url: str) -> str:
     return url.split("#")[0].split("?")[0].rstrip("/").lower()
 
@@ -236,7 +240,9 @@ class _Researcher:
         doc.title = doc.title or ex.title
         doc.published_at = doc.published_at or ex.published_at
         doc.author = doc.author or ex.author
-        doc.publisher = doc.publisher or ex.sitename or doc.host
+        if ex.sitename and (not doc.publisher or _looks_like_domain(doc.publisher)):
+            doc.publisher = ex.sitename
+        doc.publisher = doc.publisher or doc.host
         doc.summary = doc.summary or ex.description
         if ex.paywalled:
             doc.rejected_reason = "paywalled"

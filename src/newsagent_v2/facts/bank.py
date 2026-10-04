@@ -43,6 +43,14 @@ _READER_ADDRESS_RE = re.compile(r"\b(you|your|yours)\b", re.IGNORECASE)
 _PUBLISHER_VOICE_RE = re.compile(
     r"\b(?:[Ww]e|[Oo]ur|us|[Mm]y|I)\b|\b(?:[Tt]his|[Tt]he) (?:article|report|piece|analysis) (?:maps|explains|looks)"
 )
+# The outlet's own analysis voice, not reporting.
+_OPINION_RE = re.compile(
+    r"\b(it'?s (obvious|clear|hard to see|easy to see|worth noting)|keep in mind|simple math|case in point|"
+    r"in other words|in short|of equal concern|big ask|make no mistake|the bottom line|needless to say|"
+    r"to be sure|that said|the takeaway|the question is|remains to be seen|only time will tell|"
+    r"is worth sitting with|rewards a closer look|we believe|i believe|in my view|arguably)\b",
+    re.IGNORECASE,
+)
 _IMPERATIVE_START = frozenset(
     "understand settle consider remember check make keep read watch learn see note think look take "
     "avoid buy sell hold start stop try imagine picture compare".split()
@@ -142,6 +150,8 @@ def _reject_reason(sentence: str) -> str:
         return "publisher_voice"
     if words[0].lower().strip("“\"'") in _IMPERATIVE_START:
         return "imperative"
+    if _OPINION_RE.search(voice):
+        return "publisher_opinion"
     return ""
 
 
@@ -179,11 +189,27 @@ def _quotes_in(sentence: str, doc: SourceDoc, previous_speaker: str = "") -> lis
     return found
 
 
-def _is_core(sentence: str, terms: set[str], entities: list[str]) -> bool:
+# Names that appear in nearly every crypto/markets story; they do not make a
+# sentence about *this* event.
+GENERIC_NAMES = frozenset(
+    "bitcoin btc ethereum ether eth crypto cryptocurrency cryptocurrencies stablecoin stablecoins "
+    "token tokens market markets price prices us u.s. united states america american dollar "
+    "investors traders etf etfs fund funds defi blockchain digital assets asset".split()
+)
+
+
+def distinctive_markers(title: str, entities: list[str]) -> tuple[list[str], set[str]]:
+    names = [e for e in entities if e.lower() not in GENERIC_NAMES and len(e) >= 3]
+    terms = {t for t in event_terms(title, []) if t not in GENERIC_NAMES}
+    return names, terms
+
+
+def _is_core(sentence: str, names: list[str], terms: set[str]) -> bool:
     lowered = sentence.lower()
-    if any(e.lower() in lowered for e in entities if len(e) >= 3):
+    if any(re.search(rf"\b{re.escape(n.lower())}\b", lowered) for n in names):
         return True
-    tokens = set(re.findall(r"[a-z0-9$%.'-]+", lowered))
+    tokens = set(re.findall(r"[a-z0-9$%.,'-]+", lowered))
+    tokens |= {t.strip(".,") for t in tokens}
     return len(terms & tokens) >= 2
 
 
@@ -193,7 +219,7 @@ def _number_signature(text: str) -> frozenset[str]:
 
 def build_fact_bank(dossier: ResearchDossier) -> FactBank:
     bank = FactBank(event_id=dossier.event_id, title=dossier.title)
-    terms = event_terms(dossier.title, dossier.entities)
+    names, terms = distinctive_markers(dossier.title, dossier.entities)
     sources = sorted(dossier.full_sources, key=lambda d: (d.kind != KIND_PRIMARY, -d.relevance))
     seen_quotes: set[str] = set()
     for doc in sources:
@@ -219,7 +245,8 @@ def build_fact_bank(dossier: ResearchDossier) -> FactBank:
                 continue
             numbers = _number_signature(sentence)
             attributed = bool(_ATTRIBUTION_RE.search(sentence))
-            kind = KIND_FACT if (numbers or attributed or _speaker(sentence) or _is_core(sentence, terms, dossier.entities)) else KIND_CONTEXT
+            core = _is_core(sentence, names, terms)
+            kind = KIND_FACT if (numbers or attributed or _speaker(sentence) or core) else KIND_CONTEXT
             match = _find_duplicate(bank.facts, sentence, numbers)
             if match is not None:
                 if publisher not in match.publishers:
@@ -235,7 +262,7 @@ def build_fact_bank(dossier: ResearchDossier) -> FactBank:
                     id=f"F{len(bank.facts) + 1}",
                     text=sentence,
                     kind=kind,
-                    core=_is_core(sentence, terms, dossier.entities),
+                    core=core,
                     source_urls=[doc.url],
                     publishers=[publisher],
                     primary=doc.kind == KIND_PRIMARY,
