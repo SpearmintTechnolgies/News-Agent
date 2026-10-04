@@ -235,9 +235,13 @@ def _check_grounding(ctx: _Context, issues: list[Issue]) -> dict[str, int]:
             if _name_support(name, cited_norm) == 1.0 or _name_support(name, whole_article_cited) == 1.0:
                 continue
             support = _name_support(name, ctx.all_text)
-            if support < 0.5:
+            if support < 0.5 and len(_name_tokens(name)) >= 2:
                 issues.append(Issue("invented_name", BLOCK, location,
                                     f'"{name}" does not appear in any source; remove it or replace it with a sourced name'))
+            elif support < 0.5:
+                # Lone words ("Pentagon", "Beijing") are usually well-known synonyms; the editor decides.
+                issues.append(Issue("unsourced_name", FIX, location,
+                                    f'"{name}" does not appear in any source; use the wording the sources use'))
             elif support < 1.0:
                 issues.append(Issue("unverified_name", WARN, location,
                                     f'"{name}" is only partly matched in the sources (check spelling or abbreviation)'))

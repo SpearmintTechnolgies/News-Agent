@@ -341,6 +341,33 @@ def send_initial_review_package(
     return results
 
 
+_QA_FLAG_LIMIT = 6
+
+
+def _qa_review_text(article: dict[str, Any]) -> str:
+    """Length, sources and open QA flags for the editor; empty for pre-V6 articles."""
+    if article.get("pipeline") != "v6":
+        return ""
+    flags = [f for f in article.get("qa_flags") or [] if f.get("severity") in {"fix", "warn"}]
+    lines = [
+        f"\n<b>Length:</b> {article.get('body_words', 0)} body words "
+        f"({article.get('total_words', 0)} with Conclusion + FAQ)",
+        f"<b>Sources used:</b> {len(article.get('sources') or [])}",
+    ]
+    if not flags:
+        lines.append("<b>QA:</b> no open flags")
+    else:
+        lines.append(f"<b>QA flags ({len(flags)}) — your call:</b>")
+        for flag in flags[:_QA_FLAG_LIMIT]:
+            marker = "⚠️" if flag.get("severity") == "fix" else "•"
+            lines.append(
+                f"{marker} {_escape_html(str(flag.get('location')))}: {_escape_html(str(flag.get('message'))[:140])}"
+            )
+        if len(flags) > _QA_FLAG_LIMIT:
+            lines.append(f"… and {len(flags) - _QA_FLAG_LIMIT} more")
+    return "\n".join(lines) + "\n"
+
+
 def send_initial_v5_review_package(
     client: TelegramTestClient,
     config: TelegramConfig,
@@ -384,7 +411,7 @@ def send_initial_v5_review_package(
         [{"text": "ARTICLE FEEDBACK", "callback_data": f"feedback_article:{event_id}:{article_version}"}, {"text": "IMAGE FEEDBACK", "callback_data": f"feedback_image:{event_id}:{image_version or 'v1'}"}],
         [{"text": "REVISE", "callback_data": f"revise:{event_id}:{article_version}:{image_version or ''}"}, {"text": "EDIT", "callback_data": f"edit:{event_id}:{article_version}"}],
         [{"text": "REJECT", "callback_data": f"reject:{event_id}:{article_version}"}],
-        [{"text": "APPROVE", "callback_data": f"approve:{event_id}:{article_version}"}, {"text": "PUBLISH", "callback_data": f"publish:{event_id}:{article_version}:{image_version or ''}"}],
+        [{"text": "APPROVE & PUBLISH", "callback_data": f"approve:{event_id}:{article_version}"}],
     ]}
     if admin_url:
         keyboard["inline_keyboard"].insert(0, [{"text": "OPEN DRAFT", "url": admin_url}])
@@ -407,6 +434,7 @@ def send_initial_v5_review_package(
         f"SEO: {_escape_html(str(draft.get('seo_status') or 'unavailable'))}\n"
         f"Categories: {_escape_html(', '.join(draft.get('categories') or []) or 'none')}\n"
         f"Tags: {_escape_html(', '.join(draft.get('tags') or []) or 'none')}\n"
+        f"{_qa_review_text(article)}"
         f"{cost_block}"
     )
     sent = client.send_message(chat_id=config.test_chat_id, text=text, parse_mode="HTML", reply_markup=keyboard)

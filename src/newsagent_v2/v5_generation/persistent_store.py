@@ -285,6 +285,12 @@ class PersistentV5Store:
                     return job
             return None
     
+    def jobs_for_event(self, event_id: str) -> list[GenerationJob]:
+        """All jobs ever recorded for an event, newest first."""
+        with self._lock:
+            jobs = [job for job in self._jobs.values() if job.event_id == event_id]
+        return sorted(jobs, key=lambda job: str(job.updated_at or job.created_at or ""), reverse=True)
+
     def get_active_job_count(self) -> int:
         """Count non-terminal jobs."""
         with self._lock:

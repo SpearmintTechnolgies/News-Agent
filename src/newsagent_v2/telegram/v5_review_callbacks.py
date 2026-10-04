@@ -546,6 +546,20 @@ class V5ReviewCallbackHandler:
             "message": f"✅ APPROVED:\n  Article: {article_version}\n  Image: {image_version or 'N/A'}",
         }
     
+    def handle_approve_and_publish(self, event_id: str, reviewer: str, job_id: str) -> dict[str, Any]:
+        """Approval publishes immediately; the approval is kept even if publishing fails."""
+        approved = self.handle_approve(event_id, reviewer, job_id)
+        if not approved.get("ok"):
+            return approved
+        published = self.handle_publish(event_id, reviewer, job_id)
+        message = published.get("message") or (
+            "✅ Published" if published.get("ok") else "⚠️ Approved, but publishing failed. Press PUBLISH to retry."
+        )
+        if not published.get("ok"):
+            message = f"✅ Approved, but publishing failed: {message}\nPress PUBLISH to retry."
+        return {**published, "action": "publish" if published.get("ok") else "approve", "approval": approved,
+                "message": message}
+
     def handle_reject(self, event_id: str, reviewer: str) -> dict[str, Any]:
         """Handle REJECT callback."""
         return {
@@ -592,12 +606,13 @@ class V5ReviewCallbackHandler:
         # Check if already published (idempotency)
         publication = self._get_publication(event_id)
         if publication:
+            post_id = publication.get("post_id")
             return {
                 "ok": True,
                 "action": "publish",
                 "event_id": event_id,
                 "url": publication.get("url"),
-                "post_id": publication.get("post_id"),
+                "post_id": int(post_id) if str(post_id or "").isdigit() else post_id,
                 "message": f"✅ Already published:\n{publication.get('url')}",
             }
         
@@ -631,9 +646,9 @@ class V5ReviewCallbackHandler:
                         article_version=approval.article_version,
                         image_path=str(image_path) if image_path else None,
                         image_version=approval.image_version,
-                        categories=[str(article.get("category") or "")],
-                        tags=[],
-                        evidence=[],
+                        categories=[str(c) for c in (article.get("categories") or [article.get("category") or ""])],
+                        tags=[str(t) for t in article.get("tags") or []],
+                        evidence=list(article.get("sources") or []),
                         topic=str(article.get("category") or ""),
                     )
                     if not created.ok:
@@ -790,7 +805,7 @@ class V5ReviewCallbackHandler:
         elif action == "edit":
             return self.handle_edit_start(event_id, version, chat_id)
         elif action == "approve":
-            return self.handle_approve(event_id, reviewer, job_id)
+            return self.handle_approve_and_publish(event_id, reviewer, job_id)
         elif action == "reject":
             return self.handle_reject(event_id, reviewer)
         elif action == "publish":

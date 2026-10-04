@@ -349,6 +349,7 @@ class ArticleHtmlFormatter:
         include_sources: bool = True,
         include_read_also: bool = True,
         max_read_also: int = 3,
+        preserve_structure: bool = False,
     ) -> FormattedArticle:
         """Format article body into CMS-ready HTML.
 
@@ -368,7 +369,13 @@ class ArticleHtmlFormatter:
                 internal_links=[],
             )
 
-        intro_md, body_md = structure_article_body(article_body)
+        if preserve_structure:
+            # Already sectioned markdown (lede, ## sections, ## Conclusion, ## FAQ with ### questions).
+            first_heading = re.search(r"^## ", article_body, flags=re.MULTILINE)
+            split_at = first_heading.start() if first_heading else len(article_body)
+            intro_md, body_md = article_body[:split_at].strip(), article_body[split_at:].strip()
+        else:
+            intro_md, body_md = structure_article_body(article_body)
 
         all_headings = self._extract_headings(body_md)
         intro_html = self._paragraphs_to_html(intro_md) if intro_md else ""

@@ -6,9 +6,10 @@ Deterministic - uses NewsAgent metadata only, no LLM calls.
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 from .config import WordPressConfig
 
@@ -54,7 +55,7 @@ class WordPressTaxonomyResolver:
 
             resp = self.transport(
                 "GET",
-                self._wp_api(f"{taxonomy}?search={name_clean}&per_page=10"),
+                self._wp_api(f"{taxonomy}?search={quote(name_clean)}&per_page=10"),
                 auth=self._auth(),
             )
             if resp.get("ok"):
@@ -62,7 +63,7 @@ class WordPressTaxonomyResolver:
                 if isinstance(items, list):
                     for item in items:
                         if isinstance(item, dict):
-                            item_name = item.get("name", "").strip().lower()
+                            item_name = html.unescape(item.get("name", "")).strip().lower()
                             if item_name == name_clean.lower():
                                 found[name_clean.lower()] = item.get("id")
                                 break

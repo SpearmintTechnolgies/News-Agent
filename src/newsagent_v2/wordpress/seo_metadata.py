@@ -507,6 +507,15 @@ def build_seo_for_article(
     )
 
     content = article.get("article_body", "")
+    if article.get("focus_keyphrase"):
+        # Writer-chosen SEO fields were already checked against the article; keep them as given.
+        seo = replace(
+            seo,
+            focus_keyphrase=str(article["focus_keyphrase"]),
+            seo_title=str(article.get("seo_title") or seo.seo_title),
+            meta_description=str(article.get("meta_description") or seo.meta_description),
+        )
+        return seo, validator.validate(seo, content)
     validation = validator.validate(seo, content)
 
     if repair and validation.status != "PASS":

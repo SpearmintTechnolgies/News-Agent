@@ -129,7 +129,35 @@ class CanonicalV5Integration:
         )
         events = self._discovery_pipeline.run_discovery()
         self.send_top_events(count=5, offset=0)
+        self.auto_generate_top()
         return events
+
+    AUTO_GENERATE_ENV = "NEWSAGENT_V6_AUTO_GENERATE"
+    AUTO_CANDIDATES_ENV = "NEWSAGENT_V6_AUTO_CANDIDATES"
+
+    def auto_generate_top(self) -> dict[str, Any]:
+        """Write the top stories in the background until N reach review (0 disables)."""
+        environ = getattr(self, "environ", None) or {}
+        worker = getattr(self, "generation_worker", None)
+        target = int(environ.get(self.AUTO_GENERATE_ENV, "3") or 0)
+        if target <= 0 or worker is None or getattr(self, "_discovery_pipeline", None) is None:
+            return {"ok": False, "reason": "disabled"}
+        candidates = int(environ.get(self.AUTO_CANDIDATES_ENV, "10") or 10)
+        events = self._discovery_pipeline.get_top_events(count=candidates, offset=0)
+        if not events:
+            return {"ok": False, "reason": "no_events"}
+        started = worker.start_batch(list(events), target_ready=target)
+        self.client.send_message(
+            chat_id=self.config.test_chat_id,
+            text=(
+                f"✍️ Writing the top stories now (target {target} ready for review, up to {len(events)} tried). "
+                "Thin stories are skipped with the reason."
+                if started
+                else "✍️ A batch is already being written; new stories will be picked up on the next /make."
+            ),
+            parse_mode="HTML",
+        )
+        return {"ok": started, "target": target, "candidates": len(events)}
 
     def send_top_events(self, count: int = 5, offset: int = 0) -> list[dict[str, Any]]:
         """Send events to Telegram."""

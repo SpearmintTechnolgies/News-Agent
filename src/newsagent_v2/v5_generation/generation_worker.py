@@ -82,9 +82,14 @@ class GenerationWorker:
         stage: str,
         error: str,
     ) -> None:
-        """Report failure to Telegram."""
-        safe_error = "Article could not be completed reliably after automatic verification. Please retry."
-        text = f"❌ Generation failed\nStage: {stage}\n{safe_error}"
+        """Report failure to Telegram with the actual reason."""
+        import html as _html
+
+        reason = _html.escape(str(error or "unknown error")[:700])
+        if str(error or "").startswith("Skipped:"):
+            text = f"⏭ Story skipped (not enough verified evidence)\n{reason}"
+        else:
+            text = f"❌ Generation stopped\nStage: {stage}\n{reason}"
         
         if job.progress_message_id:
             self.client.edit_message_text(
@@ -145,8 +150,8 @@ class GenerationWorker:
             
             # Start cost entry (CostLedger.start_entry — not record_start)
             writer_entry = self.ledger.start_entry(
-                provider="groq",
-                model="qwen/qwen3.8-27b",
+                provider="bedrock-mantle",
+                model=self.environ.get("NEWSAGENT_V2_V4_WRITER_MODEL", "kimi"),
                 operation="write",
             )
             
@@ -386,10 +391,8 @@ class GenerationWorker:
         if (not categories or [str(item).strip().lower() for item in categories] == ["other"]) and event.topic:
             categories = [str(event.topic).replace("_", " ").title()]
         tags = article.get("tags") if isinstance(article.get("tags"), list) else []
-        tags = list(dict.fromkeys(
-            [str(item) for item in tags if item]
-            + sorted(str(item) for item in (event.entities or []) if item)
-        ))[:8]
+        extra_tags = [] if article.get("pipeline") == "v6" else sorted(str(item) for item in (event.entities or []) if item)
+        tags = list(dict.fromkeys([str(item) for item in tags if item] + extra_tags))[:8]
         image_path = version_store.get_image_path(event.event_id, result.get("image_version")) if result.get("image_version") else None
         draft = lifecycle.create_or_update_draft(
             event_id=event.event_id,
@@ -399,7 +402,7 @@ class GenerationWorker:
             image_version=result.get("image_version"),
             categories=[str(item) for item in categories if item],
             tags=[str(item) for item in tags if item],
-            evidence=[report.to_dict() for report in event.reports],
+            evidence=article.get("sources") or [report.to_dict() for report in event.reports],
             topic=str(event.topic or article.get("category") or ""),
         )
         from dataclasses import asdict
@@ -410,7 +413,7 @@ class GenerationWorker:
                 "error_code": getattr(draft, "error_code", None) or "create_failed",
                 "event_id": event.event_id,
             }
-        if draft.seo_validation and draft.seo_validation.status != "PASS":
+        if draft.seo_validation and draft.seo_validation.status != "PASS" and not article.get("preserve_structure"):
             reasons = "; ".join(draft.seo_validation.recommendations[:3])
             return {
                 "ok": False,
@@ -502,6 +505,82 @@ class GenerationWorker:
                 "new": True,
                 "message": "Generation started",
             }
+
+    RETRY_SKIPPED_AFTER_HOURS = 6
+
+    def should_auto_generate(self, event_id: str) -> bool:
+        """False when the story was already written/published, or attempted recently."""
+        from datetime import datetime, timedelta, timezone
+
+        for job in self.persistent_store.jobs_for_event(event_id):
+            if job.state in {"SUCCEEDED", "PUBLISHED"}:
+                return False
+            if job.state not in {"FAILED_FINAL", "FAILED_RETRYABLE"}:
+                return False
+            try:
+                updated = datetime.fromisoformat(str(job.updated_at))
+            except ValueError:
+                continue
+            if datetime.now(timezone.utc) - updated < timedelta(hours=self.RETRY_SKIPPED_AFTER_HOURS):
+                return False
+        return True
+
+    def run_batch(self, events: list[NewsEvent], target_ready: int) -> dict[str, Any]:
+        """Generate stories one at a time until ``target_ready`` reach review."""
+        from datetime import datetime, timezone
+        from uuid import uuid4
+
+        ready, attempted, skipped = 0, [], []
+        for event in events:
+            if ready >= target_ready:
+                break
+            if not self.should_auto_generate(event.event_id):
+                skipped.append(event.event_id)
+                continue
+            now = datetime.now(timezone.utc)
+            job = GenerationJob(
+                job_id=f"job-{event.event_id}-{now.strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:8]}",
+                event_id=event.event_id,
+                discovery_run_id="",
+                state="RESERVED",
+                created_at=now.isoformat(),
+                updated_at=now.isoformat(),
+            )
+            self.persistent_store.save_job(job)
+            with self._get_lock():
+                GenerationWorker._active_jobs[job.job_id] = job
+            result = self.run_generation(event, job)
+            attempted.append(event.event_id)
+            if result.get("ok"):
+                ready += 1
+        summary = {"ready": ready, "attempted": attempted, "already_done": skipped, "target": target_ready}
+        self.client.send_message(
+            chat_id=self.config.test_chat_id,
+            text=(
+                f"🗞 Auto-generation finished: {ready}/{target_ready} articles ready for review "
+                f"({len(attempted)} stories tried, {len(skipped)} already handled)."
+            ),
+            parse_mode="HTML",
+        )
+        return summary
+
+    def start_batch(self, events: list[NewsEvent], target_ready: int) -> bool:
+        """Run ``run_batch`` in one background thread; False if a batch is already running."""
+        import threading
+
+        with self._get_lock():
+            if getattr(GenerationWorker, "_batch_running", False):
+                return False
+            GenerationWorker._batch_running = True
+
+        def _run() -> None:
+            try:
+                self.run_batch(events, target_ready)
+            finally:
+                GenerationWorker._batch_running = False
+
+        threading.Thread(target=_run, daemon=True, name="v6-auto-generate").start()
+        return True
 
     def get_active_job_count(self) -> int:
         """Get count of currently active generation jobs.
