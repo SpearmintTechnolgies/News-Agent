@@ -13,7 +13,7 @@ from typing import Any
 
 from rapidfuzz import fuzz
 
-from newsagent_v2.article.qa.textutil import number_tokens, split_sentences
+from newsagent_v2.textutil import number_tokens, split_sentences
 from newsagent_v2.research.chrome import is_chrome
 from newsagent_v2.research.dossier import KIND_PRIMARY, ResearchDossier, SourceDoc
 from newsagent_v2.research.pipeline import event_terms

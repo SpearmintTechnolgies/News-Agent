@@ -111,8 +111,8 @@ class TestControlledGenerationFlow:
         # Check keyboard has GENERATE NOW and CANCEL
         keyboard = result["reply_markup"]
         assert len(keyboard["inline_keyboard"][0]) == 2
-        assert keyboard["inline_keyboard"][0][0]["text"] == "ðŸš€ GENERATE NOW"
-        assert keyboard["inline_keyboard"][0][1]["text"] == "âŒ CANCEL"
+        assert keyboard["inline_keyboard"][0][0]["text"] == "🚀 GENERATE NOW"
+        assert keyboard["inline_keyboard"][0][1]["text"] == "❌ CANCEL"
 
         # ZERO provider calls
         controlled_handler.generation_worker.request_generation.assert_not_called()

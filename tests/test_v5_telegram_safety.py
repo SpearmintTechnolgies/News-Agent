@@ -1012,7 +1012,7 @@ class TestCallbackRouting:
         )
         
         # Simulate successful callback handler result
-        result = {"ok": True, "action": "run_story", "message": "âœ… SELECTED: Test Event"}
+        result = {"ok": True, "action": "run_story", "message": "✅ SELECTED: Test Event"}
         
         # Acknowledge
         client.answer_callback_query(
@@ -1025,7 +1025,7 @@ class TestCallbackRouting:
         args, kwargs = mock_transport.call_args
         json_body = kwargs.get("json", {})
         assert json_body.get("callback_query_id") == "123456789"
-        assert "âœ… SELECTED" in json_body.get("text", "")
+        assert "✅ SELECTED" in json_body.get("text", "")
     
     def test_run_story_makes_zero_provider_calls(self):
         """RUN STORY callback must make zero writer/image/WordPress calls."""

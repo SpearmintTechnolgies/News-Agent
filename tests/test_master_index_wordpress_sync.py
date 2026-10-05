@@ -66,7 +66,7 @@ def test_incremental_sync_uses_modified_cursor_and_updates_by_wp_id(tmp_path: Pa
 
     def transport(method, url, **kwargs):
         urls.append(url)
-        if "page=1" in url:
+        if "&page=1&" in url:
             return {"ok": True, "payload": [_post(7, "New title", "2025-01-04T00:00:00"), _post(8, "New story", "2025-01-05T00:00:00")]}
         return {"ok": True, "payload": []}
 

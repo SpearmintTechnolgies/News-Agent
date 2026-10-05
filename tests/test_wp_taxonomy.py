@@ -47,6 +47,8 @@ class MockTransport:
             return self._handle_posts(method, url, kwargs)
         if "/media" in url:
             return {"ok": True, "payload": {"id": 999}}
+        if "rankmath/v1/updateMeta" in url:
+            return {"ok": True, "payload": {"slug": True}}
         return {"ok": False, "error": "Unknown endpoint"}
 
     def _handle_categories(self, method: str, url: str, kwargs: dict[str, Any]) -> dict[str, Any]:

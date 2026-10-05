@@ -2,7 +2,7 @@
 
 Connects V5 NewsEvent → RUN STORY → Existing Generation Engine → Review → Publication.
 
-Exports are lazy to avoid circular imports with article.writer.v4.compile.
+Exports are lazy so importing one submodule does not load the rest.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ __all__ = [
     "RunStoryAdapter",
     "VersionStore",
     "ReviewSystem",
-    "RevisionController",
     "PublicationPackage",
     "PersistentV5Store",
     "DiscoveryRun",
@@ -31,7 +30,6 @@ _LAZY: dict[str, tuple[str, str]] = {
     "RunStoryAdapter": (".run_story_adapter", "RunStoryAdapter"),
     "VersionStore": (".version_store", "VersionStore"),
     "ReviewSystem": (".review_system", "ReviewSystem"),
-    "RevisionController": (".revision_controller", "RevisionController"),
     "PublicationPackage": (".publication_package", "PublicationPackage"),
     "PersistentV5Store": (".persistent_store", "PersistentV5Store"),
     "DiscoveryRun": (".persistent_store", "DiscoveryRun"),

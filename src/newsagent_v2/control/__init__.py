@@ -1,3 +1,1 @@
-from newsagent_v2.control.make import execute_make, run_make_generation
-
-__all__ = ["execute_make", "run_make_generation"]
+"""Discovery control: the /make bridge from collected reports to ranked events."""

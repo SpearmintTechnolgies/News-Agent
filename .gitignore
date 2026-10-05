@@ -86,3 +86,6 @@ coverage.xml
 _tmp_forensics*.py
 tmp_*.py
 data/events/
+
+# V6 sitemap cache (rebuilt every 6 hours)
+data/v6_site_index.json

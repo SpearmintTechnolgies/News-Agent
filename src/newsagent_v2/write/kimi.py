@@ -11,9 +11,11 @@ from typing import Any, Callable, Mapping
 
 import requests
 
-from newsagent_v2.article.writer.bedrock_mantle import BASE_URL, KEY_ENV, KIMI_MODEL
-
 logger = logging.getLogger(__name__)
+
+KEY_ENV = "NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY"
+BASE_URL = "https://bedrock-mantle.us-east-1.api.aws/v1"
+KIMI_MODEL = "moonshotai.kimi-k3"
 
 ENV_BASE_URL = "NEWSAGENT_V2_V4_KIMI_BASE_URL"
 ENV_MODEL = "NEWSAGENT_V2_V4_WRITER_MODEL"

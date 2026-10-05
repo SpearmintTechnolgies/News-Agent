@@ -14,7 +14,7 @@ def test_view_full_parsing():
     """Test callback parsing."""
     callback = "view_full:evt-fec17bd1:v2:article"
 
-    handler = V5ReviewCallbackHandler(None, None, MagicMock())
+    handler = V5ReviewCallbackHandler(None, MagicMock())
     parsed = handler.parse_callback(callback)
 
     print(f"Input: {callback}")
@@ -42,7 +42,7 @@ def test_view_full_handler():
         "version": "v2",
     }
 
-    handler = V5ReviewCallbackHandler(None, None, mock_version_store)
+    handler = V5ReviewCallbackHandler(None, mock_version_store)
 
     # Call handle_view_full directly
     result = handler.handle_view_full("evt-fec17bd1", "v2", "article")
@@ -70,7 +70,7 @@ def test_image_view_full():
     mock_version_store = MagicMock()
     mock_version_store.get_image_path.return_value = test_path
 
-    handler = V5ReviewCallbackHandler(None, None, mock_version_store)
+    handler = V5ReviewCallbackHandler(None, mock_version_store)
 
     result = handler.handle_view_full("evt-fec17bd1", "v2", "image")
 
@@ -93,7 +93,7 @@ def test_full_dispatch():
         "article": {"headline": "H", "article_body": "B"},
     }
 
-    handler = V5ReviewCallbackHandler(None, None, mock_version_store)
+    handler = V5ReviewCallbackHandler(None, mock_version_store)
 
     result = handler.handle(callback, reviewer="user")
 

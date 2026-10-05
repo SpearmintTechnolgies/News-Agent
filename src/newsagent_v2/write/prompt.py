@@ -113,6 +113,7 @@ def build_messages(
     today: str,
     facts: list[Fact],
     quotes: list[tuple[str, Quote]],
+    feedback: str = "",
 ) -> list[dict[str, str]]:
     packet = {
         "today": today,
@@ -124,6 +125,12 @@ def build_messages(
         "Write the article for this story. Facts marked background are context only; build the story on the others.\n"
         + json.dumps(packet, ensure_ascii=False)
     )
+    if feedback.strip():
+        user += (
+            "\n\nEDITOR FEEDBACK on the previous version of this article. Apply it in this version. "
+            "It never overrides the rules: if it asks for something the facts do not support, leave that out.\n"
+            + feedback.strip()
+        )
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
 
 

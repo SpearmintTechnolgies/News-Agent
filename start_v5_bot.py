@@ -13,7 +13,7 @@ Environment required:
 Single-instance guarded. Ctrl+C for clean shutdown.
 Acknowledgement-first /make handling.
 Callback routing for RUN/FOLLOW/IGNORE/SEE NEXT.
-Generation support via GenerationWorker with RunStoryAdapter.
+Generation support via GenerationWorker (V6 story pipeline).
 """
 
 from __future__ import annotations
@@ -68,10 +68,8 @@ from newsagent_v2.control.make_v5_bridge import V5DiscoveryPipeline, create_v5_d
 from newsagent_v2.v5_generation.persistent_store import PersistentV5Store, DiscoveryRun
 from newsagent_v2.v5_generation.provider_preflight import ProviderPreflight
 from newsagent_v2.v5_generation.generation_worker import GenerationWorker
-from newsagent_v2.v5_generation.run_story_adapter import RunStoryAdapter
 from newsagent_v2.v5_generation.version_store import VersionStore
 from newsagent_v2.v5_generation.persistent_review import PersistentReviewStore
-from newsagent_v2.v5_generation.revision_controller import RevisionController
 from newsagent_v2.telegram.v5_review_callbacks import V5ReviewCallbackHandler
 
 LOG_DIR = Path("logs")
@@ -291,6 +289,33 @@ def handle_startup_backlog(
 
 # ============ /make HANDLER ============
 
+AUTO_GENERATE_ENV = "NEWSAGENT_V6_AUTO_GENERATE"
+AUTO_CANDIDATES_ENV = "NEWSAGENT_V6_AUTO_CANDIDATES"
+
+
+def auto_generate_top(client, config, discovery, runtime) -> dict[str, Any]:
+    """Write the top stories in the background until N reach review (0 disables)."""
+    target = int(os.environ.get(AUTO_GENERATE_ENV, "3") or 0)
+    worker = runtime.generation_worker
+    if target <= 0 or worker is None or runtime._controlled_e2e:
+        return {"ok": False, "reason": "disabled"}
+    candidates = int(os.environ.get(AUTO_CANDIDATES_ENV, "10") or 10)
+    events = list(discovery.get_top_events(count=candidates, offset=0) or [])
+    if not events:
+        return {"ok": False, "reason": "no_events"}
+    started = worker.start_batch(events, target_ready=target)
+    client.send_message(
+        chat_id=config.test_chat_id,
+        text=(
+            f"✍️ Writing the top stories now (target {target} ready for review, up to {len(events)} tried). "
+            "Thin stories are skipped with the reason."
+            if started
+            else "✍️ A batch is already being written; new stories will be picked up on the next /make."
+        ),
+        parse_mode="HTML",
+    )
+    return {"ok": started, "target": target, "candidates": len(events)}
+
 def execute_make_with_acknowledgement(
     client: TelegramTestClient,
     config,
@@ -373,7 +398,10 @@ def execute_make_with_acknowledgement(
         
         cards_sent = len([r for r in results if r.get("ok")])
         log_event(f"[MAKE] [TELEGRAM] cards_sent={cards_sent}")
-        
+
+        auto = auto_generate_top(client, config, discovery, runtime)
+        log_event(f"[MAKE] [AUTO] {auto}")
+
         duration_ms = int((time.perf_counter() - start_time) * 1000)
         log_event(f"[MAKE] completed duration_ms={duration_ms}")
         
@@ -382,6 +410,7 @@ def execute_make_with_acknowledgement(
             "cards_sent": cards_sent,
             "event_count": raw_count,
             "make_run_id": make_run_id,
+            "auto_generate": auto,
         }
     
     except Exception as e:
@@ -451,8 +480,10 @@ def _handle_review_callback(
                 parse_mode="HTML",
                 reply_markup=result.get("reply_markup"),
             )
-        elif action in ["rate_article", "rate_image", "feedback_captured", 
-                       "approve", "revise", "publish", "feedback_cancelled"]:
+        elif action in ["rate_article", "rate_image", "feedback_captured",
+                       "approve", "revise", "publish", "feedback_cancelled"] or (
+            not result.get("ok") and result.get("message")
+        ):
             # Send confirmation message
             client.send_message(
                 chat_id=config.test_chat_id,
@@ -652,12 +683,10 @@ class V5BotRuntime:
         self.preflight: ProviderPreflight | None = None
         self.version_store: VersionStore | None = None
         self.approval_store: ApprovalStore | None = None
-        self.adapter: RunStoryAdapter | None = None
         self.generation_worker: GenerationWorker | None = None
         self.persistent_store: PersistentV5Store | None = None
         self.review_store: PersistentReviewStore | None = None
         self.review_handler: V5ReviewCallbackHandler | None = None
-        self.revision_controller: RevisionController | None = None
         self._controlled_e2e: bool = False
 
 
@@ -715,7 +744,7 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
     else:
         log_event(f"[PREFLIGHT] Writer: {writer_ready.status}, Image: {image_ready.status}")
     
-    # Initialize version/approval stores for adapter.
+    # Version store shared with the worker and review handler.
     # MUST match GenerationWorker default (output/v5_stories). A separate
     # data/v5_versions root made APPROVE/PUBLISH unable to find frozen articles.
     from pathlib import Path as _Path
@@ -747,47 +776,34 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
     except Exception as exc:  # noqa: BLE001 — keep bot up if WP wiring fails
         log_event(f"[PREFLIGHT] WordPress lifecycle unavailable: {exc}")
     
-    # Create the adapter
     runtime._controlled_e2e = os.environ.get("NEWSAGENT_V5_CONTROLLED_E2E", "").lower() == "true"
-    
-    runtime.adapter = RunStoryAdapter(
-        version_store=runtime.version_store,
-        approval_store=runtime.approval_store,
-        environ=os.environ,
-    )
-    
-    # Create revision controller
-    runtime.revision_controller = RevisionController(
-        version_store=runtime.version_store,
-        environ=os.environ,
-    )
-    
-    # Create review handler (with persistent_store for feedback mode)
-    runtime.review_handler = V5ReviewCallbackHandler(
-        review_store=runtime.review_store,
-        revision_controller=runtime.revision_controller,
-        version_store=runtime.version_store,
-        persistent_store=runtime.persistent_store,
-        wordpress_lifecycle=wordpress_lifecycle,
-        environ=os.environ,
-    )
-    
+
     # Run reconciliation for any interrupted jobs
     reconciled = runtime.persistent_store.reconcile_jobs_on_startup()
     if reconciled:
         log_event(f"[RECONCILE] {len(reconciled)} jobs reconciled:")
         for job in reconciled:
             log_event(f"  - {job['job_id']}: {job['old_state']} → {job['new_state']}")
-    
+
+    runtime.event_store = EventStore(root=_Path("./data/events"))
     runtime.generation_worker = GenerationWorker(
         client=runtime.client,
         config=runtime.config,
         persistent_store=runtime.persistent_store,
         environ=os.environ,
         wordpress_lifecycle=wordpress_lifecycle,
+        event_store=runtime.event_store,
     )
-    
-    runtime.event_store = EventStore(root=_Path("./data/events"))
+
+    # Review handler (persistent_store for feedback/edit mode; worker for REVISE/EDIT)
+    runtime.review_handler = V5ReviewCallbackHandler(
+        review_store=runtime.review_store,
+        version_store=runtime.version_store,
+        persistent_store=runtime.persistent_store,
+        wordpress_lifecycle=wordpress_lifecycle,
+        environ=os.environ,
+        generation_worker=runtime.generation_worker,
+    )
     runtime.source_registry = SourceRegistry()
     
     runtime.discovery = create_v5_discovery_pipeline(
@@ -999,8 +1015,9 @@ def main() -> int:
                             _reply(
                                 "👋 News Agent is online.\n\n"
                                 "Commands:\n"
-                                "• /make — discover top stories\n"
-                                "• Then use RUN STORY → GENERATE NOW → APPROVE → PUBLISH\n\n"
+                                "• /make — discover top stories and write the top ones as WordPress drafts\n"
+                                "• Each draft arrives as a review card: REVISE, EDIT, REJECT or APPROVE & PUBLISH\n"
+                                "• RUN STORY on any other card writes that story too\n\n"
                                 "You can also just chat — ask me anything about the workflow."
                             )
                             log_event(f"[MESSAGE] help_reply cmd={cmd_key!r}")

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from newsagent_v2.article.qa.textutil import word_count
+from newsagent_v2.textutil import word_count
 from newsagent_v2.telegram.cards import approval_keyboard, html_caption
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.contract import TELEGRAM_MESSAGE_LIMIT

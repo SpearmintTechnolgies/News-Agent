@@ -64,15 +64,19 @@ def write_and_check(
     budget: StoryBudget,
     *,
     today: str | None = None,
+    feedback: str = "",
 ) -> DraftOutcome:
     """Draft once, then spend the remaining budget on QA-driven revisions.
 
     A revision is kept only if it does not add blocking problems or problems to fix.
     The final status is ``blocked`` when a blocking problem remains, otherwise ``review``
-    with the remaining fix/warn items shown to the editor.
+    with the remaining fix/warn items shown to the editor. ``feedback`` is the editor's
+    note on a previous version (REVISE).
     """
     day = today or datetime.now(timezone.utc).strftime("%A, %B %d, %Y")
-    messages = build_messages(bank, today=day, facts=select_facts(bank), quotes=usable_quotes(bank))
+    messages = build_messages(
+        bank, today=day, facts=select_facts(bank), quotes=usable_quotes(bank), feedback=feedback
+    )
     outcome = DraftOutcome(status=STATUS_FAILED)
     try:
         raw = client.chat_json(messages, budget=budget, stage="draft")

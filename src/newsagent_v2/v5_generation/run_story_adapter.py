@@ -1,17 +1,18 @@
-"""RUN STORY Adapter.
+"""RUN STORY adapter: one news event -> V6 story pipeline -> frozen article and image versions.
 
-Connects a V5 NewsEvent to the V6 story pipeline and freezes the outputs:
+NewsEvent -> story6 (research -> fact bank -> gate -> write + QA) -> Article vN
+                                                                  -> Image vN (Vertex hero + logo)
 
-NewsEvent → RunStoryAdapter → story6 (research → fact bank → gate → write + QA) → Article V1
-                                                                                → Image V1
+A ``Revision`` (REVISE) rewrites the article with the editor's feedback and/or regenerates the
+image with image feedback; whatever is not revised is reused from the current version.
 """
 
 from __future__ import annotations
 
+import hashlib
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from newsagent_v2.approval.store import ApprovalStore
@@ -23,13 +24,37 @@ from .version_store import VersionStore
 USER_FAILURE_MESSAGE = "Article could not be completed. Please retry."
 
 
+def next_version(version: str | None) -> str:
+    if not version:
+        return "v1"
+    try:
+        return f"v{int(str(version).lstrip('vV')) + 1}"
+    except ValueError:
+        return f"{version}-rev"
+
+
+def sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+@dataclass
+class Revision:
+    """What REVISE should redo, relative to the current versions."""
+
+    article_feedback: str = ""
+    image_feedback: str = ""
+    article_version: str | None = None  # current (base) versions
+    image_version: str | None = None
+
+
 @dataclass
 class GenerationJob:
-    """Generation job with idempotency."""
+    """Adapter-side job record (persisted next to the article versions)."""
+
     job_id: str
     event_id: str
     event: dict[str, Any]
-    state: str = "INIT"  # INIT, SELECTED, RESEARCHING, GENERATING, QA, REVIEW, FAILED
+    state: str = "SELECTED"  # SELECTED, GENERATING, REVIEW, FAILED
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     article_version: str | None = None
@@ -38,7 +63,6 @@ class GenerationJob:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize job including metadata."""
         return {
             "job_id": self.job_id,
             "event_id": self.event_id,
@@ -53,16 +77,6 @@ class GenerationJob:
 
 
 class RunStoryAdapter:
-    """Adapter connecting V5 NewsEvent to existing V4 generation pipeline.
-
-    Features:
-    - Idempotent job creation (duplicate RUN STORY = return existing job)
-    - State machine transitions
-    - Article V1 + Image V1 freezing
-    - Version tracking with SHA-256
-    """
-
-    # Active jobs: event_id -> GenerationJob
     _active_jobs: dict[str, GenerationJob] = {}
     _lock = threading.RLock()
 
@@ -76,260 +90,115 @@ class RunStoryAdapter:
         self.approval_store = approval_store
         self.environ = environ or {}
 
-    def _generate_job_id(self, event_id: str) -> str:
-        """Generate unique job ID."""
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-        return f"{event_id}-{ts}"
-
-    def _event_to_story(self, event: NewsEvent) -> dict[str, Any]:
-        """Job record of the event; research itself happens in the V6 pipeline."""
-        evidence = [
-            {
-                "source": r.source,
-                "source_id": r.source_id,
-                "source_authority": r.source_authority,
-                "url": r.url,
-                "title": r.headline,
-                "published": r.published_at,
-                "summary": r.description,
-            }
-            for r in event.reports
-        ]
-        article_input = {
-            "event_id": event.event_id,
-            "representative_title": event.canonical_title,
-            "topic": event.topic,
-            "entities": list(event.entities),
-            "evidence": evidence,
-        }
-
+    @staticmethod
+    def _event_record(event: NewsEvent) -> dict[str, Any]:
         return {
             "event_id": event.event_id,
             "representative_title": event.canonical_title,
             "topic": event.topic,
             "entities": list(event.entities),
-            "evidence": evidence,
-            "article_input": article_input,
-            "source_count": event.source_count,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "developments": [d.to_dict() for d in event.developments],
+            "reports": [{"source": r.source, "url": r.url, "title": r.headline} for r in event.reports],
         }
 
-    def _create_job(self, event: NewsEvent) -> GenerationJob:
-        """Create a new generation job."""
+    def _start_job(self, event: NewsEvent) -> GenerationJob:
         job = GenerationJob(
-            job_id=self._generate_job_id(event.event_id),
+            job_id=f"{event.event_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}",
             event_id=event.event_id,
-            event=self._event_to_story(event),
-            state="SELECTED",
+            event=self._event_record(event),
         )
-
         with self._lock:
             self._active_jobs[event.event_id] = job
-
-        # Persist job state
-        if self.version_store:
-            self.version_store.save_generation_job(job)
-
+        self._update_job(job)
         return job
 
-    def _get_or_create_job(self, event: NewsEvent) -> tuple[bool, GenerationJob]:
-        """Get existing job or create new."""
+    def _busy(self, event_id: str) -> GenerationJob | None:
         with self._lock:
-            # Check for active job
-            if event.event_id in self._active_jobs:
-                job = self._active_jobs[event.event_id]
-                # Check if job is in terminal state
-                if job.state not in {"PUBLISHED", "REJECTED", "FAILED"}:
-                    return False, job  # Existing job returned
-
-            # Create new job
-            return True, self._create_job(event)
-
-    def _is_job_duplicate(self, event_id: str) -> bool:
-        """Check if a non-terminal job exists."""
-        with self._lock:
-            if event_id not in self._active_jobs:
-                return False
-            job = self._active_jobs[event_id]
-            return job.state not in {"PUBLISHED", "REJECTED", "FAILED"}
+            job = self._active_jobs.get(event_id)
+        return job if job and job.state in {"SELECTED", "GENERATING"} else None
 
     def run_story(
         self,
         event: NewsEvent,
         force_retry: bool = False,
+        revision: Revision | None = None,
     ) -> dict[str, Any]:
-        """Run generation for an event.
-
-        Idempotent: returns existing job if already running.
-        """
-        # Check for duplicate
-        if not force_retry and self._is_job_duplicate(event.event_id):
-            with self._lock:
-                job = self._active_jobs[event.event_id]
-            return {
-                "ok": True,
-                "new": False,
-                "job_id": job.job_id,
-                "state": job.state,
-                "message": "Generation already in progress",
-            }
-
-        # Create or get job
-        is_new, job = self._get_or_create_job(event)
-
-        # Transition: SELECTED → RESEARCHING
-        job.state = "RESEARCHING"
-        self._update_job(job)
-
+        """Generate (or revise) the event's article and image. Idempotent while a job is running."""
+        running = None if force_retry else self._busy(event.event_id)
+        if running:
+            return {"ok": True, "new": False, "job_id": running.job_id, "state": running.state,
+                    "message": "Generation already in progress"}
+        job = self._start_job(event)
         try:
-            # Run generation
-            result = self._run_generation(event, job)
-
-            if result.get("ok"):
-                job.state = "REVIEW"
-                job.article_version = result.get("article_version")
-                job.image_version = result.get("image_version")
-            else:
-                job.state = "FAILED"
-                job.error = result.get("user_message") or USER_FAILURE_MESSAGE
-                # Preserve any article/image artifacts produced before failure.
-                if result.get("article_version"):
-                    job.article_version = result.get("article_version")
-                if result.get("image_version"):
-                    job.image_version = result.get("image_version")
-                
-                # PERSIST FULL FAILURE DIAGNOSTICS
-                # Store all available failure telemetry for forensic analysis
-                job.metadata["failure_details"] = {
-                    "failure_class": result.get("failure_class"),
-                    "error": result.get("error"),
-                    "notes": result.get("notes"),
-                    "critical_codes": result.get("critical_codes", []),
-                    "event_id": event.event_id,
-                    "job_id": job.job_id,
-                    "stage": "generation",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    # Evidence metrics
-                    "sources_retrieved": result.get("sources_retrieved"),
-                    "independent_sources": result.get("independent_sources"),
-                    "primary_sources": result.get("primary_sources"),
-                    "unique_propositions": result.get("unique_propositions"),
-                    "evidence_capacity": result.get("evidence_capacity"),
-                    "article_type": result.get("article_type"),
-                    # Article metrics (if produced)
-                    "native_words": result.get("native_words"),
-                    "final_words": result.get("final_words"),
-                    "writer_calls": result.get("writer_calls"),
-                    "repair_calls": result.get("repair_calls"),
-                    "expansion_calls": result.get("expansion_calls"),
-                    # Grounding metrics
-                    "supported": result.get("supported"),
-                    "ambiguous": result.get("ambiguous"),
-                    "unsupported": result.get("unsupported"),
-                    # Provider info
-                    "writer_model": result.get("writer_model"),
-                    "writer_provider": result.get("writer_provider"),
-                    "kimi_calls": result.get("kimi_calls"),
-                    "vertex_calls": result.get("vertex_calls"),
-                    # Attempt path for forensics
-                    "attempt_path": result.get("attempt_path"),
-                    "image_version": result.get("image_version"),
-                    "image_failed": result.get("image_failed"),
-                }
-
-            self._update_job(job)
-
-            return {
-                "ok": result.get("ok", False),
-                "new": is_new,
-                "job_id": job.job_id,
-                "state": job.state,
-                "article_version": job.article_version or result.get("article_version"),
-                "image_version": job.image_version or result.get("image_version"),
-                "image_path": result.get("image_path"),
-                "image_hash": result.get("image_hash"),
-                "image_usage": result.get("image_usage"),
-                "error": job.error,
-                "result": result,
-            }
-
-        except Exception as e:
-            job.state = "FAILED"
-            job.error = USER_FAILURE_MESSAGE
-            failure_details = {
+            result = self._run_generation(event, job, revision)
+        except Exception as exc:  # noqa: BLE001 - surfaced to the editor, never crashes the worker
+            job.state, job.error = "FAILED", USER_FAILURE_MESSAGE
+            job.metadata["failure_details"] = {
                 "failure_class": "WORKER_EXCEPTION",
-                "exception_type": type(e).__name__,
-                "exception_message": str(e)[:300],
-                "event_id": event.event_id,
-                "job_id": job.job_id,
-                "stage": "generation",
+                "exception": f"{type(exc).__name__}: {str(exc)[:300]}",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            job.metadata["failure_details"] = failure_details
             if self.version_store:
-                self.version_store.save_generation_diagnostics(
-                    event.event_id,
-                    failure_details,
-                )
+                self.version_store.save_generation_diagnostics(event.event_id, job.metadata["failure_details"])
             self._update_job(job)
+            return {"ok": False, "new": True, "job_id": job.job_id, "state": "FAILED", "error": job.error,
+                    "internal_error": job.metadata["failure_details"]["exception"]}
 
-            return {
-                "ok": False,
-                "new": is_new,
-                "job_id": job.job_id,
-                "state": "FAILED",
-                "error": job.error,
-                "internal_error": f"{type(e).__name__}: {str(e)[:200]}",
+        job.article_version = result.get("article_version")
+        job.image_version = result.get("image_version")
+        if result.get("ok"):
+            job.state = "REVIEW"
+        else:
+            job.state = "FAILED"
+            job.error = result.get("user_message") or USER_FAILURE_MESSAGE
+            job.metadata["failure_details"] = {
+                "failure_class": result.get("failure_class"),
+                "error": result.get("error"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
+        self._update_job(job)
+        return {
+            **result,
+            "ok": bool(result.get("ok")),
+            "new": True,
+            "job_id": job.job_id,
+            "state": job.state,
+            "error": job.error,
+            "result": result,
+        }
 
     def _update_job(self, job: GenerationJob) -> None:
-        """Update job state."""
         job.updated_at = datetime.now(timezone.utc).isoformat()
         if self.version_store:
             self.version_store.save_generation_job(job)
 
-    def _run_generation(
-        self,
-        event: NewsEvent,
-        job: GenerationJob,
-    ) -> dict[str, Any]:
-        """V6: research -> fact bank -> evidence gate -> write + QA, then the hero image."""
+    def _text_usage(self, budget: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "provider": "bedrock-mantle",
+            "model": self.environ.get("NEWSAGENT_V2_V4_WRITER_MODEL", ""),
+            "prompt_tokens": int(budget.get("prompt_tokens") or 0),
+            "completion_tokens": int(budget.get("completion_tokens") or 0),
+            "calls": int(budget.get("calls") or 0),
+        }
+
+    def _write_article(self, event: NewsEvent, job: GenerationJob, version: str, feedback: str) -> dict[str, Any]:
         from newsagent_v2.story6 import run_story as run_v6_story
 
         job.state = "GENERATING"
         self._update_job(job)
-
-        story = run_v6_story(event, self.environ)
+        story = run_v6_story(event, self.environ, feedback=feedback)
         diagnostics = story.diagnostics()
         if self.version_store:
             self.version_store.save_generation_diagnostics(event.event_id, diagnostics)
-        text_usage = {
-            "provider": "bedrock-mantle",
-            "model": self.environ.get("NEWSAGENT_V2_V4_WRITER_MODEL", ""),
-            "prompt_tokens": int(story.budget.get("prompt_tokens") or 0),
-            "completion_tokens": int(story.budget.get("completion_tokens") or 0),
-            "calls": int(story.budget.get("calls") or 0),
-        }
+        text_usage = self._text_usage(story.budget)
         if not story.ok or not story.article:
-            return {
-                "ok": False,
-                "error": story.reason,
-                "user_message": story.reason,
-                "failure_class": story.outcome.upper(),
-                "notes": story.reason,
-                "kimi_calls": text_usage["calls"],
-                "kimi_usage": text_usage,
-                "sources_retrieved": story.research.get("full_sources"),
-                "diagnostics": diagnostics,
-            }
-
+            return {"ok": False, "error": story.reason, "user_message": story.reason,
+                    "failure_class": story.outcome.upper(), "kimi_usage": text_usage, "diagnostics": diagnostics}
         article = story.article
-        article_hash = self._calculate_sha256(article["article_body"])
+        article_hash = sha256(article["article_body"])
         if self.version_store:
             self.version_store.save_article(
                 event_id=event.event_id,
-                version="v1",
+                version=version,
                 article=article,
                 article_hash=article_hash,
                 qa_result=story.qa,
@@ -337,107 +206,101 @@ class RunStoryAdapter:
                     "pipeline": "v6",
                     "word_count": article["body_words"],
                     "total_words": article["total_words"],
-                    "depth_status": "DEPTH_NORMAL_PASS",
                     "gate": story.gate,
                     "research": story.research,
                     "text_usage": text_usage,
+                    **({"revision_feedback": feedback} if feedback else {}),
                 },
             )
+        return {"ok": True, "article": article, "article_hash": article_hash, "kimi_usage": text_usage}
 
-        image_result = self._generate_image(
-            event_id=event.event_id,
-            article=article,
-            article_hash=article_hash,
-            job_id=job.job_id,
-        )
-        if not image_result.get("success"):
-            failure_code = str(
-                image_result.get("image_failure_code") or image_result.get("reason") or "image_generation_failed"
-            )
-            return {
-                "ok": False,
-                "error": f"Article is ready but the hero image failed ({failure_code}). Retry to regenerate.",
-                "user_message": f"Article is ready but the hero image failed ({failure_code}). Retry to regenerate.",
-                "failure_class": "IMAGE_GENERATION_FAILED",
-                "article_version": "v1",
-                "image_version": None,
-                "image_failed": True,
-                "article_hash": article_hash,
-                "kimi_usage": text_usage,
-                "image_usage": image_result,
-                "image_failure_code": failure_code,
-            }
-
-        image_path = image_result.get("final_path")
-        image_hash = image_result.get("branded_image_hash") or self._calculate_sha256("")
-        if self.version_store:
+    def _make_image(self, event_id: str, article: dict[str, Any], article_hash: str, version: str,
+                    batch_id: str, feedback: str = "") -> dict[str, Any]:
+        job = {"event_id": event_id, "article": article, "canonical_body_hash": article_hash,
+               "article_hash": article_hash}
+        if feedback:
+            job.update(image_feedback=feedback, target_revision=version)
+        result = build_vertex_make_image_fn(self.environ, batch_id=batch_id)(job)
+        if result.get("success") and self.version_store:
             self.version_store.save_image(
-                event_id=event.event_id,
-                version="v1",
-                image_path=image_path,
-                image_hash=image_hash,
+                event_id=event_id,
+                version=version,
+                image_path=result.get("final_path"),
+                image_hash=result.get("branded_image_hash") or sha256(""),
                 metadata={
-                    "raw_image_hash": image_result.get("raw_image_hash"),
-                    "provider": image_result.get("provider"),
-                    "model": image_result.get("model"),
+                    "raw_image_hash": result.get("raw_image_hash"),
+                    "provider": result.get("provider"),
+                    "model": result.get("model"),
+                    **({"revision_reason": feedback} if feedback else {}),
                 },
             )
-        image_usage = {
-            "provider": image_result.get("provider"),
-            "model": image_result.get("model"),
-            "requests": image_result.get("image_request_count") or 1,
-            "provider_reported_cost_usd": image_result.get("provider_reported_cost_usd"),
-        }
+        return result
+
+    def _run_generation(self, event: NewsEvent, job: GenerationJob, revision: Revision | None) -> dict[str, Any]:
+        rewrite = revision is None or bool(revision.article_feedback.strip())
+        article_version = "v1" if revision is None else (
+            next_version(revision.article_version) if rewrite else revision.article_version
+        )
+        text_usage: dict[str, Any] = {}
+        if rewrite:
+            written = self._write_article(event, job, article_version, revision.article_feedback if revision else "")
+            if not written.get("ok"):
+                return written
+            article, article_hash, text_usage = written["article"], written["article_hash"], written["kimi_usage"]
+        else:
+            record = (self.version_store.get_article(event.event_id, article_version) if self.version_store else None) or {}
+            article = record.get("article") or {}
+            article_hash = record.get("article_hash") or sha256(str(article.get("article_body") or ""))
+            if not article:
+                return {"ok": False, "error": "No article to revise.", "user_message": "No article to revise.",
+                        "failure_class": "NO_ARTICLE"}
+
+        new_image = revision is None or bool(revision.image_feedback.strip()) or not revision.image_version
+        image_version = (
+            ("v1" if revision is None else next_version(revision.image_version)) if new_image else revision.image_version
+        )
+        image_usage: dict[str, Any] = {}
+        image_path = None
+        if new_image:
+            image = self._make_image(event.event_id, article, article_hash, image_version, job.job_id,
+                                     feedback=revision.image_feedback if revision else "")
+            if not image.get("success"):
+                code = str(image.get("image_failure_code") or image.get("reason") or "image_generation_failed")
+                message = f"Article is ready but the hero image failed ({code}). Retry to regenerate."
+                return {"ok": False, "error": message, "user_message": message,
+                        "failure_class": "IMAGE_GENERATION_FAILED", "article_version": article_version,
+                        "image_version": None, "image_failed": True, "article_hash": article_hash,
+                        "kimi_usage": text_usage, "image_usage": image, "image_failure_code": code}
+            image_path = image.get("final_path")
+            image_usage = {
+                "provider": image.get("provider"),
+                "model": image.get("model"),
+                "requests": image.get("image_request_count") or 1,
+                "provider_reported_cost_usd": image.get("provider_reported_cost_usd"),
+            }
+        elif self.version_store:
+            path = self.version_store.get_image_path(event.event_id, image_version)
+            image_path = str(path) if path else None
+
         return {
             "ok": True,
-            "article_version": "v1",
-            "image_version": "v1",
+            "article_version": article_version,
+            "image_version": image_version,
             "article_hash": article_hash,
-            "image_hash": image_hash,
+            "image_hash": self.version_store.get_image_hash(event.event_id, image_version) if self.version_store else None,
             "image_path": image_path,
             "kimi_usage": text_usage,
             "text_usage": text_usage,
             "image_usage": image_usage,
-            "depth_status": "DEPTH_NORMAL_PASS",
             "qa_flags": article.get("qa_flags") or [],
             "event_id": event.event_id,
+            "revision": bool(revision),
         }
-
-    def _generate_image(
-        self,
-        event_id: str,
-        article: dict[str, Any],
-        article_hash: str,
-        job_id: str,
-    ) -> dict[str, Any]:
-        """Generate image using existing infrastructure."""
-        image_fn = build_vertex_make_image_fn(self.environ, batch_id=job_id)
-
-        job = {
-            "event_id": event_id,
-            "article": article,
-            "canonical_body_hash": article_hash,
-            "article_hash": article_hash,
-        }
-
-        return image_fn(job)
-
-    def _attempts_root(self, job_id: str) -> Path:
-        """Get attempts root path."""
-        return Path(__file__).resolve().parents[3] / "output" / "v5_attempts" / job_id
-
-    def _calculate_sha256(self, content: str) -> str:
-        """Calculate SHA-256 hash of content."""
-        import hashlib
-
-        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def get_job(self, event_id: str) -> GenerationJob | None:
-        """Get active job for an event."""
         with self._lock:
             return self._active_jobs.get(event_id)
 
     def get_job_state(self, event_id: str) -> str | None:
-        """Get current job state."""
         job = self.get_job(event_id)
         return job.state if job else None

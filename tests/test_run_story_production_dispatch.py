@@ -318,24 +318,6 @@ class TestConfirmationKeyboardSent:
             }
         }
 
-        # Import and run production execute_callback
-        spec = importlib.util.spec_from_file_location(
-            "start_v5_bot",
-            str(Path(__file__).parent.parent / "start_v5_bot.py")
-        )
-        module = importlib.util.module_from_spec(spec)
-
-        # Patch the imports
-        with patch("newsagent_v2.telegram.live_transport.create_live_transport"):
-            with patch("newsagent_v2.telegram.client.TelegramTestClient") as mock_client_class:
-                mock_client_class.return_value = mock_client
-                sys.modules["newsagent_v2"] = MagicMock()
-                try:
-                    spec.loader.exec_module(module)
-                except Exception:
-                    pass  # May fail on actual imports
-
-        # For this test, directly verify the keyboard structure
         from newsagent_v2.telegram.v5_callbacks import V5CallbackHandler
 
         handler = V5CallbackHandler(
@@ -366,8 +348,8 @@ class TestConfirmationKeyboardSent:
         texts = [t for t, _ in buttons]
         callbacks = [c for _, c in buttons]
 
-        assert "ðŸš€ GENERATE NOW" in texts, f"Generate button not found in {texts}"
-        assert "âŒ CANCEL" in texts, f"Cancel button not found in {texts}"
+        assert "🚀 GENERATE NOW" in texts, f"Generate button not found in {texts}"
+        assert "❌ CANCEL" in texts, f"Cancel button not found in {texts}"
         assert "gen:evt-test" in callbacks, f"gen:evt-test callback not found in {callbacks}"
         assert "cancel:evt-test" in callbacks, f"cancel:evt-test callback not found in {callbacks}"
 

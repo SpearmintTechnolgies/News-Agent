@@ -29,16 +29,16 @@ from newsagent_v2.discovery.event_clusterer import NewsEvent
 class TestProviderPreflight:
     """Test provider preflight checks."""
     
-    def test_writer_ready_with_groq_key(self) -> None:
-        """Writer ready when GROQ_API_KEY is set."""
-        environ = {"GROQ_API_KEY": "gsk_test_api_key_12345"}
+    def test_writer_ready_with_kimi_key(self) -> None:
+        """Writer ready when the Bedrock Mantle (Kimi) key is set."""
+        environ = {"NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "test_api_key_12345"}
         preflight = ProviderPreflight(environ)
         
         status = preflight.check_writer()
         assert status.status == "READY", f"Writer should be READY: {status}"
     
     def test_writer_missing_with_no_key(self) -> None:
-        """Writer missing when GROQ_API_KEY is not set."""
+        """Writer missing when the Kimi key is not set."""
         environ = {}
         preflight = ProviderPreflight(environ)
         
@@ -109,7 +109,7 @@ class TestProviderPreflightFullReport:
         creds = tmp_path / "creds.json"
         creds.write_text("{}", encoding="utf-8")
         environ = {
-            "GROQ_API_KEY": "gsk_test_key",
+            "NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "gsk_test_key",
             "NEWSAGENT_V2_VERTEX_ENABLED": "true",
             "NEWSAGENT_V2_VERTEX_PROJECT": "test-project",
             "NEWSAGENT_V2_VERTEX_LOCATION": "us-central1",
@@ -132,7 +132,7 @@ class TestProviderPreflightFullReport:
     def test_full_report_writer_only(self) -> None:
         """Full report with only writer ready."""
         environ = {
-            "GROQ_API_KEY": "gsk_test_key",
+            "NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "gsk_test_key",
         }
         preflight = ProviderPreflight(environ)
         
@@ -163,7 +163,7 @@ class TestGenerationRequiresBothProviders:
         """If writer unavailable: 0 provider calls."""
         # Create store with no writer ready
         environ = {
-            # No GROQ_API_KEY
+            # No Kimi key
             "NEWSAGENT_V2_VERTEX_ENABLED": "true",
             "NEWSAGENT_V2_VERTEX_PROJECT": "test-project",
             "NEWSAGENT_V2_VERTEX_LOCATION": "us-central1",
@@ -187,7 +187,7 @@ class TestGenerationRequiresBothProviders:
         BOTH should be ready.
         """
         environ = {
-            "GROQ_API_KEY": "gsk_test_key",
+            "NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "gsk_test_key",
             # No Vertex config
         }
         
@@ -208,8 +208,8 @@ class TestGenerationProgressStages:
     """Test generation progress message updates through stages.
     
     Expected stages:
-    Selected â†’ Researching â†’ Building evidence â†’ Writing â†’ 
-    Verification/QA â†’ Generating image â†’ Review ready
+    Selected → Researching → Building evidence → Writing → 
+    Verification/QA → Generating image → Review ready
     """
     
     def test_progress_stages_in_job(self, tmp_path: Path) -> None:

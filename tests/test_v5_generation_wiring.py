@@ -192,18 +192,18 @@ class TestPersistentStore:
 # ============== ProviderPreflight Tests ==============
 
 class TestProviderPreflight:
-    def test_check_writer_missing_groq(self) -> None:
+    def test_check_writer_missing_kimi_key(self) -> None:
         preflight = ProviderPreflight({})
         status = preflight.check_writer()
-        assert status.provider == "groq"
+        assert status.provider == "kimi"
         assert status.status == "MISSING_CREDENTIALS"
-        assert status.credential_envs.get("GROQ_API_KEY") == "MISSING"
+        assert status.credential_envs.get("NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY") == "MISSING"
 
-    def test_check_writer_groq_present(self) -> None:
-        preflight = ProviderPreflight({"GROQ_API_KEY": "gsk_test_key"})
+    def test_check_writer_kimi_key_present(self) -> None:
+        preflight = ProviderPreflight({"NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "gsk_test_key"})
         status = preflight.check_writer()
         assert status.status == "READY"
-        assert status.credential_envs.get("GROQ_API_KEY") == "SET"
+        assert status.credential_envs.get("NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY") == "SET"
 
     def test_check_image_missing_config(self) -> None:
         preflight = ProviderPreflight({})
@@ -223,7 +223,7 @@ class TestProviderPreflight:
         assert status.status == "READY"
 
     def test_full_report_completeness(self) -> None:
-        report = ProviderPreflight({"GROQ_API_KEY": "gsk"}).full_report()
+        report = ProviderPreflight({"NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "gsk"}).full_report()
         assert "writer" in report
         assert "image" in report
         assert "wordpress" in report
@@ -234,7 +234,7 @@ class TestProviderPreflight:
         assert ProviderPreflight({}).is_controlled_mode() is False
 
     def test_get_readiness_summary(self) -> None:
-        summary = ProviderPreflight({"GROQ_API_KEY": "gsk"}).get_readiness_summary()
+        summary = ProviderPreflight({"NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY": "gsk"}).get_readiness_summary()
         assert summary["can_write"] is True
         assert "overall" in summary
 

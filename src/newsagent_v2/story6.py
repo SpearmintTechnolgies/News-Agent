@@ -132,7 +132,9 @@ def run_story(
     client: KimiClient | None = None,
     research_fn: Callable[[dict[str, Any]], ResearchDossier] | None = None,
     budget: StoryBudget | None = None,
+    feedback: str = "",
 ) -> StoryResult:
+    """``feedback``: the editor's REVISE note on the previous version, passed to the writer."""
     started = time.monotonic()
     budget = budget or StoryBudget()
     story = story_from_event(event)
@@ -152,7 +154,7 @@ def run_story(
         return result
 
     client = client or KimiClient.from_env(environ)
-    outcome = write_and_check(bank, dossier, client, budget)
+    outcome = write_and_check(bank, dossier, client, budget, feedback=feedback)
     result.budget = outcome.budget
     result.history = outcome.history
     if outcome.report:
