@@ -394,6 +394,10 @@ class GenerationWorker:
         extra_tags = [] if article.get("pipeline") == "v6" else sorted(str(item) for item in (event.entities or []) if item)
         tags = list(dict.fromkeys([str(item) for item in tags if item] + extra_tags))[:8]
         image_path = version_store.get_image_path(event.event_id, result.get("image_version")) if result.get("image_version") else None
+        if article.get("pipeline") == "v6":
+            from newsagent_v2.seo6 import prepare_for_site
+
+            article = prepare_for_site(article, lifecycle.config.base_url, has_featured_image=bool(image_path))
         draft = lifecycle.create_or_update_draft(
             event_id=event.event_id,
             article=article,
@@ -432,6 +436,10 @@ class GenerationWorker:
         data["text_usage"] = result.get("text_usage") or {}
         data["image_usage"] = result.get("image_usage") or {}
         data["cms_html"] = True
+        if article.get("seo"):
+            data["seo_report"] = article["seo"]
+            data["internal_links"] = article.get("internal_links_inline") or []
+            data["related_links"] = article.get("related_links") or []
         return data
 
     # Active jobs tracking for max_active = 1 enforcement

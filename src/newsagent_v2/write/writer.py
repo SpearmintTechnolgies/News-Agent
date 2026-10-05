@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from newsagent_v2.facts.bank import Fact, FactBank, Quote
+from newsagent_v2.seo6.score import phrase_count, phrase_in
 from newsagent_v2.write.article import Article
 from newsagent_v2.write.kimi import KimiClient, KimiError, StoryBudget
 from newsagent_v2.write.prompt import (
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 MAX_SECTION_WORDS = 380
 MAX_SECTION_PARAGRAPHS = 6
+MIN_KEYWORD_USES = 4
 _QUOTED_RE = re.compile(r"[“\"]([^”\"]{3,600})[”\"]")
 _NORM_RE = re.compile(r"[^a-z0-9$%]+")
 
@@ -34,15 +36,8 @@ def _norm(text: str) -> str:
 
 
 def keyword_present(keyword: str, text: str) -> bool:
-    """Every keyword word appears in the text in any order; words of 4+ letters may be inflected."""
-    haystack = set(_norm(text).split())
-    for word in _norm(keyword).split():
-        if word in haystack:
-            continue
-        if len(word) >= 4 and any(token.startswith(word) and len(token) - len(word) <= 3 for token in haystack):
-            continue
-        return False
-    return True
+    """The exact keyword phrase, as Rank Math matches it (case-insensitive, plural last word allowed)."""
+    return phrase_in(keyword, text)
 
 
 @dataclass
@@ -127,13 +122,21 @@ def structural_issues(
         first = article.sections[0].paragraphs[0].text if article.sections and article.sections[0].paragraphs else ""
         for label, text in (
             ("the headline", article.headline),
+            ("the meta_title", seo.meta_title),
             ("the first paragraph", first),
             ("the meta_description", seo.meta_description),
         ):
             if not keyword_present(seo.focus_keyword, text):
-                issues.append(f'focus keyword "{seo.focus_keyword}" words are not all in {label}')
+                issues.append(f'the exact focus keyword phrase "{seo.focus_keyword}" is not in {label}')
         if not any(keyword_present(seo.focus_keyword, s.heading) for s in article.sections):
-            issues.append(f'focus keyword "{seo.focus_keyword}" words are not in any section heading')
+            issues.append(f'the exact focus keyword phrase "{seo.focus_keyword}" is not in any section heading')
+        body_text = " ".join(p.text for s in article.sections for p in s.paragraphs)
+        uses = phrase_count(seo.focus_keyword, body_text)
+        if uses < MIN_KEYWORD_USES:
+            issues.append(
+                f'the exact focus keyword phrase "{seo.focus_keyword}" appears {uses} times in the body; use it '
+                f"{MIN_KEYWORD_USES} to 8 times where it reads naturally, or choose a shorter phrase the story repeats"
+            )
     if not seo.meta_title or len(seo.meta_title) > 60:
         issues.append(f"meta_title must be 1 to 60 characters (is {len(seo.meta_title)})")
     if not 120 <= len(seo.meta_description) <= 160:

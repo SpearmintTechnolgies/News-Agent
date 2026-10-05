@@ -15,6 +15,7 @@ from newsagent_v2.facts import assess_evidence, build_fact_bank
 from newsagent_v2.qa6 import STATUS_BLOCKED, STATUS_REVIEW, DraftOutcome, write_and_check
 from newsagent_v2.research import deep_research
 from newsagent_v2.research.dossier import ResearchDossier, display_publisher
+from newsagent_v2.seo6 import finalize_seo
 from newsagent_v2.write import Article, KimiClient, StoryBudget
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ def article_record(
     seo = article.seo
     category = SITE_CATEGORIES.get(seo.category, "News")
     report = outcome.report
-    return {
+    return finalize_seo({
         "event_id": event_id,
         "pipeline": "v6",
         "preserve_structure": True,
@@ -121,7 +122,7 @@ def article_record(
         "total_words": article.total_words,
         "qa_flags": [i.to_dict() for i in report.issues] if report else [],
         "structured": article.to_dict(),
-    }
+    })
 
 
 def run_story(

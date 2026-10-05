@@ -344,7 +344,7 @@ def send_initial_review_package(
 _QA_FLAG_LIMIT = 6
 
 
-def _qa_review_text(article: dict[str, Any]) -> str:
+def _qa_review_text(article: dict[str, Any], seo: dict[str, Any] | None = None) -> str:
     """Length, sources and open QA flags for the editor; empty for pre-V6 articles."""
     if article.get("pipeline") != "v6":
         return ""
@@ -365,7 +365,31 @@ def _qa_review_text(article: dict[str, Any]) -> str:
             )
         if len(flags) > _QA_FLAG_LIMIT:
             lines.append(f"… and {len(flags) - _QA_FLAG_LIMIT} more")
+    lines.extend(_seo_review_lines(seo))
     return "\n".join(lines) + "\n"
+
+
+_SEO_MISS_LIMIT = 5
+
+
+def _seo_review_lines(seo: dict[str, Any] | None) -> list[str]:
+    if not seo:
+        return []
+    lines = [
+        f"<b>SEO score:</b> {seo.get('score', '?')}/100 · keyword "
+        f"\"{_escape_html(str(seo.get('focus_keyword') or ''))}\" · {seo.get('internal_links', 0)} internal links"
+    ]
+    duplicate = seo.get("possible_duplicate")
+    if duplicate:
+        lines.append(f"⚠️ Possible duplicate of: {_escape_html(str(duplicate.get('title'))[:100])} — {_escape_html(str(duplicate.get('url')))}")
+    misses = sorted(
+        (c for c in seo.get("checks") or [] if not c.get("passed")),
+        key=lambda c: c.get("points", 0) - c.get("max_points", 0),
+    )
+    for check in misses[:_SEO_MISS_LIMIT]:
+        detail = f" ({_escape_html(str(check['detail'])[:80])})" if check.get("detail") else ""
+        lines.append(f"• SEO: {_escape_html(str(check.get('label')))}{detail}")
+    return lines
 
 
 def send_initial_v5_review_package(
@@ -434,7 +458,7 @@ def send_initial_v5_review_package(
         f"SEO: {_escape_html(str(draft.get('seo_status') or 'unavailable'))}\n"
         f"Categories: {_escape_html(', '.join(draft.get('categories') or []) or 'none')}\n"
         f"Tags: {_escape_html(', '.join(draft.get('tags') or []) or 'none')}\n"
-        f"{_qa_review_text(article)}"
+        f"{_qa_review_text(article, draft.get('seo_report'))}"
         f"{cost_block}"
     )
     sent = client.send_message(chat_id=config.test_chat_id, text=text, parse_mode="HTML", reply_markup=keyboard)

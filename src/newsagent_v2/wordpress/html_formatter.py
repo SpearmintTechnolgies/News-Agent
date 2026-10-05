@@ -290,10 +290,18 @@ class ArticleHtmlFormatter:
 
         return "\n".join(lines), links
 
+    _MD_LINK_RE = re.compile(r"\[([^\[\]\n]+)\]\((https?://[^\s()]+)\)")
+
+    @classmethod
+    def _inline(cls, text: str) -> str:
+        """Escape text, then render markdown links ``[anchor](https://...)`` as anchors."""
+        return cls._MD_LINK_RE.sub(r'<a href="\2">\1</a>', html.escape(text))
+
     def _paragraphs_to_html(self, content: str) -> str:
         """Convert plain paragraphs to HTML paragraphs."""
         blocks = self.PARAGRAPH_SPLIT.split(content.strip())
         html_blocks = []
+        escape = self._inline
 
         for block in blocks:
             block = block.strip()
@@ -310,21 +318,21 @@ class ArticleHtmlFormatter:
 
             if block.startswith(">"):
                 quote_text = block[1:].strip()
-                html_blocks.append(f'<blockquote>{html.escape(quote_text)}</blockquote>')
+                html_blocks.append(f'<blockquote>{escape(quote_text)}</blockquote>')
             elif block.startswith(("- ", "* ", "1. ")):
                 items = []
                 for line in block.split("\n"):
                     line = line.strip()
                     if line.startswith(("- ", "* ")):
-                        items.append(f'<li>{html.escape(line[2:])}</li>')
+                        items.append(f'<li>{escape(line[2:])}</li>')
                     elif re.match(r'^\d+\.\s', line):
-                        items.append(f'<li>{html.escape(re.sub(r"^\d+\.\s", "", line))}</li>')
+                        items.append(f'<li>{escape(re.sub(r"^\d+\.\s", "", line))}</li>')
                 if items:
                     html_blocks.append(f'<ul>\n{"\n".join(items)}\n</ul>')
                 else:
-                    html_blocks.append(f'<p>{html.escape(block)}</p>')
+                    html_blocks.append(f'<p>{escape(block)}</p>')
             else:
-                html_blocks.append(f'<p>{html.escape(block)}</p>')
+                html_blocks.append(f'<p>{escape(block)}</p>')
 
         return "\n\n".join(html_blocks)
 
@@ -350,6 +358,7 @@ class ArticleHtmlFormatter:
         include_read_also: bool = True,
         max_read_also: int = 3,
         preserve_structure: bool = False,
+        read_also_links: list[dict[str, Any]] | None = None,
     ) -> FormattedArticle:
         """Format article body into CMS-ready HTML.
 
@@ -410,7 +419,10 @@ class ArticleHtmlFormatter:
 
         read_also_html = ""
         internal_links: list[dict[str, Any]] = []
-        if include_read_also and topic:
+        if read_also_links is not None:
+            internal_links = [link for link in read_also_links if link.get("url") and link.get("title")]
+            read_also_html, _ = self._build_internal_links_section(internal_links[:max_read_also])
+        elif include_read_also and topic:
             internal_links = self._discover_internal_links(
                 topic, max_links=max_read_also, entities=entities
             )

@@ -25,3 +25,12 @@ def _offline_v6_research(monkeypatch):
         return ResearchDossier(event_id=str(story.get("event_id") or ""), title=str(story.get("representative_title") or ""))
 
     monkeypatch.setattr(story6, "deep_research", offline)
+
+
+@pytest.fixture(autouse=True)
+def _offline_site_index(monkeypatch):
+    """No live sitemap fetches when V6 drafts are linked in tests (tests pass their own index)."""
+    import newsagent_v2.seo6.apply as seo_apply
+    from newsagent_v2.seo6.sitemap import SiteIndex
+
+    monkeypatch.setattr(seo_apply, "load_site_index", lambda base_url, **_: SiteIndex(base_url=base_url))

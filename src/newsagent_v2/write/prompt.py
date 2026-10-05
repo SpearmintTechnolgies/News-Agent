@@ -52,8 +52,10 @@ CLOSING SECTIONS (written by you, held to the same grounding rules)
   Never generic questions like "What happened?" or "What did reporting establish?". Answers are 40 to 80 words, self-contained, grounded, with fact IDs.
 
 SEO
-- focus_keyword: two to four words a reader would search. Its words must appear naturally in the headline, the first paragraph, the meta_description and one section heading.
-  Work them into the wording; never prefix a heading or sentence with the keyword as a label.
+- focus_keyword: two to four words a reader would search, specific to this story (for example "3x Bitcoin ETF", not "crypto news").
+  Use the EXACT phrase, words in the same order (a plural last word is fine), in: the headline, the start of the meta_title,
+  the first paragraph, the meta_description, at least one section heading and the slug, and five to eight times across the body.
+  Work it into the wording; never prefix a heading or sentence with the keyword as a label, and never force it where it reads badly.
 - headline: at most 90 characters, factual, no clickbait, no question.
 - meta_title: at most 60 characters. meta_description: 140 to 155 characters, one or two sentences.
 - slug: lowercase words joined by hyphens, at most eight words. tags: three to six. category: one of {", ".join(CATEGORIES)}.

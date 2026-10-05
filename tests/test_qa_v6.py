@@ -49,6 +49,9 @@ def _clean_article() -> dict:
         sections.append({"heading": "" if s == 0 else f"Leveraged bitcoin fund detail {s}", "paragraphs": paragraphs})
     sections[0]["paragraphs"][0]["text"] = "Regulators cleared a leveraged bitcoin fund listing. " + _prose(100, 40)
     sections[1]["paragraphs"][1] = {"text": f'Justin Young said "{QUOTE}," in a statement.', "facts": ["F6"], "quotes": ["Q1"]}
+    for s in (1, 2, 3):
+        para = sections[s]["paragraphs"][2]
+        para["text"] = "The leveraged bitcoin fund review continued. " + para["text"]
     return {
         "headline": "Regulators clear leveraged bitcoin fund listing",
         "dek": "Regulators cleared the listing rule.",

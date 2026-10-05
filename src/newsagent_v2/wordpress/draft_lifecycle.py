@@ -238,6 +238,7 @@ class WordPressDraftLifecycle:
                 include_sources=True,
                 include_read_also=bool(topic),
                 preserve_structure=bool(article.get("preserve_structure")),
+                read_also_links=article.get("related_links"),
             )
             formatted_content = formatted.html_content
             headings = formatted.headings

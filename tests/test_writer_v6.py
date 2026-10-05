@@ -105,6 +105,8 @@ def test_markdown_has_closing_sections_and_no_lede_heading():
     assert "## Conclusion" in md and "## Frequently Asked Questions" in md
 
 
-def test_keyword_present_is_word_based():
-    assert keyword_present("Jay Clayton AI czar", "naming Jay Clayton as AI czar")
+def test_keyword_present_is_exact_phrase():
+    assert keyword_present("3x Bitcoin ETF", "the SEC cleared 3x bitcoin ETFs on Friday")
+    assert keyword_present("Jay Clayton", "naming Jay Clayton's team")
+    assert not keyword_present("Jay Clayton AI czar", "naming Jay Clayton as AI czar")
     assert not keyword_present("AI czar", "aiming for a czar")
