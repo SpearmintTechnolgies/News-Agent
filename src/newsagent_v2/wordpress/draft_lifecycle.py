@@ -24,6 +24,7 @@ from .seo_metadata import (
 from .rankmath import apply_rankmath_seo
 from .taxonomy import WordPressTaxonomyResolver
 from newsagent_v2.publication.master_index import MasterIndexStore
+from newsagent_v2.wordpress.authors import author_id_for
 
 Transport = Callable[..., Any]
 
@@ -229,6 +230,7 @@ class WordPressDraftLifecycle:
 
         if format_html and article_body:
             formatter = ArticleHtmlFormatter(self.config, self.transport, master_index=self.master_index)
+            sitemap_links = article.get("related_links")
             formatted = formatter.format_article(
                 article_body=article_body,
                 evidence=evidence,
@@ -237,8 +239,9 @@ class WordPressDraftLifecycle:
                 include_toc=True,
                 include_sources=True,
                 include_read_also=bool(topic),
+                max_read_also=5 if isinstance(sitemap_links, list) else 3,
                 preserve_structure=bool(article.get("preserve_structure")),
-                read_also_links=article.get("related_links"),
+                read_also_links=sitemap_links,
             )
             formatted_content = formatted.html_content
             headings = formatted.headings
@@ -286,6 +289,9 @@ class WordPressDraftLifecycle:
             body["categories"] = category_ids
         if tag_ids:
             body["tags"] = tag_ids
+        chosen_author = author_id_for(event_id)
+        if chosen_author:
+            body["author"] = chosen_author
 
         seo_package_issues = validate_wordpress_seo_meta(body["meta"], seo)
         if seo_package_issues:
@@ -422,10 +428,14 @@ class WordPressDraftLifecycle:
                 updated=False,
             )
 
+        publish_body: dict[str, Any] = {"status": "publish"}
+        chosen_author = author_id_for(event_id)
+        if chosen_author:
+            publish_body["author"] = chosen_author
         resp = self.transport(
             "PUT",
             self._wp_api(f"posts/{existing.wp_post_id}"),
-            json={"status": "publish"},
+            json=publish_body,
             auth=self._auth(),
         )
         if not resp.get("ok"):
@@ -456,6 +466,40 @@ class WordPressDraftLifecycle:
             wp_post_id=record.wp_post_id,
             wp_url=record.wp_url,
             status="publish",
+            updated=True,
+        )
+
+    def assign_author(self, event_id: str, user_id: int) -> DraftResult:
+        """Set the byline on an existing draft without publishing it."""
+        secrets = self.config.secrets()
+        existing = self.store.load(event_id)
+        if not existing:
+            return DraftResult(
+                ok=False,
+                event_id=event_id,
+                error="No draft found for this event",
+                error_code="draft_not_found",
+            )
+        resp = self.transport(
+            "PUT",
+            self._wp_api(f"posts/{existing.wp_post_id}"),
+            json={"author": int(user_id)},
+            auth=self._auth(),
+        )
+        if not resp.get("ok"):
+            return DraftResult(
+                ok=False,
+                event_id=event_id,
+                wp_post_id=existing.wp_post_id,
+                error=sanitize_wp_error(str(resp.get("error") or "author update failed"), secrets),
+                error_code="author_failed",
+            )
+        return DraftResult(
+            ok=True,
+            event_id=event_id,
+            wp_post_id=existing.wp_post_id,
+            wp_url=existing.wp_url,
+            status=existing.status,
             updated=True,
         )
 

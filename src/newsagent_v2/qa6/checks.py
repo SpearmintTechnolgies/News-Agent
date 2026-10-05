@@ -25,6 +25,20 @@ from newsagent_v2.write.writer import structural_issues
 BLOCK = "block"
 FIX = "fix"
 WARN = "warn"
+MAX_REVISION_ITEMS = 8
+_FIX_PRIORITY = {
+    "copied_phrasing": 0,
+    "unsourced_name": 1,
+    "quote_speaker_missing": 2,
+    "structure": 3,
+    "repeated_sentence": 4,
+    "closing_copies_body": 5,
+    "hype_language": 6,
+    "first_person": 7,
+    "reader_address": 8,
+    "rhetorical_question": 9,
+    "web_address": 10,
+}
 
 COPY_RUN_FIX = 12
 COPY_SHINGLE = 8
@@ -88,7 +102,12 @@ class QAReport:
         return bool(self.by(BLOCK))
 
     def revision_requests(self) -> list[str]:
-        return [f"[{i.location}] {i.message}" for i in self.issues if i.severity in (BLOCK, FIX)]
+        """The few problems one rewrite can actually fix, blocking ones first."""
+        ranked = sorted(
+            (issue for issue in self.issues if issue.severity in (BLOCK, FIX)),
+            key=lambda issue: (0 if issue.severity == BLOCK else 1, _FIX_PRIORITY.get(issue.code, 50)),
+        )
+        return [f"[{issue.location}] {issue.message}" for issue in ranked[:MAX_REVISION_ITEMS]]
 
     def summary(self) -> str:
         return f"{len(self.by(BLOCK))} blocking, {len(self.by(FIX))} to fix, {len(self.by(WARN))} warnings"
@@ -249,6 +268,44 @@ def _check_grounding(ctx: _Context, issues: list[Issue]) -> dict[str, int]:
                 issues.append(Issue("uncited_name", WARN, location,
                                     f'"{name}" is in the sources but not in the facts this paragraph cites'))
     return stats
+
+
+def release_invented_quotes(article: Article, quotes: list[Quote]) -> int:
+    """Drop quotation marks around words that are not a verbatim source quote.
+
+    The sentence stays, so figure and name checks still apply. A real quote is left quoted.
+    """
+    known = [_norm(quote.text) for quote in quotes]
+    released = 0
+
+    def fix(text: str) -> str:
+        nonlocal released
+
+        def repl(match: re.Match[str]) -> str:
+            nonlocal released
+            span = match.group(1)
+            if len(span.split()) < 3:
+                return match.group(0)
+            norm = _norm(span).rstrip(".,")
+            if norm and any(norm in source for source in known):
+                return match.group(0)
+            released += 1
+            return span
+
+        return _QUOTED_RE.sub(repl, text)
+
+    article.headline = fix(article.headline)
+    article.dek = fix(article.dek)
+    for section in article.sections:
+        section.heading = fix(section.heading)
+        for paragraph in section.paragraphs:
+            paragraph.text = fix(paragraph.text)
+    for paragraph in article.conclusion:
+        paragraph.text = fix(paragraph.text)
+    for item in article.faq:
+        item.question = fix(item.question)
+        item.answer = fix(item.answer)
+    return released
 
 
 def _check_quotes(ctx: _Context, issues: list[Issue]) -> int:

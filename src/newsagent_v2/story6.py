@@ -7,11 +7,12 @@ Telegram review code, or a plain-language reason the story was not written.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
-from newsagent_v2.facts import assess_evidence, build_fact_bank
+from newsagent_v2.facts import build_fact_bank, qualify
 from newsagent_v2.qa6 import STATUS_BLOCKED, STATUS_REVIEW, DraftOutcome, write_and_check
 from newsagent_v2.research import deep_research
 from newsagent_v2.research.dossier import ResearchDossier, display_publisher
@@ -19,6 +20,12 @@ from newsagent_v2.seo6 import finalize_seo
 from newsagent_v2.write import Article, KimiClient, StoryBudget
 
 logger = logging.getLogger(__name__)
+
+# Recent research, so /make can reject a thin story before a card is sent
+# and the writer can reuse that research instead of fetching it again.
+_SCREEN_TTL_SECONDS = 2 * 60 * 60
+_SCREEN_LOCK = threading.Lock()
+_SCREEN_CACHE: dict[str, tuple[float, ResearchDossier | None, Any]] = {}
 
 OUTCOME_READY = "ready"
 OUTCOME_SKIPPED = "skipped"
@@ -125,6 +132,43 @@ def article_record(
     })
 
 
+def _cached_screen(event_id: str) -> tuple[ResearchDossier | None, Any] | None:
+    with _SCREEN_LOCK:
+        hit = _SCREEN_CACHE.get(event_id)
+    if hit is None or time.monotonic() - hit[0] > _SCREEN_TTL_SECONDS:
+        return None
+    return hit[1], hit[2]
+
+
+def _remember_screen(event_id: str, dossier: ResearchDossier | None, gate: Any) -> None:
+    with _SCREEN_LOCK:
+        _SCREEN_CACHE[event_id] = (time.monotonic(), dossier, gate)
+
+
+def story_urls(event: Any, dossier: ResearchDossier) -> list[str]:
+    urls = [str(getattr(report, "url", "") or "") for report in getattr(event, "reports", []) or []]
+    urls.extend(doc.url for doc in dossier.sources)
+    urls.extend(doc.url for doc in dossier.rejected)
+    return [url for url in urls if url]
+
+
+def screen_story(event: Any) -> tuple[bool, str]:
+    """Research a story and say whether it can support a full article.
+
+    A failing result is cached, so the same story is not offered again and a
+    later RUN STORY on an old card returns the same reason without another fetch.
+    """
+    cached = _cached_screen(event.event_id)
+    if cached is not None:
+        return cached[1].passed, cached[1].summary()
+    dossier = deep_research(story_from_event(event))
+    bank = build_fact_bank(dossier)
+    gate = qualify(dossier, bank, story_urls(event, dossier))
+    _remember_screen(event.event_id, dossier if gate.passed else None, gate)
+    logger.info("[STORY6] screen event=%s passed=%s %s", event.event_id, gate.passed, gate.summary())
+    return gate.passed, gate.summary()
+
+
 def run_story(
     event: Any,
     environ: Mapping[str, str],
@@ -139,9 +183,23 @@ def run_story(
     budget = budget or StoryBudget()
     story = story_from_event(event)
 
-    dossier = (research_fn or deep_research)(story)
+    cached = None if research_fn else _cached_screen(event.event_id)
+    if cached is not None and cached[0] is None and not cached[1].passed:
+        gate = cached[1]
+        result = StoryResult(
+            outcome=OUTCOME_SKIPPED,
+            reason=gate.summary(),
+            gate=gate.to_dict(),
+            seconds=time.monotonic() - started,
+        )
+        logger.info("[STORY6] event=%s skipped from recent screen: %s", event.event_id, result.reason)
+        return result
+
+    dossier = cached[0] if cached and cached[0] is not None else (research_fn or deep_research)(story)
     bank = build_fact_bank(dossier)
-    gate = assess_evidence(dossier, bank)
+    gate = qualify(dossier, bank, story_urls(event, dossier))
+    if research_fn is None:
+        _remember_screen(event.event_id, dossier if gate.passed else None, gate)
     result = StoryResult(
         outcome=OUTCOME_SKIPPED,
         gate={"passed": gate.passed, "reasons": list(gate.reasons), "metrics": dict(gate.metrics)},

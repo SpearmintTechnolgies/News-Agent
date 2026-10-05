@@ -3,7 +3,7 @@
 Proves (mocked slow/dead feeds; no live /make, no Telegram/WP):
 - bounded concurrency + timeouts do not hang forever
 - each feed URL fetched at most once per discovery run (run-scoped cache)
-- early-stop when 5 candidates meet 600+ capacity
+- early-stop when 10 candidates meet 600+ capacity
 - quality/depth requirements still enforced (600+ not weakened)
 """
 
@@ -214,6 +214,12 @@ class TestCollectorCacheAndBounds(unittest.TestCase):
         self.assertEqual(diag.sources_attempted, 4)
 
 
+def _empty_offered():
+    from newsagent_v2.control.offered_stories import OfferedStories
+
+    return OfferedStories([])
+
+
 class TestEarlyStopAndDepthPreserved(unittest.TestCase):
     def test_capacity_target_still_600(self):
         self.assertEqual(INTENTIONAL_ARTICLE_WORDS, 600)
@@ -238,7 +244,7 @@ class TestEarlyStopAndDepthPreserved(unittest.TestCase):
         self.assertFalse(bad)
         self.assertTrue(reasons)
 
-    def test_run_discovery_early_stops_at_five_ready(self):
+    def test_run_discovery_early_stops_at_ten_ready(self):
         from newsagent_v2.control.make_v5_bridge import V5DiscoveryPipeline
         from newsagent_v2.discovery.event_clusterer import EventReport, NewsEvent
 
@@ -286,7 +292,7 @@ class TestEarlyStopAndDepthPreserved(unittest.TestCase):
                 ],
             )
 
-        events = [make_event(i, rich=True) for i in range(8)]
+        events = [make_event(i, rich=True) for i in range(12)]
         # Insert a thin one early that should fail and be skipped via backfill.
         events.insert(2, make_event(99, rich=False))
 
@@ -353,12 +359,16 @@ class TestEarlyStopAndDepthPreserved(unittest.TestCase):
                                         novelty=MagicMock(score=1.0),
                                     )
                                     with patch("newsagent_v2.control.make_v5_bridge.Path"):
-                                        selected = V5DiscoveryPipeline.run_discovery(pipeline)
+                                        with patch(
+                                            "newsagent_v2.control.make_v5_bridge.OfferedStories.load",
+                                            return_value=_empty_offered(),
+                                        ):
+                                            selected = V5DiscoveryPipeline.run_discovery(pipeline)
 
-        self.assertEqual(len(selected), 5)
-        # Should not expand all 9 events once 5 ready (thin one may consume one expand).
-        self.assertLessEqual(expand_calls["n"], 6)
-        self.assertGreaterEqual(expand_calls["n"], 5)
+        self.assertEqual(len(selected), 10)
+        # Should not expand every event once 10 are ready (thin one may consume one expand).
+        self.assertLessEqual(expand_calls["n"], 11)
+        self.assertGreaterEqual(expand_calls["n"], 10)
 
 
 if __name__ == "__main__":

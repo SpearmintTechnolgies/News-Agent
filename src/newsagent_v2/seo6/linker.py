@@ -1,4 +1,9 @@
-"""Internal links: pick related published posts and link natural phrases in the body."""
+"""Internal links: up to five recent related posts from the sitemap.
+
+A post whose title shares two real terms is linked first. When that list is
+shorter than five, newer posts on the same topic fill the rest. A post that
+only shares a loose word such as "holding" is not enough on its own.
+"""
 
 from __future__ import annotations
 
@@ -10,8 +15,8 @@ from typing import Any
 
 from newsagent_v2.seo6.sitemap import SiteIndex, SitePost
 
-MAX_INLINE_LINKS = 4
-MAX_RELATED_LINKS = 3
+TARGET_LINKS = 5
+MAX_INLINE_LINKS = 3
 MIN_SHARED_TERMS = 2
 TOPIC_WEIGHT = 2.0  # headline, focus keyword, tags, entities (headings weigh 1)
 MIN_RELEVANCE = 1.8  # term rarity is scaled to 0..1, so this is independent of site size
@@ -25,6 +30,12 @@ STOPWORDS = frozenset(
 )
 # Common to most posts on a crypto site; they count, but little.
 GENERIC_TERMS = frozenset("crypto cryptocurrency bitcoin btc market markets price prices coin coins token tokens".split())
+# Real English words that show up in titles without meaning the same story.
+WEAK_TERMS = frozenset(
+    "holding hold boost double strategy spend plan look rise fall company share stock report update "
+    "reach file under owner after next test may can role exchange".split()
+)
+TREND_DAYS = 120
 
 _WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
 _LINK_RE = re.compile(r"\[[^\]]*\]\([^)]*\)")
@@ -87,14 +98,67 @@ def _profile(article: dict[str, Any]) -> dict[str, float]:
     return weights
 
 
-def _age_years(lastmod: str) -> float:
+def _age_days(lastmod: str) -> float:
     try:
         when = datetime.fromisoformat(lastmod.replace("Z", "+00:00"))
     except ValueError:
-        return 2.0
+        return 800.0
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
-    return max((datetime.now(timezone.utc) - when).days / 365.0, 0.0)
+    return max((datetime.now(timezone.utc) - when).days, 0.0)
+
+
+def _recency_weight(lastmod: str) -> float:
+    """Recent posts are the ones worth linking; older matches stay available but rank lower."""
+    days = _age_days(lastmod)
+    if days <= 21:
+        return 1.8
+    if days <= 60:
+        return 1.3
+    if days <= 180:
+        return 1.0
+    return 0.55
+
+
+def _specific(term: str) -> bool:
+    return term not in GENERIC_TERMS and term not in WEAK_TERMS
+
+
+def _trend_term(profile: dict[str, float], index: SiteIndex) -> str:
+    """The topic that should fill the link list when few titles match closely.
+
+    Only posts from the last 120 days count. A headline word that survives only
+    on old posts must not block a newer tag such as AI.
+    """
+    counts: dict[str, int] = {}
+    for post in index.posts:
+        if _age_days(post.lastmod) > TREND_DAYS:
+            continue
+        for term in set(terms(post.label + " " + post.slug.replace("-", " "))):
+            if term in profile and profile[term] >= TOPIC_WEIGHT and term not in WEAK_TERMS:
+                counts[term] = counts.get(term, 0) + 1
+    generic = {
+        term: count
+        for term, count in counts.items()
+        if term in GENERIC_TERMS and profile[term] >= 3 and count >= 1
+    }
+    if generic:
+        return max(generic, key=lambda term: (profile[term], generic[term]))
+    # A small cluster of posts on a headline term, not the most common verb in the archive.
+    cluster = {
+        term: count
+        for term, count in counts.items()
+        if term not in GENERIC_TERMS and 1 <= count <= 12 and profile[term] >= 3
+    }
+    if not cluster:
+        cluster = {
+            term: count
+            for term, count in counts.items()
+            if term not in GENERIC_TERMS and 1 <= count <= 12 and profile[term] >= TOPIC_WEIGHT
+        }
+    if cluster:
+        return max(cluster, key=lambda term: (profile[term], cluster[term]))
+    return ""
 
 
 def rank_related(article: dict[str, Any], index: SiteIndex, limit: int = 12) -> list[dict[str, Any]]:
@@ -102,22 +166,30 @@ def rank_related(article: dict[str, Any], index: SiteIndex, limit: int = 12) -> 
     profile = _profile(article)
     own_slug = str(article.get("slug") or "")
     headline_terms = set(terms(article.get("headline") or ""))
+    trend = _trend_term(profile, index)
     ranked = []
     for post in index.posts:
-        if post.slug == own_slug:
+        if post.slug == own_slug or _age_days(post.lastmod) > TREND_DAYS:
             continue
         post_terms = set(terms(post.label + " " + post.slug.replace("-", " ")))
         shared = post_terms & set(profile)
         topical = [t for t in shared if profile[t] >= TOPIC_WEIGHT]
-        if len(topical) < MIN_SHARED_TERMS or not any(t not in GENERIC_TERMS for t in topical):
-            continue
         score = sum(profile[t] * idf.get(t, 1.0) * (0.3 if t in GENERIC_TERMS else 1.0) for t in shared)
-        score /= 1.0 + 0.25 * _age_years(post.lastmod)
-        if score < MIN_RELEVANCE:
+        score *= _recency_weight(post.lastmod)
+        close = len(topical) >= MIN_SHARED_TERMS and any(_specific(t) for t in topical) and score >= MIN_RELEVANCE
+        same_trend = bool(trend) and trend in post_terms and _age_days(post.lastmod) <= TREND_DAYS
+        if not close and not same_trend:
             continue
         overlap = len(post_terms & headline_terms) / max(len(headline_terms), 1)
-        ranked.append({"post": post, "score": round(score, 2), "shared": sorted(shared), "headline_overlap": overlap})
-    ranked.sort(key=lambda r: -r["score"])
+        ranked.append({
+            "post": post,
+            "score": round(score, 2),
+            "shared": sorted(shared),
+            "headline_overlap": overlap,
+            "tier": 0 if close else 1,
+            "age": _age_days(post.lastmod),
+        })
+    ranked.sort(key=lambda row: (row["tier"], -row["score"] if row["tier"] == 0 else row["age"], -row["score"]))
     return ranked[:limit]
 
 
@@ -157,7 +229,7 @@ def plan_and_apply(article: dict[str, Any], index: SiteIndex) -> tuple[str, Link
     plan = LinkPlan()
     if not index.posts:
         return body, plan
-    ranked = rank_related(article, index)
+    ranked = rank_related(article, index)[:TARGET_LINKS]
     plan.candidates = [{"url": r["post"].url, "title": r["post"].label, "score": r["score"]} for r in ranked]
     if ranked and ranked[0]["headline_overlap"] >= DUPLICATE_SHARE:
         top = ranked[0]["post"]
@@ -191,7 +263,7 @@ def plan_and_apply(article: dict[str, Any], index: SiteIndex) -> tuple[str, Link
                 break
     inline_urls = {link["url"] for link in plan.inline}
     for candidate in ranked:
-        if len(plan.related) >= MAX_RELATED_LINKS:
+        if len(plan.inline) + len(plan.related) >= TARGET_LINKS:
             break
         if candidate["post"].url not in inline_urls:
             plan.related.append({"url": candidate["post"].url, "title": candidate["post"].label})

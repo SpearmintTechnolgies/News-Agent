@@ -5,7 +5,7 @@ import json
 import random
 
 from newsagent_v2.facts.bank import Fact, FactBank, Quote
-from newsagent_v2.qa6 import BLOCK, FIX, STATUS_BLOCKED, STATUS_REVIEW, run_qa, write_and_check
+from newsagent_v2.qa6 import BLOCK, FIX, Issue, QAReport, STATUS_BLOCKED, STATUS_REVIEW, run_qa, write_and_check
 from newsagent_v2.research.dossier import display_publisher
 from newsagent_v2.write import Article, KimiClient, StoryBudget
 
@@ -81,7 +81,7 @@ def _codes(data: dict) -> dict[str, str]:
 def test_clean_article_has_nothing_to_block_or_fix():
     report = run_qa(Article.from_json(_clean_article()), _bank(), None)
     assert not report.by(BLOCK) and not report.by(FIX), report.summary() + str([i.to_dict() for i in report.issues])
-    assert report.metrics["body_words"] >= 900
+    assert report.metrics["body_words"] >= 700
 
 
 def test_invented_name_and_figure_block():
@@ -93,6 +93,25 @@ def test_invented_name_and_figure_block():
 def test_invented_quote_blocks():
     codes = _codes(_with_paragraph(_clean_article(), 'Justin Young said "this changes everything for traders" today.'))
     assert codes.get("invented_quote") == BLOCK
+
+
+def test_invented_quote_is_paraphrased_and_a_real_quote_stays_quoted():
+    from newsagent_v2.qa6.checks import release_invented_quotes
+
+    bank = _bank()
+    article = Article.from_json(_with_paragraph(
+        _clean_article(), 'Justin Young said "this changes everything for traders" today.',
+    ))
+    assert release_invented_quotes(article, bank.quotes) == 1
+    text = " ".join(paragraph.text for _, paragraph in article.all_paragraphs())
+    assert '"this changes everything for traders"' not in text
+    assert "this changes everything for traders" in text
+    assert "invented_quote" not in {issue.code for issue in run_qa(article, bank, None).issues}
+
+    verbatim = Article.from_json(_with_paragraph(_clean_article(), f'Justin Young said "{QUOTE}" today.'))
+    assert release_invented_quotes(verbatim, bank.quotes) == 0
+    kept = " ".join(paragraph.text for _, paragraph in verbatim.all_paragraphs())
+    assert f'"{QUOTE}"' in kept
 
 
 def test_copied_fact_sentence_needs_fix():
@@ -157,8 +176,8 @@ def test_loop_keeps_better_version_when_revision_is_worse():
     worse = _with_paragraph(_clean_article(), "Analyst Walter Pennington said inflows reached $45 million.")
     post, calls = _post_returning(copied, worse)
     outcome = write_and_check(_bank(), None, KimiClient("k", http_post=post), StoryBudget())
-    assert len(calls) == 3 and outcome.revisions == 2
-    assert [h.get("kept") for h in outcome.history[1:]] == [False, False]
+    assert len(calls) == 2 and outcome.revisions == 1
+    assert [h.get("kept") for h in outcome.history[1:]] == [False]
     assert outcome.status == STATUS_REVIEW
     assert any(i.code == "copied_phrasing" for i in outcome.report.issues)
 
@@ -169,3 +188,13 @@ def test_loop_blocks_when_invention_survives_budget():
     outcome = write_and_check(_bank(), None, KimiClient("k", http_post=post), StoryBudget())
     assert len(calls) == 3 and outcome.status == STATUS_BLOCKED
     assert json.loads(json.dumps(outcome.to_dict()))["status"] == STATUS_BLOCKED
+
+
+def test_one_repair_is_given_the_blocking_problems_first_and_only_eight():
+    report = QAReport(issues=[
+        Issue("hype_language", FIX, f"p{n}", f"hype {n}") for n in range(12)
+    ] + [Issue("invented_name", BLOCK, "lede", "invented Walter")])
+    requests = report.revision_requests()
+    assert len(requests) == 8
+    assert requests[0].startswith("[lede]")
+    assert "invented Walter" in requests[0]

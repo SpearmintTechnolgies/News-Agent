@@ -51,6 +51,7 @@ class GenerationWorker:
         self.wordpress_lifecycle = wordpress_lifecycle
         self.event_store = event_store
         self.ledger = CostLedger(persist_path=Path("./data/v5_state/cost_ledger.json") if environ else None)
+        self._progress_ids: dict[str, dict[str, int]] = {}
 
     # ----- stores -----------------------------------------------------------------------------
 
@@ -79,18 +80,32 @@ class GenerationWorker:
     # ----- Telegram progress -----------------------------------------------------------------
 
     def _update_progress(self, job: GenerationJob, stage: str, emoji: str = "🟡") -> None:
+        from newsagent_v2.telegram.operators import operator_ids
+
         text = f"{emoji} {stage}\n\nStory: {job.event_id[:20]}..."
-        if not job.progress_message_id:
-            result = self.client.send_message(chat_id=self.config.test_chat_id, text=text, parse_mode="HTML")
-            if result.get("ok"):
-                job.progress_message_id = result.get("message_id")
+        progress_ids = getattr(self, "_progress_ids", None)
+        if progress_ids is None:
+            progress_ids = {}
+            self._progress_ids = progress_ids
+        targets = progress_ids.get(job.job_id) or {}
+        if not targets:
+            targets = {}
+            for chat_id in operator_ids(self.config):
+                result = self.client.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+                if result.get("ok") and result.get("message_id"):
+                    targets[chat_id] = result["message_id"]
+            progress_ids[job.job_id] = targets
+            primary = targets.get(str(self.config.test_chat_id))
+            if primary:
+                job.progress_message_id = primary
                 self.persistent_store.update_job_state(
                     job.job_id, job.state, progress_message_id=job.progress_message_id
                 )
         else:
-            self.client.edit_message_text(
-                chat_id=self.config.test_chat_id, message_id=job.progress_message_id, text=text, parse_mode="HTML"
-            )
+            for chat_id, message_id in targets.items():
+                self.client.edit_message_text(
+                    chat_id=chat_id, message_id=message_id, text=text, parse_mode="HTML"
+                )
 
     def _report_failure(self, job: GenerationJob, stage: str, error: str) -> None:
         reason = html.escape(str(error or "unknown error")[:700])
@@ -98,12 +113,18 @@ class GenerationWorker:
             text = f"⏭ Story skipped (not enough verified evidence)\n{reason}"
         else:
             text = f"❌ Generation stopped\nStage: {stage}\n{reason}"
-        if job.progress_message_id:
-            self.client.edit_message_text(
-                chat_id=self.config.test_chat_id, message_id=job.progress_message_id, text=text, parse_mode="HTML"
-            )
+        targets = getattr(self, "_progress_ids", {}).get(job.job_id) or {}
+        if not targets and job.progress_message_id:
+            targets = {str(self.config.test_chat_id): job.progress_message_id}
+        if targets:
+            for chat_id, message_id in targets.items():
+                self.client.edit_message_text(
+                    chat_id=chat_id, message_id=message_id, text=text, parse_mode="HTML"
+                )
         else:
-            self.client.send_message(chat_id=self.config.test_chat_id, text=text, parse_mode="HTML")
+            from newsagent_v2.telegram.operators import broadcast_message
+
+            broadcast_message(self.client, self.config, text=text, parse_mode="HTML")
 
     def _send_review_package(self, event: NewsEvent, result: dict[str, Any], job: GenerationJob) -> None:
         from .telegram_delivery import send_initial_v5_review_package
@@ -358,8 +379,11 @@ class GenerationWorker:
             attempted.append(event.event_id)
             if result.get("ok"):
                 ready += 1
-        self.client.send_message(
-            chat_id=self.config.test_chat_id,
+        from newsagent_v2.telegram.operators import broadcast_message
+
+        broadcast_message(
+            self.client,
+            self.config,
             text=(
                 f"🗞 Auto-generation finished: {ready}/{target_ready} articles ready for review "
                 f"({len(attempted)} stories tried, {len(skipped)} already handled)."

@@ -242,6 +242,7 @@ def accumulate_vertex_receipts(
     provider = "vertex"
     model = expected
     usages: list[dict[str, Any]] = []
+    image_attempts: list[dict[str, Any]] = []
 
     for receipt in receipts:
         prov = str(receipt.get("provider_name") or receipt.get("provider") or "vertex").strip().lower()
@@ -258,6 +259,7 @@ def accumulate_vertex_receipts(
         usage = receipt.get("provider_reported_usage") if isinstance(receipt.get("provider_reported_usage"), dict) else {}
         usages.append(usage)
         inp, img, tot = _image_modality_tokens(usage)
+        image_attempts.append({"input_tokens": inp, "output_tokens": img, "cost_usd": None})
         if inp is not None:
             input_tokens += inp
         if img is not None:
@@ -265,6 +267,8 @@ def accumulate_vertex_receipts(
         if tot is not None:
             total_tokens += tot
         cost, missing = compute_vertex_receipt_cost_usd(receipt, environ)
+        if image_attempts:
+            image_attempts[-1]["cost_usd"] = cost
         if cost is None:
             cost_known = False
             for key in missing:
@@ -288,6 +292,7 @@ def accumulate_vertex_receipts(
         },
         "receipt_count": len(receipts),
         "accumulated_receipts": requests,
+        "attempts": image_attempts,
     }
     if cost_known and requests:
         image["provider_reported_cost_usd"] = round(total_cost, 8)
@@ -343,6 +348,63 @@ def merge_usage(prior: dict[str, Any] | None, new: dict[str, Any] | None, *, pro
     return out
 
 
+def _stage_label(stage: str) -> str:
+    name = str(stage or "call").replace("_", " ")
+    if name.startswith("revise "):
+        return name
+    return name or "call"
+
+
+def _money(prompt: int, completion: int, environ: dict[str, str] | None) -> tuple[float | None, list[str]]:
+    return compute_kimi_cost_usd(
+        {"prompt_tokens": prompt, "completion_tokens": completion},
+        environ,
+    )
+
+
+def _group_lines(
+    title: str,
+    rows: list[dict[str, Any]],
+    environ: dict[str, str] | None,
+    escape_html,
+) -> tuple[list[str], float | None, list[str]]:
+    """One heading plus a cost line for every call in the group."""
+    if not rows:
+        return [f"{title} — none — $0.0000"], 0.0, []
+    priced: list[tuple[dict[str, Any], float | None, list[str]]] = []
+    missing: list[str] = []
+    subtotal = 0.0
+    known = True
+    for row in rows:
+        prompt = int(row.get("prompt_tokens") or row.get("input_tokens") or 0)
+        completion = int(row.get("completion_tokens") or row.get("output_tokens") or 0)
+        cost = row.get("cost_usd")
+        row_missing: list[str] = []
+        if cost is None:
+            cost, row_missing = _money(prompt, completion, environ)
+        if cost is None:
+            known = False
+            for key in row_missing:
+                if key not in missing:
+                    missing.append(key)
+        else:
+            subtotal += float(cost)
+        priced.append((row, None if cost is None else float(cost), row_missing))
+    group_cost = round(subtotal, 8) if known else None
+    lines = [
+        f"{title} — {len(rows)} {'call' if len(rows) == 1 else 'calls'} — {format_usd(group_cost, missing)}"
+    ]
+    for index, (row, cost, row_missing) in enumerate(priced, start=1):
+        prompt = row.get("prompt_tokens", row.get("input_tokens", "unavailable"))
+        completion = row.get("completion_tokens", row.get("output_tokens", "unavailable"))
+        label = escape_html(_stage_label(str(row.get("stage") or "")))
+        prefix = f"{index}. {label} — " if label and label != "call" else f"{index}. "
+        lines.append(
+            f"{prefix}Input: {prompt} | Output: {completion} | {format_usd(cost, row_missing)}"
+        )
+    return lines, group_cost, missing
+
+
 def build_review_cost_text(
     *,
     text_usage: dict[str, Any],
@@ -350,40 +412,66 @@ def build_review_cost_text(
     environ: dict[str, str] | None,
     escape_html,
 ) -> str:
-    text_provider = text_usage.get("provider") or "kimi"
-    text_model = text_usage.get("model") or "configured model"
-    text_cost, text_missing = compute_kimi_cost_usd(text_usage, environ)
+    attempts = [row for row in (text_usage.get("attempts") or []) if isinstance(row, dict)]
+    if not attempts and (text_usage.get("prompt_tokens") or text_usage.get("completion_tokens")):
+        attempts = [{
+            "kind": "content",
+            "stage": "draft",
+            "prompt_tokens": text_usage.get("prompt_tokens") or 0,
+            "completion_tokens": text_usage.get("completion_tokens") or 0,
+        }]
+    content_rows = [row for row in attempts if str(row.get("kind") or "content") != "orchestration"]
+    orchestration_rows = [row for row in attempts if str(row.get("kind") or "") == "orchestration"]
+    content_lines, content_cost, content_missing = _group_lines("CONTENT", content_rows, environ, escape_html)
+    orchestration_lines, orchestration_cost, orchestration_missing = _group_lines(
+        "ORCHESTRATION", orchestration_rows, environ, escape_html
+    )
+
     image_cost = _num(image_usage.get("accumulated_cost_usd") or image_usage.get("provider_reported_cost_usd"))
     image_missing = list(image_usage.get("missing_pricing_keys") or [])
-    if image_cost is None:
-        image_cost, image_missing = compute_vertex_receipt_cost_usd(
-            {
-                "provider_name": image_usage.get("provider"),
-                "model_name": image_usage.get("model"),
-                "provider_reported_usage": image_usage.get("provider_reported_usage"),
-                "provider_reported_cost_usd": image_usage.get("provider_reported_cost_usd"),
-            },
-            environ,
-        )
-    text_in = text_usage.get("prompt_tokens", text_usage.get("input_tokens", "unavailable"))
-    text_out = text_usage.get("completion_tokens", text_usage.get("output_tokens", "unavailable"))
-    text_tot = text_usage.get("total_tokens", "unavailable")
-    usage = image_usage.get("provider_reported_usage") if isinstance(image_usage.get("provider_reported_usage"), dict) else {}
-    img_in, img_out, img_tot = _image_modality_tokens(usage)
-    image_provider = image_usage.get("provider") or "vertex"
-    image_model = image_usage.get("model") or configured_vertex_model(environ)
-    total = None
-    if text_cost is not None and image_cost is not None:
-        total = round(float(text_cost) + float(image_cost), 8)
-    elif text_cost is not None and not image_usage.get("requests"):
-        total = float(text_cost)
-    lines = [
-        f"TEXT — {escape_html(str(text_provider))}/{escape_html(str(text_model))}",
-        f"Input: {text_in} | Output: {text_out} | Total: {text_tot}",
-        f"Cost: {format_usd(text_cost, text_missing)}",
-        f"IMAGE — {escape_html(str(image_provider))}/{escape_html(str(image_model))}",
-        f"Input: {img_in if img_in is not None else 'unavailable'} | Image/Output: {img_out if img_out is not None else 'unavailable'} | Total: {img_tot if img_tot is not None else 'unavailable'}",
-        f"Cost: {format_usd(image_cost, image_missing)}",
-        f"TOTAL COST: {format_usd(total, (text_missing or []) + (image_missing or []) if total is None else None)}",
+    image_rows = [row for row in (image_usage.get("attempts") or []) if isinstance(row, dict)]
+    if not image_rows:
+        usage = image_usage.get("provider_reported_usage") if isinstance(image_usage.get("provider_reported_usage"), dict) else {}
+        img_in, img_out, _img_tot = _image_modality_tokens(usage)
+        if image_usage.get("requests") or img_in is not None or img_out is not None or image_cost is not None:
+            if image_cost is None:
+                image_cost, image_missing = compute_vertex_receipt_cost_usd(
+                    {
+                        "provider_name": image_usage.get("provider"),
+                        "model_name": image_usage.get("model"),
+                        "provider_reported_usage": usage,
+                        "provider_reported_cost_usd": image_usage.get("provider_reported_cost_usd"),
+                    },
+                    environ,
+                )
+            image_rows = [{
+                "stage": "image",
+                "prompt_tokens": 0 if img_in is None else img_in,
+                "completion_tokens": 0 if img_out is None else img_out,
+                "cost_usd": image_cost,
+            }]
+    image_lines = [f"IMAGE — {len(image_rows)} {'call' if len(image_rows) == 1 else 'calls'} — {format_usd(image_cost, image_missing)}"]
+    if image_rows:
+        running = 0.0
+        image_known = image_cost is not None or all(row.get("cost_usd") is not None for row in image_rows)
+        for index, row in enumerate(image_rows, start=1):
+            cost = _num(row.get("cost_usd"))
+            if cost is not None:
+                running += cost
+            prompt = row.get("input_tokens", row.get("prompt_tokens", "unavailable"))
+            completion = row.get("output_tokens", row.get("completion_tokens", "unavailable"))
+            image_lines.append(f"{index}. Input: {prompt} | Output: {completion} | {format_usd(cost, image_missing)}")
+        if image_cost is None and image_known and image_rows:
+            image_cost = round(running, 8)
+            image_lines[0] = f"IMAGE — {len(image_rows)} {'call' if len(image_rows) == 1 else 'calls'} — {format_usd(image_cost, image_missing)}"
+    else:
+        image_lines = ["IMAGE — none — $0.0000"]
+        image_cost = 0.0
+
+    known = [cost for cost in (content_cost, orchestration_cost, image_cost) if cost is not None]
+    total = round(sum(known), 8) if known else None
+    lines = content_lines + [""] + orchestration_lines + [""] + image_lines + [
+        "",
+        f"TOTAL COST — {format_usd(total, None)}",
     ]
     return "\n".join(lines)

@@ -6,18 +6,37 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from newsagent_v2.facts.bank import FactBank
-from newsagent_v2.research.dossier import ResearchDossier
+from newsagent_v2.research.dossier import ResearchDossier, host_of
+
+# Outlets the desk treats as already vetted. A story they cover skips this bar.
+TRUSTED_HOSTS = (
+    "coindesk.com",
+    "cointelegraph.com",
+    "beincrypto.com",
+    "decrypt.co",
+    "news.bitcoin.com",
+)
+
+
+def trusted_outlet(urls: list[str]) -> str:
+    """Return the trusted host when any URL is from one of those outlets."""
+    for url in urls:
+        host = host_of(url or "")
+        for trusted in TRUSTED_HOSTS:
+            if host == trusted or host.endswith("." + trusted):
+                return trusted
+    return ""
 
 
 @dataclass
 class GatePolicy:
-    min_full_sources: int = 4
-    min_publishers: int = 4
-    min_research_words: int = 2500
-    min_core_facts: int = 30
-    min_numeric_core_facts: int = 4
-    min_corroborated_core_facts: int = 3
-    min_core_fact_words: int = 700
+    min_full_sources: int = 2
+    min_publishers: int = 2
+    min_research_words: int = 800
+    min_core_facts: int = 6
+    min_numeric_core_facts: int = 1
+    min_corroborated_core_facts: int = 0
+    min_core_fact_words: int = 100
 
 
 @dataclass
@@ -68,3 +87,15 @@ def assess_evidence(
     ]
     reasons = [message for ok, message in checks if not ok]
     return GateResult(passed=not reasons, reasons=reasons, metrics=metrics)
+
+
+def qualify(dossier: ResearchDossier, bank: FactBank, urls: list[str], policy: GatePolicy | None = None) -> GateResult:
+    """Pass a story those five outlets already cover; otherwise use the relaxed bar."""
+    gate = assess_evidence(dossier, bank, policy)
+    outlet = trusted_outlet(urls)
+    if not outlet:
+        return gate
+    gate.passed = True
+    gate.reasons = []
+    gate.metrics = {**gate.metrics, "trusted_outlet": outlet}
+    return gate

@@ -8,8 +8,8 @@ from typing import Any
 from newsagent_v2.facts.bank import Fact, FactBank, Quote
 from newsagent_v2.research.dossier import display_publisher
 
-BODY_MIN_WORDS = 900
-BODY_ASK_WORDS = 1000
+BODY_MIN_WORDS = 700
+BODY_ASK_WORDS = 700
 BODY_TARGET = "1,050 to 1,300"
 CATEGORIES = ("Bitcoin", "Ethereum", "Altcoins", "Markets", "Regulation", "Policy", "Business", "DeFi", "Stablecoins", "AI")
 
@@ -107,6 +107,11 @@ def usable_quotes(bank: FactBank, limit: int = 25) -> list[tuple[str, Quote]]:
     return [(f"Q{i + 1}", q) for i, q in enumerate(quotes[:limit])]
 
 
+def cached_text(text: str) -> list[dict[str, Any]]:
+    """Mark the end of the stable prefix so a later rewrite reads it from cache."""
+    return [{"type": "text", "text": text, "prompt_cache_breakpoint": {"mode": "explicit"}}]
+
+
 def build_messages(
     bank: FactBank,
     *,
@@ -131,7 +136,10 @@ def build_messages(
             "It never overrides the rules: if it asks for something the facts do not support, leave that out.\n"
             + feedback.strip()
         )
-    return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": cached_text(user)},
+    ]
 
 
 def revision_messages(
@@ -140,8 +148,9 @@ def revision_messages(
     issues: list[str],
 ) -> list[dict[str, str]]:
     note = (
-        "Your draft has these problems. Return the full corrected article as the same JSON shape. "
-        "Fix every problem; keep everything else that was correct. Do not shorten the body.\n- "
+        "Your draft has these problems. Fix only the listed lines and return the full article in the same JSON shape. "
+        "Leave every other sentence as it is. Do not add a name, number, date, or quotation that is not already in "
+        "the draft or the FACTS. Do not shorten the body.\n- "
         + "\n- ".join(issues)
     )
     return base_messages + [

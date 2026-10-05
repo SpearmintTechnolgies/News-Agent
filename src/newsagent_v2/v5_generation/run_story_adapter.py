@@ -178,6 +178,7 @@ class RunStoryAdapter:
             "prompt_tokens": int(budget.get("prompt_tokens") or 0),
             "completion_tokens": int(budget.get("completion_tokens") or 0),
             "calls": int(budget.get("calls") or 0),
+            "log": list(budget.get("log") or []),
         }
 
     def _write_article(self, event: NewsEvent, job: GenerationJob, version: str, feedback: str) -> dict[str, Any]:
@@ -190,6 +191,9 @@ class RunStoryAdapter:
         if self.version_store:
             self.version_store.save_generation_diagnostics(event.event_id, diagnostics)
         text_usage = self._text_usage(story.budget)
+        from newsagent_v2.v5_generation.article_spend import record_text_spend
+
+        record_text_spend(event.event_id, text_usage)
         if not story.ok or not story.article:
             return {"ok": False, "error": story.reason, "user_message": story.reason,
                     "failure_class": story.outcome.upper(), "kimi_usage": text_usage, "diagnostics": diagnostics}

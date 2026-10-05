@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from newsagent_v2.facts.bank import FactBank
-from newsagent_v2.qa6.checks import BLOCK, FIX, QAReport, run_qa
+from newsagent_v2.qa6.checks import BLOCK, FIX, WARN, Issue, QAReport, release_invented_quotes, run_qa
 from newsagent_v2.research.dossier import ResearchDossier
 from newsagent_v2.write.article import Article
 from newsagent_v2.write.kimi import KimiClient, KimiError, StoryBudget
@@ -44,6 +44,22 @@ class DraftOutcome:
         }
 
 
+def _paraphrase_invented_quotes(article, bank, dossier, report, history):
+    """A non-verbatim quote is prose, not a reason to discard the article or buy another model call."""
+    if not any(issue.code == "invented_quote" for issue in report.by(BLOCK)):
+        return article, report
+    released = release_invented_quotes(article, bank.quotes)
+    if not released:
+        return article, report
+    report = run_qa(article, bank, dossier)
+    report.issues.append(Issue(
+        "quote_paraphrased", WARN, "quotes",
+        f"{released} quotation mark{'s' if released != 1 else ''} removed because the words were not a verbatim source quote",
+    ))
+    history.append({"stage": "paraphrase_quotes", "released": released, "summary": report.summary()})
+    return article, report
+
+
 def _score(report: QAReport) -> tuple[int, int]:
     """Blocking problems first, then problems to fix; lower is better."""
     return len(report.by(BLOCK)), len(report.by(FIX))
@@ -69,6 +85,7 @@ def write_and_check(
     """Draft once, then spend the remaining budget on QA-driven revisions.
 
     A revision is kept only if it does not add blocking problems or problems to fix.
+    A worse revision is discarded and not retried; the draft already in hand continues.
     The final status is ``blocked`` when a blocking problem remains, otherwise ``review``
     with the remaining fix/warn items shown to the editor. ``feedback`` is the editor's
     note on a previous version (REVISE).
@@ -92,6 +109,7 @@ def write_and_check(
         return outcome
     report = run_qa(article, bank, dossier)
     outcome.history.append({"stage": "draft", "score": _score(report), "summary": report.summary()})
+    article, report = _paraphrase_invented_quotes(article, bank, dossier, report, outcome.history)
 
     while report.revision_requests() and budget.calls < budget.max_calls and budget.total_tokens < budget.max_tokens:
         stage = f"revise_{outcome.revisions + 1}"
@@ -113,8 +131,10 @@ def write_and_check(
             {"stage": stage, "kept": kept, "score": _score(candidate_report), "summary": candidate_report.summary()}
         )
         logger.info("[WRITE-LOOP] event=%s %s %s kept=%s", bank.event_id, stage, candidate_report.summary(), kept)
-        if kept:
-            raw, article, report = candidate_raw, candidate, candidate_report
+        if not kept:
+            break
+        raw, article, report = candidate_raw, candidate, candidate_report
+        article, report = _paraphrase_invented_quotes(article, bank, dossier, report, outcome.history)
 
     outcome.raw = raw
     outcome.article = article

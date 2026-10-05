@@ -1,10 +1,10 @@
-"""V5 /make bridge: Discovery-only, Top 5 → Telegram.
+"""V5 /make bridge: Discovery-only, one batch → Telegram.
 
 This module provides the V5 discovery pipeline that:
 1. Runs Collector V2 (zero cost)
 2. Ranks events by intelligence
-3. Sends Top 5 to Telegram as separate cards
-4. Supports SEE NEXT 5 pagination
+3. Sends the next batch of stories to Telegram as separate cards
+4. Skips stories already offered by an earlier /make
 
 RUN STORY only marks selection, does NOT invoke writer/image.
 """
@@ -37,6 +37,7 @@ from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.config import TelegramConfig
 from newsagent_v2.telegram.v5_callbacks import V5CallbackHandler, V5TelegramStore
 from newsagent_v2.telegram.v5_cards import render_card_from_event, seepage_keyboard
+from newsagent_v2.control.offered_stories import OFFER_BATCH, OfferedStories
 from newsagent_v2.v5_generation.source_expansion_adapter import expand_sources_for_event
 from newsagent_v2.v5_generation.evidence_dimensions import (
     MAX_EXPANSION_ROUNDS,
@@ -82,6 +83,51 @@ def _earliest_published_epoch(event: NewsEvent) -> float:
         if best is None or ts < best:
             best = ts
     return best or 0.0
+
+
+def _category_search_items(selection: str) -> list[Any]:
+    """Live news-search hits for a category, beyond whatever the RSS feeds still hold."""
+    from newsagent_v2.control.story_picker import category_queries
+    from newsagent_v2.discovery.raw_news_item import RawNewsItem
+    from newsagent_v2.research.fetch import HTTP_HEADERS
+    from newsagent_v2.research.search import bing_news
+
+    queries = category_queries(selection)
+    if not queries:
+        return []
+    try:
+        import httpx
+    except ImportError:
+        logger.info("[DISCOVERY] category_search skipped: httpx missing")
+        return []
+    items: list[Any] = []
+    seen: set[str] = set()
+    try:
+        with httpx.Client(headers=HTTP_HEADERS, timeout=15.0, follow_redirects=True) as client:
+            for query in queries:
+                for hit in bing_news(query, client, limit=25):
+                    key = hit.url.split("#")[0].split("?")[0].rstrip("/").lower()
+                    if not key or key in seen or not hit.title:
+                        continue
+                    seen.add(key)
+                    item = RawNewsItem(
+                        source=hit.publisher or "Bing News",
+                        source_id="bing-news",
+                        source_type="newsroom",
+                        headline=hit.title,
+                        raw_title=hit.title,
+                        description=hit.title,
+                        canonical_url=hit.url,
+                        original_url=hit.url,
+                        published_at=hit.published_at or None,
+                        topics=[selection],
+                    )
+                    item.compute_fingerprint()
+                    items.append(item)
+    except Exception as exc:
+        logger.info("[DISCOVERY] category_search failed: %s", type(exc).__name__)
+        return items
+    return items
 
 
 def _log_discovery_timing(stage: str, started: float, **extra: Any) -> float:
@@ -308,8 +354,14 @@ class V5DiscoveryPipeline:
             "final_reasons": final_result["reasons"],
         }
     
-    def run_discovery(self) -> list[NewsEvent]:
+    def run_discovery(self, *, unlimited_age: bool = False, selection: str = "trend") -> list[NewsEvent]:
         """Run full V5 discovery pipeline.
+
+        unlimited_age keeps every dated feed item so a category can list
+        older stories. Trend and the 6-hour button leave it off.
+
+        selection is applied before the offer batch, so a category searches
+        the whole feed instead of the top trending stories from every topic.
         
         Returns ranked list of NewsEvents.
         """
@@ -324,6 +376,11 @@ class V5DiscoveryPipeline:
         collector.begin_run()
         self._run_collector = collector
         raw_items, diagnostics = collector.collect(sources)
+        if unlimited_age:
+            extra = _category_search_items(selection)
+            if extra:
+                raw_items = list(raw_items) + extra
+                logger.info("[DISCOVERY] category_search selection=%s added=%s", selection, len(extra))
         self._discovery_timings["registry_feed_collection"] = _log_discovery_timing(
             "registry_feed_collection",
             t0,
@@ -336,9 +393,10 @@ class V5DiscoveryPipeline:
         # 2. FreshnessEngine and NicheFilter expect RawNewsItem
         normalized = raw_items
 
-        # 3. Freshness filter — prefer latest news (default 24h, was 48h)
+        # 3. Freshness filter — prefer latest news (default 24h, was 48h).
+        # A category scan passes unlimited_age so older feed items stay in.
         t1 = perf_counter()
-        max_age_hours = discovery_max_age_hours()
+        max_age_hours = None if unlimited_age else discovery_max_age_hours()
         freshness = FreshnessEngine(FreshnessConfig(max_age_hours=max_age_hours))
         fresh_items = []
         for item in normalized:
@@ -346,8 +404,8 @@ class V5DiscoveryPipeline:
             if result.accepted:
                 fresh_items.append(item)
         logger.info(
-            "[DISCOVERY] freshness max_age_hours=%.1f accepted=%s rejected=%s",
-            max_age_hours,
+            "[DISCOVERY] freshness max_age_hours=%s accepted=%s rejected=%s",
+            "none" if max_age_hours is None else f"{max_age_hours:.1f}",
             len(fresh_items),
             len(normalized) - len(fresh_items),
         )
@@ -384,11 +442,30 @@ class V5DiscoveryPipeline:
 
         # 8. Rank by combined score (breaking + momentum) — highest first.
         ranked_events = self._rank_events(events)
+        from newsagent_v2.control.story_picker import order_stories, skips_age_cap, story_matches
+
+        matched_events = order_stories(
+            [event for event in ranked_events if story_matches(event, selection)],
+            selection,
+        )
+        self._discovery_match = {
+            "selection": selection,
+            "clustered": len(ranked_events),
+            "matched": len(matched_events),
+        }
+        logger.info(
+            "[DISCOVERY] selection=%s clustered=%s matched=%s",
+            selection,
+            len(ranked_events),
+            len(matched_events),
+        )
         self._discovery_timings["ranking"] = _log_discovery_timing(
             "ranking",
             t2,
             events=len(events),
             ranked=len(ranked_events),
+            matched=len(matched_events),
+            selection=selection,
         )
 
         # Discovery path does not HTTP-fetch article bodies (RSS summaries only).
@@ -400,54 +477,75 @@ class V5DiscoveryPipeline:
         )
 
         # 9. Expand evidence before applying the unchanged readiness gate.
-        # Deeper expansion only for candidates that may enter Top-5; stop once 5
-        # satisfy the 600+ evidence-capacity requirement.
+        # One /make offers OFFER_BATCH stories. Stories already sent on an
+        # earlier /make are skipped, so the next run continues down the list.
         selected: list[NewsEvent] = []
         diag_rows: list[dict[str, Any]] = []
         expansion_ms = 0.0
         dimension_gap_ms = 0.0
         readiness_ms = 0.0
         backfill_considered = 0
+        skipped_offered = 0
+        offered = OfferedStories.load()
         t_expand_all = perf_counter()
-        for event in ranked_events:
-            if not event.reports:
-                continue
-            if len(selected) >= 5:
-                break
-            backfill_considered += 1
-            t_ev = perf_counter()
-            ready, event_diagnostics = self._expand_until_ready(
-                event, collector=collector
-            )
-            ev_ms = (perf_counter() - t_ev) * 1000.0
-            expansion_ms += ev_ms
-            # Approximate split from expansion round diagnostics when present.
-            rounds = event_diagnostics.get("expansion_rounds") or []
-            for row in rounds:
-                d = row.get("diagnostics") or {}
-                dimension_gap_ms += float(d.get("collection_ms") or 0.0)
-            attempts = event_diagnostics.get("readiness_attempts") or []
-            # readiness evaluations are cheap relative to feed I/O; attribute remainder.
-            readiness_ms += max(0.0, ev_ms - sum(
-                float((r.get("diagnostics") or {}).get("collection_ms") or 0.0) for r in rounds
-            ))
-            logger.info(
-                "[DISCOVERY_TIMING] stage=candidate_expand_until_ready ms=%.1f event_id=%s ready=%s rounds=%s",
-                ev_ms,
-                event.event_id,
-                ready,
-                len(rounds),
-            )
-            diag_rows.append(event_diagnostics)
-            if ready:
+        # A category list is judged later by opening the article. The RSS blurb
+        # gate was rejecting single-feed stories before that fetch happened.
+        if skips_age_cap(selection):
+            for event in matched_events:
+                if not event.reports:
+                    continue
+                if offered.already(event):
+                    skipped_offered += 1
+                    continue
                 selected.append(event)
-            if len(selected) >= 5:
-                logger.info(
-                    "[DISCOVERY_TIMING] stage=early_stop_top5 ms=%.1f selected=5 considered=%s",
-                    (perf_counter() - t_expand_all) * 1000.0,
-                    backfill_considered,
+                backfill_considered += 1
+                if len(selected) >= OFFER_BATCH:
+                    break
+        else:
+            for event in matched_events:
+                if not event.reports:
+                    continue
+                if len(selected) >= OFFER_BATCH:
+                    break
+                if offered.already(event):
+                    skipped_offered += 1
+                    continue
+                backfill_considered += 1
+                t_ev = perf_counter()
+                ready, event_diagnostics = self._expand_until_ready(
+                    event, collector=collector
                 )
-                break
+                ev_ms = (perf_counter() - t_ev) * 1000.0
+                expansion_ms += ev_ms
+                # Approximate split from expansion round diagnostics when present.
+                rounds = event_diagnostics.get("expansion_rounds") or []
+                for row in rounds:
+                    d = row.get("diagnostics") or {}
+                    dimension_gap_ms += float(d.get("collection_ms") or 0.0)
+                attempts = event_diagnostics.get("readiness_attempts") or []
+                # readiness evaluations are cheap relative to feed I/O; attribute remainder.
+                readiness_ms += max(0.0, ev_ms - sum(
+                    float((r.get("diagnostics") or {}).get("collection_ms") or 0.0) for r in rounds
+                ))
+                logger.info(
+                    "[DISCOVERY_TIMING] stage=candidate_expand_until_ready ms=%.1f event_id=%s ready=%s rounds=%s",
+                    ev_ms,
+                    event.event_id,
+                    ready,
+                    len(rounds),
+                )
+                diag_rows.append(event_diagnostics)
+                if ready:
+                    selected.append(event)
+                if len(selected) >= OFFER_BATCH:
+                    logger.info(
+                        "[DISCOVERY_TIMING] stage=early_stop_batch ms=%.1f selected=%s considered=%s skipped_offered=%s",
+                        (perf_counter() - t_expand_all) * 1000.0,
+                        len(selected),
+                        backfill_considered,
+                        skipped_offered,
+                    )
+                    break
 
         self._discovery_timings["initial_source_expansion"] = round(expansion_ms, 1)
         self._discovery_timings["dimension_gap_expansion"] = round(dimension_gap_ms, 1)
@@ -457,6 +555,7 @@ class V5DiscoveryPipeline:
             t_expand_all,
             considered=backfill_considered,
             selected=len(selected),
+            skipped_offered=skipped_offered,
             failed=sum(1 for row in diag_rows if row.get("final_status") == "FAIL"),
         )
         logger.info(
@@ -545,6 +644,11 @@ class V5DiscoveryPipeline:
     def get_ranked_events(self) -> list[NewsEvent]:
         """Return all ranked events from the latest discovery run."""
         return list(self._ranked_events)
+
+    def replace_ranked(self, events: list[NewsEvent]) -> None:
+        """Keep only the stories that are allowed to be offered for writing."""
+        self._ranked_events = list(events)
+        self.telegram_store.save_batch(self._ranked_events)
     
     def send_to_telegram(
         self,
@@ -564,19 +668,28 @@ class V5DiscoveryPipeline:
             card = render_card_from_event(event, rank, total)
             
             # Send as message with keyboard
-            result = client.send_message(
-                chat_id=config.test_chat_id,
-                text=card["text"],
-                parse_mode=card["parse_mode"],
-                reply_markup=card["reply_markup"],
-                disable_web_page_preview=True,
-            )
-            results.append(result)
+            from newsagent_v2.telegram.operators import operator_ids
+
+            primary = None
+            for chat_id in operator_ids(config):
+                sent = client.send_message(
+                    chat_id=chat_id,
+                    text=card["text"],
+                    parse_mode=card["parse_mode"],
+                    reply_markup=card["reply_markup"],
+                    disable_web_page_preview=True,
+                )
+                if str(chat_id) == str(config.test_chat_id):
+                    primary = sent
+            results.append(primary or sent)
         
         # After sending last card, add SEE NEXT if there are more
         if offset + count < total and count > 0:
-            next_result = client.send_message(
-                chat_id=config.test_chat_id,
+            from newsagent_v2.telegram.operators import broadcast_message
+
+            next_result = broadcast_message(
+                client,
+                config,
                 text=f"📄 Showing {min(offset + count, total)}/{total} events",
                 parse_mode="HTML",
                 reply_markup=seepage_keyboard(offset=offset + count),

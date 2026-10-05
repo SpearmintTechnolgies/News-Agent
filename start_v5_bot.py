@@ -48,6 +48,7 @@ from newsagent_v2.telegram.singleton import (
     SingletonError,
 )
 from newsagent_v2.telegram.config import CHAT_ENV, load_telegram_config
+from newsagent_v2.telegram.operators import broadcast_message
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.contract import SEND_TYPE_GET_UPDATES
 from newsagent_v2.telegram.live_transport import create_live_transport
@@ -138,7 +139,7 @@ def safe_get_message_text(update: dict) -> str:
 _CHAT_SYSTEM_PROMPT = (
     "You are the News Agent Telegram assistant for CoinNetwork.\n"
     "Be brief, friendly, and practical (2–6 short sentences).\n"
-    "You help operate this bot: /make discovers stories; then RUN STORY → "
+    "You help operate this bot: /start opens the story menu; then RUN STORY → "
     "GENERATE NOW → APPROVE → PUBLISH.\n"
     "Answer normal chat questions normally.\n"
     "Do not invent live news facts or claim a story was generated unless told.\n"
@@ -153,7 +154,7 @@ def hermes_chat_reply(user_text: str, environ: dict[str, str] | None = None) -> 
     env = environ if environ is not None else os.environ
     key = str(env.get("NEWSAGENT_V2_BEDROCK_MANTLE_API_KEY") or "").strip()
     if not key:
-        return "Writer chat is not configured (missing Hermes API key). Send /make or /help."
+        return "Writer chat is not configured (missing Hermes API key). Send /start or /help."
 
     base = str(
         env.get("NEWSAGENT_V2_V4_KIMI_BASE_URL")
@@ -293,9 +294,28 @@ AUTO_GENERATE_ENV = "NEWSAGENT_V6_AUTO_GENERATE"
 AUTO_CANDIDATES_ENV = "NEWSAGENT_V6_AUTO_CANDIDATES"
 
 
+def select_postable(events, screen, *, limit: int = 10, keep: int = 10, progress=None):
+    """Research stories in rank order and keep only those a full article can be written from."""
+    postable = []
+    dropped = 0
+    checked = 0
+    for event in list(events)[:limit]:
+        checked += 1
+        if progress is not None:
+            progress(checked, min(len(events), limit), event)
+        passed, _reason = screen(event)
+        if passed:
+            postable.append(event)
+            if len(postable) >= keep:
+                break
+        else:
+            dropped += 1
+    return postable, dropped, checked
+
+
 def auto_generate_top(client, config, discovery, runtime) -> dict[str, Any]:
     """Write the top stories in the background until N reach review (0 disables)."""
-    target = int(os.environ.get(AUTO_GENERATE_ENV, "3") or 0)
+    target = int(os.environ.get(AUTO_GENERATE_ENV, "0") or 0)
     worker = runtime.generation_worker
     if target <= 0 or worker is None or runtime._controlled_e2e:
         return {"ok": False, "reason": "disabled"}
@@ -304,17 +324,24 @@ def auto_generate_top(client, config, discovery, runtime) -> dict[str, Any]:
     if not events:
         return {"ok": False, "reason": "no_events"}
     started = worker.start_batch(events, target_ready=target)
-    client.send_message(
-        chat_id=config.test_chat_id,
+    broadcast_message(
+        client,
+        config,
         text=(
-            f"✍️ Writing the top stories now (target {target} ready for review, up to {len(events)} tried). "
-            "Thin stories are skipped with the reason."
+            f"✍️ Writing {min(target, len(events))} of the stories that already passed the source check."
             if started
             else "✍️ A batch is already being written; new stories will be picked up on the next /make."
         ),
         parse_mode="HTML",
     )
     return {"ok": started, "target": target, "candidates": len(events)}
+
+def send_story_menu(client: TelegramTestClient, config) -> None:
+    """Ask which stories to fetch before a scan starts."""
+    from newsagent_v2.control.story_picker import MENU_TEXT, menu_keyboard
+
+    broadcast_message(client, config, text=MENU_TEXT, reply_markup=menu_keyboard())
+
 
 def execute_make_with_acknowledgement(
     client: TelegramTestClient,
@@ -325,6 +352,7 @@ def execute_make_with_acknowledgement(
     runtime: V5BotRuntime,
     update_id: int,
     update: dict,
+    selection: str = "trend",
 ) -> dict[str, any]:
     """Execute /make with immediate acknowledgement and progress updates."""
     start_time = time.perf_counter()
@@ -338,6 +366,7 @@ def execute_make_with_acknowledgement(
         chat_id=config.test_chat_id,
         update_id=update_id,
         make_run_id=make_run_id,
+        chat_ids=tuple(config.chat_ids),
     )
     
     log_event("[MAKE] acknowledgement_sending...")
@@ -355,15 +384,56 @@ def execute_make_with_acknowledgement(
         ack.update_progress("Collecting sources...")
         log_event("[MAKE] [DISCOVERY] collector_started")
         
-        events = discovery.run_discovery()
-        raw_count = len(events)
-        log_event(f"[MAKE] [DISCOVERY] collector_finished raw={raw_count}")
+        from newsagent_v2.control.story_picker import (
+            choice_label,
+            order_stories,
+            skips_age_cap,
+            story_matches,
+        )
+
+        events = discovery.run_discovery(
+            unlimited_age=skips_age_cap(selection),
+            selection=selection,
+        )
+        page = order_stories(
+            [event for event in events if story_matches(event, selection)],
+            selection,
+        )
+        match = getattr(discovery, "_discovery_match", {})
+        raw_count = len(page)
+        log_event(
+            f"[MAKE] [DISCOVERY] collector_finished raw={raw_count} "
+            f"selection={selection} clustered={match.get('clustered', 0)} "
+            f"matched={match.get('matched', 0)}"
+        )
+        ack.update_progress(f"{choice_label(selection)}: {raw_count} matching stories.")
         
-        ack.update_progress(f"Found {raw_count} events. Ranking...")
+        ack.update_progress(f"Found {raw_count} events. Checking which ones have enough sources to write...")
         log_event(f"[MAKE] [DISCOVERY] ranking_finished events={raw_count}")
+
+        from newsagent_v2.control.offered_stories import OFFER_BATCH, OfferedStories
+        from newsagent_v2.story6 import screen_story
+
+        def _screen_progress(index: int, total: int, event) -> None:
+            title = str(getattr(event, "canonical_title", "") or "")[:80]
+            ack.update_progress(f"Checking sources {index}/{total}: {title}")
+            log_event(f"[MAKE] [SCREEN] {index}/{total} event_id={getattr(event, 'event_id', '')}")
+
+        postable, dropped, checked = select_postable(
+            page,
+            screen_story,
+            limit=len(page),
+            keep=OFFER_BATCH,
+            progress=_screen_progress,
+        )
+        discovery.replace_ranked(postable)
+        if page:
+            OfferedStories.load().remember(page)
+            log_event(f"[MAKE] [OFFERED] remembered={len(page)}")
+        log_event(f"[MAKE] [SCREEN] checked={checked} postable={len(postable)} dropped={dropped}")
         
         # PERSIST discovery run for callbacks/pagination
-        all_event_ids = [e.event_id for e in events]
+        all_event_ids = [e.event_id for e in postable]
         from datetime import datetime, timezone
         discovery_run = DiscoveryRun(
             run_id=make_run_id,
@@ -374,10 +444,30 @@ def execute_make_with_acknowledgement(
         )
         persistent_store.save_discovery_run(discovery_run)
         log_event(f"[MAKE] persisted_discovery_run run_id={make_run_id} events={raw_count}")
+
+        label = choice_label(selection)
+        matched = int(match.get("matched") or 0)
+        if not page and matched == 0:
+            note = f"{label}: no stories in the feeds matched that choice."
+        elif postable:
+            note = f"{label}. Showing {len(postable)} {'story' if len(postable) == 1 else 'stories'} with enough sources to write."
+            if dropped:
+                note += f" {dropped} {'was' if dropped == 1 else 'were'} too thin to write and left out."
+        elif not page:
+            note = (
+                f"{label}: found {matched} matching stories, "
+                "but none had enough sources to write."
+            )
+        else:
+            note = (
+                f"Checked {checked} stories. None had enough verified sources to write, "
+                "so no cards were sent."
+            )
+        if page:
+            note += " The next scan skips this batch and continues with the following stories."
+        ack.mark_complete(raw_count, note)
         
-        ack.mark_complete(raw_count)
-        
-        top_count = min(5, raw_count)
+        top_count = len(postable)
         top_events = discovery.get_top_events(count=top_count, offset=0)
         
         event_ids = [e.event_id for e in top_events]
@@ -427,6 +517,66 @@ def execute_make_with_acknowledgement(
         return {"ok": False, "error": str(e), "make_run_id": make_run_id}
 
 
+def _reply_author_menu(runtime: V5BotRuntime, chat_id: str) -> None:
+    """List the site's WordPress authors and save the one the editor taps."""
+    from newsagent_v2.wordpress.authors import author_keyboard, label_for, list_site_authors
+
+    if runtime.client is None:
+        return
+    lifecycle = runtime.review_handler.wordpress_lifecycle if runtime.review_handler else None
+    if lifecycle is None:
+        runtime.client.send_message(chat_id=chat_id, text="WordPress is not connected, so authors cannot be listed.")
+        return
+    authors = list_site_authors(lifecycle.config, lifecycle.transport)
+    if not authors:
+        runtime.client.send_message(chat_id=chat_id, text="WordPress did not return any authors.")
+        return
+    runtime.client.send_message(
+        chat_id=chat_id,
+        text=f"Author for the next articles: {html.escape(label_for())}\nTap a name to change it.",
+        parse_mode="HTML",
+        reply_markup=author_keyboard(authors, callback_prefix="site_author"),
+    )
+
+
+def _edit_author_on_card(client: TelegramTestClient, update: dict, result: dict) -> bool:
+    """Rewrite the review card in place: flow line, author, and author buttons."""
+    from newsagent_v2.v5_generation.telegram_delivery import paint_author_flow, review_keyboard
+
+    message = (update.get("callback_query") or {}).get("message") or {}
+    message_id = message.get("message_id")
+    chat = message.get("chat") or {}
+    chat_id = str(chat.get("id") or "")
+    if not message_id or not chat_id:
+        return False
+    open_url = ""
+    for row in (message.get("reply_markup") or {}).get("inline_keyboard") or []:
+        for button in row:
+            if button.get("text") == "OPEN DRAFT" and button.get("url"):
+                open_url = str(button["url"])
+    text = paint_author_flow(
+        str(message.get("text") or ""),
+        str(result.get("author_name") or ""),
+        picking=bool(result.get("picking")),
+    )
+    markup = review_keyboard(
+        str(result.get("event_id") or ""),
+        str(result.get("article_version") or "v1"),
+        str(result.get("image_version") or "v1"),
+        open_draft_url=open_url or None,
+        authors=result.get("authors") or [],
+        selected_id=result.get("selected_id"),
+    )
+    edited = client.edit_message_text(
+        chat_id=chat_id,
+        message_id=int(message_id),
+        text=text,
+        parse_mode="HTML",
+        reply_markup=markup,
+    )
+    return bool(edited.get("ok"))
+
+
 # ============ REVIEW CALLBACK HANDLER ============
 
 def _handle_review_callback(
@@ -451,10 +601,11 @@ def _handle_review_callback(
         reviewer = from_user.get("username") or from_user.get("first_name", "user")
         
         # Handle through review callback handler
+        actor_chat = safe_get_chat_id(update) or str(config.test_chat_id)
         result = runtime.review_handler.handle(
             data=callback_data,
             reviewer=reviewer,
-            chat_id=str(config.test_chat_id),
+            chat_id=actor_chat,
         )
         
         action = result.get("action", "unknown")
@@ -471,25 +622,25 @@ def _handle_review_callback(
         except Exception as e:
             log_event(f"[REVIEW CALLBACK ERROR] Failed to answer: {e}")
         
-        # Send response message if needed
-        if result.get("reply_markup"):
-            # This is a UI response (like rating keyboard)
+        # Keep the author choice on the same card so the flow stays visible.
+        if result.get("edit_card"):
+            edited = _edit_author_on_card(client, update, result)
+            if not edited:
+                broadcast_message(client, config, text=message_text, parse_mode="HTML")
+        elif result.get("reply_markup"):
+            # Prompt only the person who pressed the button; their next message is the reply.
             client.send_message(
-                chat_id=config.test_chat_id,
+                chat_id=actor_chat,
                 text=message_text,
                 parse_mode="HTML",
                 reply_markup=result.get("reply_markup"),
             )
         elif action in ["rate_article", "rate_image", "feedback_captured",
-                       "approve", "revise", "publish", "feedback_cancelled"] or (
+                       "approve", "revise", "publish", "feedback_cancelled",
+                       "set_author", "site_author"] or (
             not result.get("ok") and result.get("message")
         ):
-            # Send confirmation message
-            client.send_message(
-                chat_id=config.test_chat_id,
-                text=message_text,
-                parse_mode="HTML",
-            )
+            broadcast_message(client, config, text=message_text, parse_mode="HTML")
         
         duration_ms = int((time.perf_counter() - start_time) * 1000)
         log_event(f"[REVIEW CALLBACK] completed duration_ms={duration_ms}")
@@ -535,10 +686,9 @@ def execute_callback(
     if not callback_query_id:
         log_event("[CALLBACK ERROR] No callback_query.id found")
         return {"ok": False, "error": "no_query_id"}
-    
+
     if not callback_data:
         log_event("[CALLBACK ERROR] No callback_data found")
-        # Still acknowledge
         try:
             client.answer_callback_query(
                 callback_query_id=callback_query_id,
@@ -548,6 +698,32 @@ def execute_callback(
         except Exception as e:
             log_event(f"[CALLBACK ERROR] Failed to answer: {e}")
         return {"ok": False, "error": "no_callback_data"}
+
+    if str(callback_data).startswith("pick:"):
+        choice = str(callback_data).split(":", 1)[1]
+        from newsagent_v2.control.story_picker import CHOICES, choice_label
+
+        known = {key for key, _label in CHOICES}
+        try:
+            client.answer_callback_query(
+                callback_query_id=callback_query_id,
+                text=f"Scanning {choice_label(choice)}"[:200],
+            )
+        except Exception as exc:
+            log_event(f"[CALLBACK ERROR] Failed to answer pick: {exc}")
+        if choice not in known:
+            return {"ok": False, "error": "unknown_pick"}
+        return execute_make_with_acknowledgement(
+            client=client,
+            config=config,
+            state=state,
+            discovery=discovery,
+            persistent_store=runtime.persistent_store,
+            runtime=runtime,
+            update_id=update_id,
+            update=update,
+            selection=choice,
+        )
     
     # ==== REVIEW CALLBACKS (rate, feedback, revise, approve, publish) ====
     # Check if this is a review callback first
@@ -616,8 +792,9 @@ def execute_callback(
                 ranked = list(getattr(discovery, "_ranked_events") or [])
             total = len(ranked)
             if offset + len(events_to_send) < total:
-                client.send_message(
-                    chat_id=config.test_chat_id,
+                broadcast_message(
+                    client,
+                    config,
                     text=f"📄 Showing {offset + len(events_to_send)}/{total} events",
                     parse_mode="HTML",
                     reply_markup=discovery.seepage_keyboard(offset=offset + len(events_to_send)),
@@ -629,8 +806,9 @@ def execute_callback(
             # Controlled E2E mode: send confirmation keyboard
             if result.get("controlled_e2e") and result.get("awaiting_confirmation"):
                 log_event(f"[CONTROLLED] confirmation_sent event_id={result.get('event_id')}")
-                client.send_message(
-                    chat_id=config.test_chat_id,
+                broadcast_message(
+                    client,
+                    config,
                     text=result.get("message", "Review selection"),
                     parse_mode="HTML",
                     reply_markup=result.get("reply_markup"),
@@ -640,8 +818,9 @@ def execute_callback(
                 log_event(f"[CALLBACK] [RUN STORY] job_id={result.get('job_id')} state={result.get('job_state')}")
                 # Could send follow-up message about generation starting
                 if result.get("new"):
-                    client.send_message(
-                        chat_id=config.test_chat_id,
+                    broadcast_message(
+                        client,
+                        config,
                         text=f"📝 Story generation started for: {result.get('headline', 'Unknown')}",
                         parse_mode="HTML",
                     )
@@ -838,7 +1017,7 @@ def main() -> int:
     atexit.register(release_singleton_lock)
     
     log_event("Token: SET")
-    log_event(f"Chat ID: {runtime.config.test_chat_id}")
+    log_event(f"Chat IDs: {', '.join(runtime.config.chat_ids)}")
     log_event("LIVE transport configured")
     log_event(f"[OK] Connected as @{bot_info.get('username')}")
     
@@ -862,7 +1041,12 @@ def main() -> int:
     log_event("=" * 60)
     log_event("")
     log_event("Listening for commands...")
-    log_event("  - /make  -> Run V5 discovery")
+    log_event("  - /start -> TRENDING, 6 HOURS, or a category")
+    try:
+        send_story_menu(runtime.client, runtime.config)
+        log_event("[MENU] story picker sent")
+    except Exception as exc:
+        log_event(f"[MENU] send failed: {exc}")
     log_event("  - [Buttons] RUN/FOLLOW/IGNORE/SEE NEXT")
     if runtime._controlled_e2e:
         log_event("  - [E2E MODE] RUN STORY does NOT auto-generate")
@@ -924,7 +1108,7 @@ def main() -> int:
                     if is_callback_update(update):
                         # HANDLE CALLBACK
                         chat_id = safe_get_chat_id(update)
-                        if not chat_id or chat_id != runtime.config.test_chat_id:
+                        if not runtime.config.allows(chat_id):
                             if chat_id:
                                 log_event(f"[SKIP] wrong chat_id={chat_id}")
                             runtime.state.mark_update_processed(update_id)
@@ -943,7 +1127,7 @@ def main() -> int:
                     elif is_message_update(update):
                         # HANDLE MESSAGE (/make, etc)
                         chat_id = safe_get_chat_id(update)
-                        if not chat_id or chat_id != runtime.config.test_chat_id:
+                        if not runtime.config.allows(chat_id):
                             if chat_id:
                                 log_event(f"[SKIP] wrong chat_id={chat_id}")
                             runtime.state.mark_update_processed(update_id)
@@ -966,7 +1150,7 @@ def main() -> int:
                                 log_event(f"[FEEDBACK] captured for event={feedback_result.get('event_id')}")
                                 # Send confirmation
                                 runtime.client.send_message(
-                                    chat_id=runtime.config.test_chat_id,
+                                    chat_id=chat_id,
                                     text=feedback_result.get("message", "✅ Feedback saved."),
                                     parse_mode="HTML",
                                 )
@@ -980,13 +1164,13 @@ def main() -> int:
                         cmd = cmd_token.split("@", 1)[0].lower()
                         cmd_key = cmd.strip("!.?,:;…")
                         greetings = frozenset(
-                            {"/start", "/help", "hey", "hi", "hello", "heloo", "hola"}
+                            {"/help", "hey", "hi", "hello", "heloo", "hola"}
                         )
                         log_event(f"[MESSAGE] text={raw_text!r} cmd={cmd_key!r}")
 
                         def _reply(body: str) -> None:
                             send_result = runtime.client.send_message(
-                                chat_id=runtime.config.test_chat_id,
+                                chat_id=chat_id,
                                 text=html.escape(body),
                             )
                             if not send_result.get("ok"):
@@ -995,29 +1179,23 @@ def main() -> int:
                                     f"desc={send_result.get('telegram_description')!r}"
                                 )
 
-                        if cmd_key == "/make":
-                            result = execute_make_with_acknowledgement(
-                                client=runtime.client,
-                                config=runtime.config,
-                                state=runtime.state,
-                                discovery=runtime.discovery,
-                                persistent_store=runtime.persistent_store,
-                                runtime=runtime,
-                                update_id=update_id,
-                                update=update,
-                            )
-
-                            if result.get("ok"):
-                                log_event(f"[MAKE] success cards_sent={result.get('cards_sent', 0)}")
-                            else:
-                                log_event(f"[MAKE] failed: {result.get('error')}")
+                        if cmd_key == "/start":
+                            send_story_menu(runtime.client, runtime.config)
+                            log_event("[START] menu_sent")
+                        elif cmd_key == "/make":
+                            _reply("Send /start to open TRENDING, 6 HOURS, and the categories.")
+                            log_event("[MAKE] redirected_to_start")
+                        elif cmd_key == "/author":
+                            _reply_author_menu(runtime, chat_id)
+                            log_event("[MESSAGE] author_menu")
                         elif cmd_key in greetings:
                             _reply(
                                 "👋 News Agent is online.\n\n"
                                 "Commands:\n"
-                                "• /make — discover top stories and write the top ones as WordPress drafts\n"
-                                "• Each draft arrives as a review card: REVISE, EDIT, REJECT or APPROVE & PUBLISH\n"
-                                "• RUN STORY on any other card writes that story too\n\n"
+                                "• /start — TRENDING, 6 HOURS, or one category (that category's keywords, newest first)\n"
+                                "• RUN STORY writes only the card you tap\n"
+                                "• /author — choose the byline used for the next articles\n"
+                                "• Each draft arrives as a review card: REVISE, EDIT, CHANGE AUTHOR, REJECT or APPROVE & PUBLISH\n\n"
                                 "You can also just chat — ask me anything about the workflow."
                             )
                             log_event(f"[MESSAGE] help_reply cmd={cmd_key!r}")
@@ -1036,7 +1214,7 @@ def main() -> int:
                                 )
                                 _reply(
                                     "I couldn't reach Hermes just now. "
-                                    "Send /make to discover stories, or /help for commands."
+                                    "Send /start to choose stories, or /help for commands."
                                 )
 
                     else:

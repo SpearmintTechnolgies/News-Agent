@@ -70,7 +70,11 @@ def test_good_draft_passes_in_one_call():
     result = write_article(_bank(), KimiClient("k", http_post=post), budget)
     assert result.ok, result.issues
     assert len(calls) == 1 and budget.calls == 1 and budget.total_tokens == 1500
-    assert result.article.body_words >= 900
+    assert calls[0]["prompt_cache_options"] == {"mode": "explicit"}
+    facts = calls[0]["messages"][1]["content"]
+    assert facts[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+    assert "facts" in facts[0]["text"]
+    assert result.article.body_words >= 700
 
 
 def test_short_draft_gets_one_revision():

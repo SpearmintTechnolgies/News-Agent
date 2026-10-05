@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from newsagent_v2.facts import GatePolicy, assess_evidence, build_fact_bank
+from newsagent_v2.facts import GatePolicy, assess_evidence, build_fact_bank, qualify
 from newsagent_v2.research.dossier import ResearchDossier, SourceDoc
 
 
@@ -81,3 +81,29 @@ def test_gate_skips_thin_and_passes_rich():
     loose = GatePolicy(min_full_sources=1, min_publishers=1, min_research_words=100, min_core_facts=2,
                        min_numeric_core_facts=1, min_corroborated_core_facts=0, min_core_fact_words=10)
     assert assess_evidence(thin, build_fact_bank(thin), loose).passed
+
+
+def test_two_outlets_clear_the_relaxed_bar():
+    extra = [
+        "The Securities and Exchange Commission published the approval order in its public docket on Thursday afternoon.",
+        "Volatility Shares filed the registration for the triple-leveraged bitcoin fund in March, the order said.",
+        "Volatility Shares told clients the fund would list on the exchange next week after the approval.",
+        "The Securities and Exchange Commission noted the fund must disclose leverage risks in its prospectus.",
+        "Volatility Shares appointed a new chief compliance officer ahead of the listing, the company said.",
+        "The Securities and Exchange Commission said market surveillance would be shared with the listing exchange.",
+        "Nasdaq confirmed the triple-leveraged bitcoin fund would use a new ticker once Volatility Shares finishes the listing paperwork.",
+        "Volatility Shares estimated first-week trading volume at several million shares if the listing proceeds as scheduled.",
+    ]
+    docs = [_doc("a.example", _padded(BASE + extra)), _doc("b.example", _padded(BASE + extra))]
+    docs[0].paragraphs.append(" ".join(["Traders marked the listing date on their calendars."] * 40))
+    docs[1].paragraphs.append(" ".join(["Traders marked the listing date on their calendars."] * 40))
+    gate = assess_evidence(_dossier(docs), build_fact_bank(_dossier(docs)))
+    assert gate.passed, gate.reasons
+
+
+def test_trusted_outlet_skips_the_evidence_bar():
+    thin = _dossier([_doc("coindesk.com", ["The SEC approved the fund."])])
+    gate = qualify(thin, build_fact_bank(thin), ["https://www.coindesk.com/markets/sec-fund"])
+    assert gate.passed and gate.metrics["trusted_outlet"] == "coindesk.com"
+    still_thin = qualify(thin, build_fact_bank(thin), ["https://random.example/story"])
+    assert not still_thin.passed

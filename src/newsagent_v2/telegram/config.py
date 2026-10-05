@@ -20,23 +20,42 @@ class TelegramConfigError(ValueError):
     """Missing or invalid V2 Telegram TEST configuration."""
 
 
+def parse_chat_ids(raw: str) -> tuple[str, ...]:
+    """Comma-separated operator chats. The first is the primary chat."""
+    ids: list[str] = []
+    for part in str(raw or "").replace(";", ",").split(","):
+        chat = part.strip()
+        if not chat:
+            continue
+        if not chat.lstrip("-").isdigit():
+            raise TelegramConfigError(f"{CHAT_ENV} has a non-numeric chat id: {chat}")
+        if chat not in ids:
+            ids.append(chat)
+    return tuple(ids)
+
+
 @dataclass(frozen=True)
 class TelegramConfig:
     bot_token: str
     test_chat_id: str
     test_mode: bool = True
+    chat_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         token = self.bot_token.strip()
-        chat = self.test_chat_id.strip()
+        ids = parse_chat_ids(self.test_chat_id)
         if not token:
             raise TelegramConfigError(f"{TOKEN_ENV} is empty")
-        if not chat:
+        if not ids:
             raise TelegramConfigError(f"{CHAT_ENV} is empty")
         if not self.test_mode:
             raise TelegramConfigError("Telegram delivery requires test_mode=True")
         object.__setattr__(self, "bot_token", token)
-        object.__setattr__(self, "test_chat_id", chat)
+        object.__setattr__(self, "test_chat_id", ids[0])
+        object.__setattr__(self, "chat_ids", ids)
+
+    def allows(self, chat_id: str | None) -> bool:
+        return str(chat_id or "").strip() in self.chat_ids
 
 
 def mask_token(token: str | None) -> str:

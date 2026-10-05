@@ -163,6 +163,7 @@ class KimiClient:
             "max_tokens": max_tokens,
             "temperature": temperature,
             "response_format": {"type": "json_object"},
+            "prompt_cache_options": {"mode": "explicit"},
         }
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         try:

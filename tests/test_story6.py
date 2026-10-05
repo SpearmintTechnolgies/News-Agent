@@ -26,7 +26,7 @@ def _dossier() -> ResearchDossier:
 
 def _passing_gate(monkeypatch) -> None:
     monkeypatch.setattr(story6, "build_fact_bank", lambda dossier: _bank())
-    monkeypatch.setattr(story6, "assess_evidence", lambda dossier, bank: GateResult(passed=True))
+    monkeypatch.setattr(story6, "qualify", lambda dossier, bank, urls: GateResult(passed=True))
 
 
 def test_thin_story_is_skipped_with_reason_and_no_writer_call():

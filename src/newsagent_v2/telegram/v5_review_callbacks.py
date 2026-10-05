@@ -66,6 +66,7 @@ class V5ReviewCallbackHandler:
             "save_rate_article", "save_rate_image",  # Save rating
             "feedback_article", "feedback_image",  # Enter feedback mode
             "revise", "edit", "approve", "reject", "publish", "unpublish",
+            "author", "set_author", "site_author",
             "view_full",  # View full article (idempotent/read-only)
         }
         
@@ -78,6 +79,8 @@ class V5ReviewCallbackHandler:
             result["version"] = parts[2]
         if len(parts) > 3:
             result["extra"] = parts[3]
+        if len(parts) > 4:
+            result["image_version"] = parts[4]
         
         return result
     
@@ -543,6 +546,71 @@ class V5ReviewCallbackHandler:
                 "url": draft_result.wp_url, "post_id": draft_result.wp_post_id,
                 "message": f"✅ Published\n{draft_result.wp_url}"}
 
+    def _site_authors(self) -> list[Any]:
+        if self.wordpress_lifecycle is None:
+            return []
+        from newsagent_v2.wordpress.authors import list_site_authors
+
+        return list_site_authors(self.wordpress_lifecycle.config, self.wordpress_lifecycle.transport)
+
+    def _author_card(self, event_id: str, authors: list[Any], author_name: str, article_version: str, image_version: str, *, selected_id: int | None, picking: bool) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "action": "author" if picking else "set_author",
+            "edit_card": True,
+            "picking": picking,
+            "event_id": event_id,
+            "author_name": author_name,
+            "selected_id": selected_id,
+            "authors": authors,
+            "article_version": article_version or "v1",
+            "image_version": image_version or "v1",
+            "message": "Tap an author on the card." if picking else f"Author is {author_name}.",
+        }
+
+    def handle_author_menu(self, event_id: str, article_version: str = "v1", image_version: str = "v1") -> dict[str, Any]:
+        """Put the site's authors onto this review card."""
+        from newsagent_v2.wordpress.authors import author_for
+
+        authors = self._site_authors()
+        if not authors:
+            return {"ok": False, "action": "author", "message": "WordPress did not return any authors."}
+        current = author_for(event_id)
+        return self._author_card(
+            event_id, authors, current.name if current else "not chosen",
+            article_version, image_version, selected_id=current.user_id if current else None, picking=True,
+        )
+
+    def handle_set_author(self, event_id: str, user_id: str, article_version: str = "v1", image_version: str = "v1") -> dict[str, Any]:
+        from newsagent_v2.wordpress.authors import find_author, remember_event
+
+        authors = self._site_authors()
+        author = find_author(authors, user_id)
+        if author is None:
+            return {"ok": False, "action": "set_author", "message": "That author is not on the site."}
+        remember_event(event_id, author)
+        if self.wordpress_lifecycle is not None:
+            result = self.wordpress_lifecycle.assign_author(event_id, author.user_id)
+            if not result.ok and result.error_code != "draft_not_found":
+                return {"ok": False, "action": "set_author", "message": result.error or "Could not change the author."}
+        return self._author_card(
+            event_id, authors, author.name, article_version, image_version,
+            selected_id=author.user_id, picking=False,
+        )
+
+    def handle_site_author(self, user_id: str) -> dict[str, Any]:
+        from newsagent_v2.wordpress.authors import find_author, remember_default
+
+        author = find_author(self._site_authors(), user_id)
+        if author is None:
+            return {"ok": False, "action": "site_author", "message": "That author is not on the site."}
+        remember_default(author)
+        return {
+            "ok": True,
+            "action": "site_author",
+            "message": f"Next articles will be by {author.name}. Open a review card and tap CHANGE AUTHOR to switch one story.",
+        }
+
     def handle_unpublish(self, event_id: str) -> dict[str, Any]:
         """Revert a published post and remove it from internal-link selection."""
         if self.wordpress_lifecycle is None:
@@ -625,6 +693,12 @@ class V5ReviewCallbackHandler:
             return self.handle_publish(event_id, reviewer, job_id)
         elif action == "unpublish":
             return self.handle_unpublish(event_id)
+        elif action == "author":
+            return self.handle_author_menu(event_id, version, extra)
+        elif action == "set_author":
+            return self.handle_set_author(event_id, version, extra, parsed.get("image_version", ""))
+        elif action == "site_author":
+            return self.handle_site_author(event_id)
         elif action == "view_full":
             return self.handle_view_full(event_id, version, artifact_type=extra or "article")
         

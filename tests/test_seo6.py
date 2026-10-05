@@ -119,6 +119,94 @@ def test_links_only_relevant_posts_with_unique_anchors():
         assert f"[{link['anchor']}]({link['url']})" in body
 
 
+def test_recent_related_posts_are_capped_at_five():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+
+    def posted(days_ago: int, slug: str, title: str) -> SitePost:
+        when = (now - timedelta(days=days_ago)).date().isoformat()
+        return SitePost(url=f"{BASE}/{slug}/", slug=slug, title=title, lastmod=when)
+
+    posts = [
+        posted(days, f"bitcoin-etf-flow-{days}", f"Bitcoin ETF inflow report {days}")
+        for days in (2, 6, 10, 18, 30, 50, 400)
+    ]
+    posts.extend(
+        posted(3, f"market-note-{n}", f"Solana and Dogecoin market note {n}")
+        for n in range(12)
+    )
+    posts.append(posted(1, "sanctions-crypto-funds-russia", "Sanctions Lists That Are Raising Crypto Funds for Russia"))
+    _, plan = plan_and_apply(_article(), SiteIndex(base_url=BASE, posts=posts))
+    links = plan.inline + plan.related
+    assert 4 <= len(links) <= 5
+    assert all("bitcoin-etf" in link["url"] for link in links)
+    assert not any(link["url"].endswith("/bitcoin-etf-flow-400/") for link in links)
+
+
+def test_same_topic_posts_fill_the_list_when_few_titles_match_closely():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+
+    def posted(days_ago: int, slug: str, title: str) -> SitePost:
+        when = (now - timedelta(days=days_ago)).date().isoformat()
+        return SitePost(url=f"{BASE}/{slug}/", slug=slug, title=title, lastmod=when)
+
+    article = _article(
+        headline="Strategy Boosts Bitcoin Holdings to 848,000 BTC",
+        focus_keyphrase="Bitcoin holdings",
+        tags=["Strategy", "Michael Saylor", "Bitcoin treasury"],
+        entities=[{"name": "Strategy"}, {"name": "Michael Saylor"}],
+        slug="strategy-boosts-bitcoin-holdings",
+    )
+    posts = [
+        posted(1, "michael-saylor-role", "Take a look at Michael Saylor changing role at Strategy"),
+        posted(4, "bitcoin-etf-august", "Bitcoin ETFs Add $189M, August Inflows Near $1 Billion"),
+        posted(10, "citi-bitcoin-custody", "Citi Plans to Launch Bitcoin Custody for 100 Markets"),
+        posted(20, "mstr-stock", "3 Reasons MSTR Stock Could Rise Even if Bitcoin Stays Flat"),
+        posted(40, "bitcoin-fee-debate", "Peter Todd Reopens Bitcoin Cap Debate"),
+        posted(200, "tesla-bitcoin-holding", "Elon Musk Tesla holding $218 Million in BTC"),
+        posted(3, "solana-note", "Solana and Dogecoin market note"),
+    ]
+    _, plan = plan_and_apply(article, SiteIndex(base_url=BASE, posts=posts))
+    urls = [link["url"] for link in plan.inline + plan.related]
+    assert len(urls) == 5
+    assert all("solana" not in url and "tesla" not in url for url in urls)
+    assert any("saylor" in url for url in urls)
+    assert any("bitcoin-etf" in url for url in urls)
+
+
+def test_stale_headline_word_does_not_block_a_recent_tag():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+
+    def posted(days_ago: int, slug: str, title: str) -> SitePost:
+        when = (now - timedelta(days=days_ago)).date().isoformat()
+        return SitePost(url=f"{BASE}/{slug}/", slug=slug, title=title, lastmod=when)
+
+    article = _article(
+        headline="TeraWulf Doubles Muskie Data Campus Contracted Power",
+        focus_keyphrase="Muskie Data Campus",
+        tags=["TeraWulf", "AI data centers"],
+        entities=[{"name": "TeraWulf"}],
+        slug="terawulf-muskie-data-campus",
+    )
+    posts = [
+        posted(700, "old-data-center", "Old Data Center Deal"),
+        posted(40, "coreweave-ai-funding", "CoreWeave Funding Haul AI Redefines Capital Markets"),
+        posted(80, "fake-ai-victims", "Fake AI Victims Deployed to Scam Bait"),
+        posted(10, "bitcoin-etf-august", "Bitcoin ETFs Add 189M"),
+        posted(5, "binance-doubles-xrp", "Binance Doubles XRP Leverage to 10x"),
+    ]
+    _, plan = plan_and_apply(article, SiteIndex(base_url=BASE, posts=posts))
+    urls = [link["url"] for link in plan.inline + plan.related]
+    assert any("coreweave" in url for url in urls)
+    assert any("fake-ai" in url for url in urls)
+    assert not any("bitcoin-etf" in url or "old-data" in url or "xrp" in url for url in urls)
+
+
 def test_possible_duplicate_flagged():
     index = SiteIndex(base_url=BASE, posts=[
         SitePost(url=f"{BASE}/sec-clears-3x-etf/", slug="sec-clears-3x-etf",
