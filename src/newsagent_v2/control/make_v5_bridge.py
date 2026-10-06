@@ -354,7 +354,13 @@ class V5DiscoveryPipeline:
             "final_reasons": final_result["reasons"],
         }
     
-    def run_discovery(self, *, unlimited_age: bool = False, selection: str = "trend") -> list[NewsEvent]:
+    def run_discovery(
+        self,
+        *,
+        unlimited_age: bool = False,
+        selection: str = "trend",
+        offer_batch: int | None = None,
+    ) -> list[NewsEvent]:
         """Run full V5 discovery pipeline.
 
         unlimited_age keeps every dated feed item so a category can list
@@ -488,6 +494,10 @@ class V5DiscoveryPipeline:
         skipped_offered = 0
         offered = OfferedStories.load()
         offer_site = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "")
+        batch = OFFER_BATCH if offer_batch is None else max(1, min(int(offer_batch), 15))
+        # Research only as many stories as were requested. A spare pool spends tokens
+        # on articles that are never sent.
+        pool = batch
         t_expand_all = perf_counter()
         # A category list is judged later by opening the article. The RSS blurb
         # gate was rejecting single-feed stories before that fetch happened.
@@ -500,13 +510,13 @@ class V5DiscoveryPipeline:
                     continue
                 selected.append(event)
                 backfill_considered += 1
-                if len(selected) >= OFFER_BATCH:
+                if len(selected) >= pool:
                     break
         else:
             for event in matched_events:
                 if not event.reports:
                     continue
-                if len(selected) >= OFFER_BATCH:
+                if len(selected) >= batch:
                     break
                 if offered.already(event, site_id=offer_site):
                     skipped_offered += 1
@@ -538,7 +548,7 @@ class V5DiscoveryPipeline:
                 diag_rows.append(event_diagnostics)
                 if ready:
                     selected.append(event)
-                if len(selected) >= OFFER_BATCH:
+                if len(selected) >= batch:
                     logger.info(
                         "[DISCOVERY_TIMING] stage=early_stop_batch ms=%.1f selected=%s considered=%s skipped_offered=%s",
                         (perf_counter() - t_expand_all) * 1000.0,

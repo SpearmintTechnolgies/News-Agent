@@ -89,6 +89,50 @@ def category_terms_from_name(name: str) -> tuple[str, ...]:
     return tuple(word for word in words if word not in _GENERIC_CATEGORY_WORDS and len(word) > 1)
 
 
+def _stem_key(word: str) -> str:
+    """animals → animal, memecoins → memecoin. Short words stay as written."""
+    if len(word) > 4 and word.endswith("ies"):
+        return word[:-3] + "y"
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+# Words that already show up in headlines. Their category search stays literal.
+_HEADLINE_WORDS = frozenset({
+    "bitcoin", "btc", "ethereum", "ether", "eth", "solana", "xrp", "defi", "etf", "nft", "sec", "ai",
+})
+
+# Popular headline terms for a category word that outlets rarely print as-is.
+_RELATED_TERMS: dict[str, tuple[str, ...]] = {
+    "animal": ("dogecoin", "pepe", "shiba", "doge", "floki", "bonk"),
+    "memecoin": ("meme coin", "memecoin", "meme", "dogecoin", "pepe", "shiba"),
+    "meme": ("meme coin", "memecoin", "dogecoin", "pepe", "shiba"),
+    "exploit": ("hack", "hacked", "exploit", "breach", "stolen", "drained"),
+    "hack": ("hack", "hacked", "exploit", "breach", "stolen"),
+    "etf": ("bitcoin etf", "ethereum etf"),
+    "defi": ("uniswap", "aave", "dex"),
+    "stablecoin": ("usdt", "usdc", "tether"),
+    "nft": ("opensea",),
+    "regulation": ("sec", "regulator", "lawsuit"),
+    "ai": ("artificial intelligence", "openai"),
+}
+
+
+def related_terms(choice: str) -> tuple[str, ...]:
+    """Popular terms for a site category, beyond the words in its name."""
+    found: list[str] = []
+    seen = {word.casefold() for word in category_terms_from_name(choice)}
+    for word in category_terms_from_name(choice):
+        for term in _RELATED_TERMS.get(_stem_key(word), ()):
+            key = term.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(term)
+    return tuple(found)
+
+
 def skips_age_cap(choice: str) -> bool:
     """Category scans keep older feed items. Trend and 6 hours stay on the usual window."""
     return choice not in {"", "trend", "h6"}
@@ -102,6 +146,18 @@ def category_queries(choice: str) -> tuple[str, ...]:
         terms = category_terms_from_name(choice)
         if not terms:
             return (choice,)
+        popular = related_terms(choice)
+        literal_is_a_headline = any(
+            word in _HEADLINE_WORDS or _stem_key(word) in _HEADLINE_WORDS for word in terms
+        )
+        if popular and not literal_is_a_headline:
+            queries: list[str] = []
+            for term in popular:
+                if term not in queries:
+                    queries.append(term)
+                if len(queries) >= 3:
+                    break
+            return tuple(queries)
         if len(terms) == 1:
             return (terms[0],)
         return (choice, " ".join(terms[:3]))
@@ -177,7 +233,7 @@ def story_matches(event: Any, choice: str) -> bool:
         return published_within_hours(event, 6)
     terms = CATEGORY_TERMS.get(choice)
     if terms is None:
-        terms = category_terms_from_name(choice)
+        terms = category_terms_from_name(choice) + related_terms(choice)
         if not terms:
             return True
     text = _blob(event)

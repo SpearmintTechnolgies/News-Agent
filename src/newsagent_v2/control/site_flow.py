@@ -113,7 +113,40 @@ def author_menu_text(site_name: str, category_name: str, count: int) -> str:
         f"{site_name}\n"
         f"Category: {category_name}\n\n"
         f"{count} authors on this site. Pick the byline.\n"
-        "The story is filed in this category."
+        "The next step is how many stories to fetch."
+    )
+
+
+FETCH_COUNTS = (1, 3, 5, 10, 15)
+FETCH_PREFIX = "fetch:"
+
+
+def clamp_fetch_count(raw: str) -> int | None:
+    """One of the buttons. Anything else is refused."""
+    try:
+        count = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if count not in FETCH_COUNTS:
+        return None
+    return count
+
+
+def fetch_count_keyboard() -> dict[str, Any]:
+    buttons = [
+        {"text": str(count), "callback_data": f"{FETCH_PREFIX}{count}"}
+        for count in FETCH_COUNTS
+    ]
+    return {"inline_keyboard": [buttons[:3], buttons[3:]]}
+
+
+def fetch_count_text(site_name: str, category_name: str, author_name: str) -> str:
+    return (
+        f"{site_name}\n"
+        f"Category: {category_name}\n"
+        f"Byline: {author_name}\n\n"
+        "How many stories should I fetch?\n"
+        "1 is a single card. 15 is the largest batch."
     )
 
 

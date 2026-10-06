@@ -21,6 +21,7 @@ from __future__ import annotations
 import atexit
 import html
 import os
+import re
 import signal
 import sys
 import time
@@ -145,6 +146,58 @@ _CHAT_SYSTEM_PROMPT = (
     "Do not invent live news facts or claim a story was generated unless told.\n"
     "Plain text only — no markdown fences, no HTML tags."
 )
+
+HELP_TEXT = (
+    "👋 News Agent is online.\n\n"
+    "Commands:\n"
+    "• /start — your websites, then TRENDING, 6 HOURS, or one category\n"
+    "• RUN STORY writes only the card you tap\n"
+    "• /author — choose the byline used for the next articles\n"
+    "• Each draft arrives as a review card: REVISE, EDIT, CHANGE AUTHOR, REJECT or APPROVE & PUBLISH\n\n"
+    "Anything else goes to Hermes. In a group, tag the bot first. A direct message does not need a tag."
+)
+_BOT_COMMANDS = frozenset({"/start", "/make", "/author", "/help"})
+
+
+def is_group_chat(update: dict, chat_id: str = "") -> bool:
+    """Telegram groups and supergroups. A private chat is a positive id."""
+    message = update.get("message") or {}
+    chat = message.get("chat") if isinstance(message.get("chat"), dict) else {}
+    if str(chat.get("type") or "") in {"group", "supergroup"}:
+        return True
+    return str(chat_id or "").startswith("-")
+
+
+def mentions_bot(update: dict, bot_username: str) -> bool:
+    """True when this message tags @bot_username."""
+    username = str(bot_username or "").lstrip("@").lower()
+    if not username:
+        return False
+    message = update.get("message") or {}
+    text = str(message.get("text") or "")
+    if f"@{username}" in text.lower():
+        return True
+    for entity in message.get("entities") or []:
+        if not isinstance(entity, dict) or entity.get("type") != "mention":
+            continue
+        try:
+            offset = int(entity.get("offset") or 0)
+            length = int(entity.get("length") or 0)
+        except (TypeError, ValueError):
+            continue
+        token = text[offset:offset + length].lstrip("@").lower()
+        if token == username:
+            return True
+    return False
+
+
+def strip_bot_mention(text: str, bot_username: str) -> str:
+    """Drop the bot tag so Hermes sees the question."""
+    username = str(bot_username or "").lstrip("@")
+    cleaned = text
+    if username:
+        cleaned = re.sub(rf"@{re.escape(username)}\b", " ", text, flags=re.IGNORECASE)
+    return " ".join(cleaned.split())
 
 
 def hermes_chat_reply(user_text: str, environ: dict[str, str] | None = None) -> str:
@@ -477,6 +530,7 @@ def execute_make_with_acknowledgement(
     update_id: int,
     update: dict,
     selection: str = "trend",
+    offer_batch: int = 10,
 ) -> dict[str, any]:
     """Execute /make with immediate acknowledgement and progress updates."""
     start_time = time.perf_counter()
@@ -518,6 +572,7 @@ def execute_make_with_acknowledgement(
         events = discovery.run_discovery(
             unlimited_age=skips_age_cap(selection),
             selection=selection,
+            offer_batch=offer_batch,
         )
         page = order_stories(
             [event for event in events if story_matches(event, selection)],
@@ -535,7 +590,7 @@ def execute_make_with_acknowledgement(
         ack.update_progress(f"Found {raw_count} events. Checking which ones have enough sources to write...")
         log_event(f"[MAKE] [DISCOVERY] ranking_finished events={raw_count}")
 
-        from newsagent_v2.control.offered_stories import OFFER_BATCH, OfferedStories
+        from newsagent_v2.control.offered_stories import OfferedStories
         from newsagent_v2.story6 import screen_story
 
         def _screen_progress(index: int, total: int, event) -> None:
@@ -546,14 +601,15 @@ def execute_make_with_acknowledgement(
         postable, dropped, checked = select_postable(
             page,
             screen_story,
-            limit=len(page),
-            keep=OFFER_BATCH,
+            limit=offer_batch,
+            keep=offer_batch,
             progress=_screen_progress,
         )
         discovery.replace_ranked(postable)
-        if page:
-            OfferedStories.load().remember(page, site_id=os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", ""))
-            log_event(f"[MAKE] [OFFERED] remembered={len(page)}")
+        screened = list(page)[:checked]
+        if screened:
+            OfferedStories.load().remember(screened, site_id=os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", ""))
+            log_event(f"[MAKE] [OFFERED] remembered={len(screened)}")
         log_event(f"[MAKE] [SCREEN] checked={checked} postable={len(postable)} dropped={dropped}")
         
         # PERSIST discovery run for callbacks/pagination
@@ -1034,6 +1090,46 @@ def _handle_site_author_callback(
     except Exception as exc:
         log_event(f"[CALLBACK ERROR] Failed to answer author: {exc}")
     log_event(f"[SITE] flow site={site.name} category={chosen['category_name']} author={author.name}")
+    from newsagent_v2.control.site_flow import fetch_count_keyboard, fetch_count_text
+
+    client.send_message(
+        chat_id=chat_id,
+        text=fetch_count_text(site.name, str(chosen["category_name"]), author.name),
+        reply_markup=fetch_count_keyboard(),
+    )
+    return {"ok": True, "action": "fetch_count", "category": chosen["category_name"], "author": author.name}
+
+
+def _handle_fetch_count_callback(
+    *,
+    client: TelegramTestClient,
+    config,
+    state: V5BotState,
+    discovery: V5DiscoveryPipeline,
+    runtime,
+    update_id: int,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """The byline is already saved. This button chooses how many cards to send."""
+    from newsagent_v2.control.site_flow import clamp_fetch_count, pending_category
+
+    chat_id = safe_get_chat_id(update) or ""
+    count = clamp_fetch_count(str(callback_data).split(":", 1)[1])
+    chosen = pending_category(chat_id)
+    if count is None or chosen is None:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Pick a category and author first")
+        except Exception:
+            pass
+        client.send_message(chat_id=chat_id, text="Pick the website, a category, and an author first. Send /start.")
+        return {"ok": False, "error": "no_fetch"}
+    try:
+        client.answer_callback_query(callback_query_id=callback_query_id, text=f"Fetching {count}")
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer fetch count: {exc}")
+    log_event(f"[SITE] fetch count={count} category={chosen.get('category_name')}")
     return execute_make_with_acknowledgement(
         client=client,
         config=config,
@@ -1044,6 +1140,7 @@ def _handle_site_author_callback(
         update_id=update_id,
         update=update,
         selection=str(chosen["category_name"]),
+        offer_batch=count,
     )
 
 
@@ -1088,6 +1185,19 @@ def execute_callback(
         return _handle_category_callback(
             client=client,
             runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
+    if str(callback_data).startswith("fetch:"):
+        return _handle_fetch_count_callback(
+            client=client,
+            config=config,
+            state=state,
+            discovery=discovery,
+            runtime=runtime,
+            update_id=update_id,
             update=update,
             callback_query_id=callback_query_id,
             callback_data=str(callback_data),
@@ -1603,9 +1713,7 @@ def main() -> int:
                         # /make@BotName → /make; hey! → hey
                         cmd = cmd_token.split("@", 1)[0].lower()
                         cmd_key = cmd.strip("!.?,:;…")
-                        greetings = frozenset(
-                            {"/help", "hey", "hi", "hello", "heloo", "hola"}
-                        )
+                        bot_username = str(bot_info.get("username") or "")
 
                         def _reply(body: str) -> None:
                             send_result = runtime.client.send_message(
@@ -1731,34 +1839,35 @@ def main() -> int:
                         elif cmd_key == "/author":
                             _reply_author_menu(runtime, chat_id)
                             log_event("[MESSAGE] author_menu")
-                        elif cmd_key in greetings:
-                            _reply(
-                                "👋 News Agent is online.\n\n"
-                                "Commands:\n"
-                                "• /start — your websites, then TRENDING, 6 HOURS, or one category\n"
-                                "• RUN STORY writes only the card you tap\n"
-                                "• /author — choose the byline used for the next articles\n"
-                                "• Each draft arrives as a review card: REVISE, EDIT, CHANGE AUTHOR, REJECT or APPROVE & PUBLISH\n\n"
-                                "You can also just chat — ask me anything about the workflow."
-                            )
-                            log_event(f"[MESSAGE] help_reply cmd={cmd_key!r}")
+                        elif cmd_key == "/help":
+                            _reply(HELP_TEXT)
+                            log_event("[MESSAGE] help_reply")
+                        elif is_group_chat(update, str(chat_id or "")) and not mentions_bot(update, bot_username):
+                            log_event("[MESSAGE] group ignored (bot not tagged)")
                         else:
-                            try:
-                                log_event(f"[MESSAGE] hermes_chat start cmd={cmd_key!r}")
-                                chat_answer = hermes_chat_reply(raw_text, os.environ)
-                                _reply(chat_answer)
-                                log_event(
-                                    f"[MESSAGE] hermes_chat ok chars={len(chat_answer)}"
-                                )
-                            except Exception as chat_error:
-                                log_event(
-                                    f"[MESSAGE] hermes_chat failed: "
-                                    f"{type(chat_error).__name__}: {chat_error}"
-                                )
-                                _reply(
-                                    "I couldn't reach Hermes just now. "
-                                    "Send /start to choose stories, or /help for commands."
-                                )
+                            question = raw_text
+                            if is_group_chat(update, str(chat_id or "")):
+                                question = strip_bot_mention(raw_text, bot_username)
+                            if not question:
+                                _reply(HELP_TEXT)
+                                log_event("[MESSAGE] help_reply")
+                            else:
+                                try:
+                                    log_event(f"[MESSAGE] hermes_chat start cmd={cmd_key!r}")
+                                    chat_answer = hermes_chat_reply(question, os.environ)
+                                    _reply(chat_answer)
+                                    log_event(
+                                        f"[MESSAGE] hermes_chat ok chars={len(chat_answer)}"
+                                    )
+                                except Exception as chat_error:
+                                    log_event(
+                                        f"[MESSAGE] hermes_chat failed: "
+                                        f"{type(chat_error).__name__}: {chat_error}"
+                                    )
+                                    _reply(
+                                        "I couldn't reach Hermes just now. "
+                                        "Send /start to choose stories, or /help for commands."
+                                    )
 
                     else:
                         log_event(f"[SKIP] unknown update type: {list(update.keys())}")

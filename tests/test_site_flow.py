@@ -7,6 +7,9 @@ from newsagent_v2.control.site_flow import (
     category_keyboard,
     category_labels,
     category_menu_text,
+    clamp_fetch_count,
+    fetch_count_keyboard,
+    fetch_count_text,
 )
 from newsagent_v2.control.story_picker import category_queries, skips_age_cap, story_matches
 from newsagent_v2.wordpress.authors import SiteAuthor
@@ -50,6 +53,18 @@ def test_each_site_shows_its_own_categories_and_then_its_authors():
     assert author_callbacks == ["a:abcd1234:19", "a:abcd1234:1"]
 
 
+def test_the_fetch_step_offers_one_through_fifteen_stories():
+    text = fetch_count_text("Coinography", "DeFi News", "Golan Malhi")
+    assert "How many stories" in text
+    assert "Golan Malhi" in text
+    buttons = [button["callback_data"] for row in fetch_count_keyboard()["inline_keyboard"] for button in row]
+    assert buttons == ["fetch:1", "fetch:3", "fetch:5", "fetch:10", "fetch:15"]
+    assert clamp_fetch_count("1") == 1
+    assert clamp_fetch_count("15") == 15
+    assert clamp_fetch_count("12") is None
+    assert clamp_fetch_count("nope") is None
+
+
 def test_a_site_category_filters_stories_by_its_own_name():
     assert skips_age_cap("Bitcoin News")
     assert not skips_age_cap("trend")
@@ -57,6 +72,12 @@ def test_a_site_category_filters_stories_by_its_own_name():
     assert not story_matches(_event("Ethereum fees drop after the upgrade"), "Bitcoin News")
     assert category_queries("Bitcoin News") == ("bitcoin",)
     assert category_queries("bitcoin") == ("bitcoin",)
+    assert story_matches(_event("Pepe rallies as traders pile in"), "Animals Memecoins")
+    assert story_matches(_event("Dogecoin jumps after a whale buy"), "Animals Memecoins")
+    assert not story_matches(_event("Ethereum fees drop after the upgrade"), "Animals Memecoins")
+    assert story_matches(_event("Bridge hack drains locked crypto"), "Exploits News")
+    assert "dogecoin" in category_queries("Animals Memecoins")
+    assert "pepe" in category_queries("Animals Memecoins")
 
 
 def test_tapped_category_id_is_the_one_that_is_filed(tmp_path, monkeypatch):
