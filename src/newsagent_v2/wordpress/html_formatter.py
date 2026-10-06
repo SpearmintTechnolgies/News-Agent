@@ -19,6 +19,7 @@ from urllib.parse import urljoin, urlparse
 
 from .config import WordPressConfig
 from newsagent_v2.publication.master_index import MasterIndexStore
+from newsagent_v2.write.article import strip_ai_dashes
 from .editorial_structure import structure_article_body
 
 Transport = Callable[..., Any]
@@ -378,6 +379,7 @@ class ArticleHtmlFormatter:
                 source_links=[],
                 internal_links=[],
             )
+        article_body = strip_ai_dashes(article_body)
 
         if preserve_structure:
             # Already sectioned markdown (lede, ## sections, ## Conclusion, ## FAQ with ### questions).

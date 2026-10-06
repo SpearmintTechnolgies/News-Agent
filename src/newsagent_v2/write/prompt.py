@@ -33,6 +33,7 @@ QUOTES
 
 STYLE
 - Neutral, precise, third person. No first person, no addressing the reader, no rhetorical questions.
+- Never use an em dash (—) or en dash (–). Use a comma, a period, or a plain hyphen (-) instead.
 - Report, do not characterize: no unattributed judgments such as "a significant shift", "polarizing", "aggressive", "controversial", "marks a turning point". If a source makes that judgment, attribute it.
 - No hype or filler: avoid "game-changer", "seismic", "landmark", "sent shockwaves", "it remains to be seen", "only time will tell", "in a significant development", "amid growing", "notably", "furthermore", "moreover".
 - Lede: one or two sentences with who, what, when. Second paragraph: why it matters.

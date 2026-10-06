@@ -7,10 +7,17 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 _WS = re.compile(r"\s+")
+# Em/en dashes read as AI prose. Use a plain hyphen instead.
+_AI_DASHES = re.compile(r"[\u2014\u2013\u2012\u2212]+")
+
+
+def strip_ai_dashes(text: str) -> str:
+    """Replace em/en dashes with a normal hyphen so articles do not look AI-marked."""
+    return _AI_DASHES.sub("-", str(text or ""))
 
 
 def _clean(text: Any) -> str:
-    return _WS.sub(" ", str(text or "")).strip()
+    return _WS.sub(" ", strip_ai_dashes(text)).strip()
 
 
 def _ids(value: Any, prefix: str) -> list[str]:

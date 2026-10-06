@@ -114,3 +114,20 @@ def test_keyword_present_is_exact_phrase():
     assert keyword_present("Jay Clayton", "naming Jay Clayton's team")
     assert not keyword_present("Jay Clayton AI czar", "naming Jay Clayton as AI czar")
     assert not keyword_present("AI czar", "aiming for a czar")
+
+
+def test_article_parser_replaces_em_dashes_with_plain_hyphens():
+    from newsagent_v2.write.article import strip_ai_dashes
+
+    raw = _article_json()
+    raw["headline"] = "SEC approves fund — Volatility Shares"
+    raw["sections"][0]["paragraphs"][0]["text"] = "The fund — cleared Friday — opens next week."
+    raw["seo"]["meta_description"] = "A " + ("x" * 130) + " – end"
+    article = Article.from_json(raw)
+    assert "—" not in article.headline
+    assert "–" not in article.headline
+    assert "-" in article.headline
+    assert "—" not in article.sections[0].paragraphs[0].text
+    assert strip_ai_dashes("Keep\nline\nbreaks — intact") == "Keep\nline\nbreaks - intact"
+    assert "Never use an em dash" in __import__("newsagent_v2.write.prompt", fromlist=["SYSTEM_PROMPT"]).SYSTEM_PROMPT
+
