@@ -169,8 +169,6 @@ def resolve_vertex_config_status(environ: dict[str, str] | None) -> dict[str, An
                 credential_type = type(_creds).__name__
             if isinstance(_proj, str) and _proj.strip():
                 resolved_project = _proj.strip()
-                if not project:
-                    project = resolved_project
             if project and resolved_project:
                 resolved_project_matches = project == resolved_project
             elif project and google_auth_default_resolves and not resolved_project:

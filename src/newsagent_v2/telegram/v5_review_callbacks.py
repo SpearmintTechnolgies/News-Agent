@@ -541,7 +541,10 @@ class V5ReviewCallbackHandler:
             article_version=approval.article_version,
             image_version=approval.image_version,
         )
-        SITE_INDEX_CACHE.unlink(missing_ok=True)  # new post becomes a link target for the next drafts
+        SITE_INDEX_CACHE.unlink(missing_ok=True)  # old single-site cache
+        from newsagent_v2.seo6.sitemap import cache_path_for
+
+        cache_path_for(self.wordpress_lifecycle.config.base_url).unlink(missing_ok=True)
         return {"ok": True, "action": "publish", "event_id": event_id,
                 "url": draft_result.wp_url, "post_id": draft_result.wp_post_id,
                 "message": f"✅ Published\n{draft_result.wp_url}"}

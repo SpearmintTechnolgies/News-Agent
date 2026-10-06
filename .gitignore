@@ -61,6 +61,8 @@ input/
 *.log
 *.pid
 *.lock
+.*_lock
+.*.lock
 *.sqlite
 *.sqlite3
 *.db
@@ -89,3 +91,5 @@ data/events/
 
 # V6 sitemap cache (rebuilt every 6 hours)
 data/v6_site_index.json
+
+HANDOVER.md

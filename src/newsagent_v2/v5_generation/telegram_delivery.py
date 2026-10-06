@@ -131,9 +131,15 @@ _SEO_MISS_LIMIT = 5
 def _seo_review_lines(seo: dict[str, Any] | None) -> list[str]:
     if not seo:
         return []
+    inline_n = int(seo.get("internal_links_inline_count") or 0)
+    related_n = int(seo.get("internal_links_related_count") or 0)
+    if inline_n or related_n:
+        link_detail = f"{inline_n} inline, {related_n} related"
+    else:
+        link_detail = f"{seo.get('internal_links', 0)} internal links"
     lines = [
         f"<b>SEO score:</b> {seo.get('score', '?')}/100 · keyword "
-        f"\"{_escape_html(str(seo.get('focus_keyword') or ''))}\" · {seo.get('internal_links', 0)} internal links"
+        f"\"{_escape_html(str(seo.get('focus_keyword') or ''))}\" · {link_detail}"
     ]
     duplicate = seo.get("possible_duplicate")
     if duplicate:

@@ -127,8 +127,14 @@ def derive_white_transparent_logo(master_path: Path, dest_path: Path) -> dict[st
 
 
 def ensure_compositor_logo(logo_path: Path) -> tuple[Path, dict[str, Any] | None]:
+    """Knock the solid field out of any site logo. A logo that cannot be keyed is used as-is."""
     if is_coinnetwork_master(logo_path):
         dest = derived_path_for_master(logo_path)
         meta = derive_white_transparent_logo(logo_path, dest)
         return dest, meta
-    return logo_path, None
+    dest = logo_path.parent / "derived" / f"{logo_path.stem}_white.png"
+    try:
+        meta = derive_white_transparent_logo(logo_path, dest)
+    except LogoDeriveError:
+        return logo_path, None
+    return dest, meta

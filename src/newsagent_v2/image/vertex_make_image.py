@@ -48,6 +48,37 @@ EXPECTED_LOGO_SHA256 = "09c8106c0458e5225530ac6736a56944c81fbde6d7b81ed5b6ce6958
 MAKE_RUNS_ROOT = REPO_ROOT / "output" / "make_runs"
 
 
+def resolve_article_logo(environ: dict[str, str] | None = None) -> Path:
+    """The website being written for supplies the logo. Coin Network keeps its master file."""
+    import os
+
+    from newsagent_v2.control.sites import logo_for_environ
+
+    source = os.environ if environ is None else environ
+    chosen = logo_for_environ(source)
+    if chosen is not None and chosen.is_file():
+        return chosen
+    return LOGO_PATH
+
+
+def _logo_is_locked(logo: Path) -> bool:
+    """Only the Coin Network master is refused when its hash changes."""
+    try:
+        if logo.resolve() == Path(LOGO_PATH).resolve():
+            return True
+    except OSError:
+        pass
+    return logo.name == "coinnetwork_logo.png"
+
+
+def logo_rejection(logo: Path) -> str | None:
+    if not logo.is_file():
+        return "logo_hash_mismatch"
+    if _logo_is_locked(logo) and file_sha256(logo) != EXPECTED_LOGO_SHA256:
+        return "logo_hash_mismatch"
+    return None
+
+
 def _resize_to_card(src: Path, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(src) as image:
@@ -194,7 +225,8 @@ def build_vertex_make_image_fn(
             return prepared
         config, provider = prepared
 
-        if not LOGO_PATH.is_file() or file_sha256(LOGO_PATH) != EXPECTED_LOGO_SHA256:
+        logo = resolve_article_logo(environ)
+        if logo_rejection(logo):
             return {
                 "success": False,
                 "event_id": event_id,
@@ -233,6 +265,7 @@ def build_vertex_make_image_fn(
                     "image_provider": "vertex",
                     "model": model,
                     "region": region,
+                    "logo_path": str(logo),
                 },
             )
 
@@ -307,7 +340,7 @@ def build_vertex_make_image_fn(
                 CompositionSpec(
                     headline="",
                     category_label=None,
-                    logo_path=LOGO_PATH,
+                    logo_path=logo,
                     test_mode=False,
                     logo_only=True,
                     output_name="branded.png",

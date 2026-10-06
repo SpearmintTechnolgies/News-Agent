@@ -8,7 +8,7 @@ from typing import Any
 
 from newsagent_v2.seo6.linker import plan_and_apply
 from newsagent_v2.seo6.score import score_article
-from newsagent_v2.seo6.sitemap import DEFAULT_CACHE, HttpGet, SiteIndex, load_site_index
+from newsagent_v2.seo6.sitemap import HttpGet, SiteIndex, load_site_index
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def prepare_for_site(
     has_featured_image: bool,
     index: SiteIndex | None = None,
     http_get: HttpGet | None = None,
-    cache_path: Path = DEFAULT_CACHE,
+    cache_path: Path | None = None,
 ) -> dict[str, Any]:
     """Return the article with internal links, Read Also list and an ``seo`` report attached.
 
@@ -57,6 +57,8 @@ def prepare_for_site(
         **score.to_dict(),
         "focus_keyword": out.get("focus_keyphrase") or "",
         "internal_links": internal,
+        "internal_links_inline_count": len(plan.inline) if "plan" in locals() else 0,
+        "internal_links_related_count": len(plan.related) if "plan" in locals() else 0,
         "possible_duplicate": duplicate,
         "site_posts": len(index.posts) if index else 0,
     }

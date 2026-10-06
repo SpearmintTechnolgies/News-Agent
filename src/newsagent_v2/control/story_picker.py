@@ -78,15 +78,33 @@ def _contains(text: str, term: str) -> bool:
     return re.search(rf"\b{re.escape(term)}\b", text) is not None
 
 
+_GENERIC_CATEGORY_WORDS = frozenset({
+    "news", "latest", "crypto", "cryptocurrency", "the", "and", "for", "on", "vs", "of",
+})
+
+
+def category_terms_from_name(name: str) -> tuple[str, ...]:
+    """Search words from a website's own category name."""
+    words = re.findall(r"[a-z0-9]+", str(name or "").lower())
+    return tuple(word for word in words if word not in _GENERIC_CATEGORY_WORDS and len(word) > 1)
+
+
 def skips_age_cap(choice: str) -> bool:
     """Category scans keep older feed items. Trend and 6 hours stay on the usual window."""
-    return choice in CATEGORY_TERMS
+    return choice not in {"", "trend", "h6"}
 
 
 def category_queries(choice: str) -> tuple[str, ...]:
     """News-search queries for one category. Empty for the time-window buttons."""
-    if choice not in CATEGORY_TERMS:
+    if choice in {"", "trend", "h6"}:
         return ()
+    if choice not in CATEGORY_TERMS:
+        terms = category_terms_from_name(choice)
+        if not terms:
+            return (choice,)
+        if len(terms) == 1:
+            return (terms[0],)
+        return (choice, " ".join(terms[:3]))
     if choice == "ai":
         return ("crypto AI", "bitcoin artificial intelligence")
     lead = CATEGORY_TERMS[choice][0]
@@ -158,7 +176,9 @@ def story_matches(event: Any, choice: str) -> bool:
     if choice == "h6":
         return published_within_hours(event, 6)
     terms = CATEGORY_TERMS.get(choice)
-    if not terms:
-        return False
+    if terms is None:
+        terms = category_terms_from_name(choice)
+        if not terms:
+            return True
     text = _blob(event)
     return any(_contains(text, term) for term in terms)

@@ -192,20 +192,35 @@ class WordPressDraftLifecycle:
         secrets = self.config.secrets()
         existing = self.store.load(event_id)
 
-        # Resolve categories/tags to IDs
-        category_ids: list[int] = []
+        pinned_id = 0
+        try:
+            if article.get("wp_category_id"):
+                pinned_id = int(article["wp_category_id"])
+        except (TypeError, ValueError):
+            pinned_id = 0
+        if article.get("category_choice_missing") and pinned_id <= 0:
+            return DraftResult(
+                ok=False,
+                event_id=event_id,
+                error="Pick the website and a category again. Send /start.",
+                error_code="category_not_chosen",
+            )
+
+        # Resolve categories/tags to IDs. A tapped category id is used as-is.
+        category_ids: list[int] = [pinned_id] if pinned_id > 0 else []
         tag_ids: list[int] = []
         taxonomy_created: list[str] = []
         taxonomy_errors: list[str] = []
 
-        if categories or tags:
+        if tags or (categories and pinned_id <= 0):
             resolver = WordPressTaxonomyResolver(self.config, self.transport)
             tax_result = resolver.resolve(
-                categories=categories or [],
+                categories=[] if pinned_id > 0 else (categories or []),
                 tags=tags or [],
                 create_missing=create_taxonomy,
             )
-            category_ids = tax_result.category_ids
+            if pinned_id <= 0:
+                category_ids = tax_result.category_ids
             tag_ids = tax_result.tag_ids
             taxonomy_created = tax_result.created_categories + tax_result.created_tags
             taxonomy_errors = tax_result.errors

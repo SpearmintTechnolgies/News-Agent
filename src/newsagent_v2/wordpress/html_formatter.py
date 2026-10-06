@@ -15,7 +15,7 @@ import html
 import re
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from .config import WordPressConfig
 from newsagent_v2.publication.master_index import MasterIndexStore
@@ -215,8 +215,9 @@ class ArticleHtmlFormatter:
 
         if self.master_index is not None:
             # wordpress-source rows come from status=publish sync only.
+            host = (urlparse(self.config.base_url).hostname or "").lower()
             candidates = self.master_index.search_wordpress(
-                topic, entities=entities, limit=max_links
+                topic, entities=entities, limit=max_links, host=host
             )
             return [
                 {

@@ -8,10 +8,12 @@ covers the freshness window of a story that was offered early.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from newsagent_v2.control.sites import COIN_NETWORK_SITE_ID
 from newsagent_v2.discovery.normalizer import canonicalize_url, normalize_title
 
 
@@ -28,6 +30,19 @@ def story_marker(event: Any) -> dict[str, Any]:
         if url:
             urls.append(url)
     return {"title": title, "urls": sorted(set(urls))}
+
+
+def _site_id(site_id: str | None) -> str:
+    if site_id is not None:
+        return site_id
+    return str(os.environ.get("NEWSAGENT_ACTIVE_SITE_ID") or "")
+
+
+def _same_site(record: dict[str, Any], site_id: str) -> bool:
+    """Records written before sites were split belong only to Coin Network."""
+    if "site_id" not in record:
+        return site_id == COIN_NETWORK_SITE_ID
+    return str(record.get("site_id") or "") == site_id
 
 
 def _same_story(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -69,28 +84,33 @@ class OfferedStories:
             records = []
         return cls(records, path=store)
 
-    def already(self, event: Any, *, now: datetime | None = None) -> bool:
+    def already(self, event: Any, *, site_id: str | None = None, now: datetime | None = None) -> bool:
         marker = story_marker(event)
         if not marker["title"] and not marker["urls"]:
             return False
         current = now or datetime.now(timezone.utc)
+        wanted = _site_id(site_id)
         for record in self._fresh(current):
+            if not _same_site(record, wanted):
+                continue
             if _same_story(marker, record):
                 return True
         return False
 
-    def remember(self, events: list[Any], *, now: datetime | None = None) -> None:
+    def remember(self, events: list[Any], *, site_id: str | None = None, now: datetime | None = None) -> None:
         current = now or datetime.now(timezone.utc)
+        wanted = _site_id(site_id)
         fresh = self._fresh(current)
         for event in events:
             marker = story_marker(event)
             if not marker["title"] and not marker["urls"]:
                 continue
-            fresh = [row for row in fresh if not _same_story(marker, row)]
+            fresh = [row for row in fresh if not (_same_site(row, wanted) and _same_story(marker, row))]
             fresh.append({
                 "title": marker["title"],
                 "urls": marker["urls"],
                 "offered_at": current.isoformat(),
+                "site_id": wanted,
             })
         self.records = fresh
         self._save()

@@ -242,10 +242,21 @@ class GenerationWorker:
         if not record:
             return None
         article = record.get("article", {})
+        if article.get("category_choice_missing") and not article.get("wp_category_id"):
+            return {
+                "ok": False,
+                "error": "Pick the website and a category again. Send /start.",
+                "error_code": "category_not_chosen",
+                "event_id": event.event_id,
+            }
         categories = [str(c) for c in (article.get("categories") or []) if c] or (
             [str(article["category"])] if article.get("category") else []
         )
-        if (not categories or [c.lower() for c in categories] == ["other"]) and event.topic:
+        if (
+            not article.get("wp_category_id")
+            and (not categories or [c.lower() for c in categories] == ["other"])
+            and event.topic
+        ):
             categories = [str(event.topic).replace("_", " ").title()]
         tags = list(dict.fromkeys(str(t) for t in (article.get("tags") or []) if t))[:MAX_TAGS]
         image_version = result.get("image_version")

@@ -96,6 +96,33 @@ def source_list(dossier: ResearchDossier) -> list[dict[str, str]]:
     ]
 
 
+def _active_site_id() -> str:
+    try:
+        from newsagent_v2.wordpress import authors
+
+        return str(authors.active_site_id or "").strip()
+    except Exception:
+        return ""
+
+
+def _category_on_active_site(writer_category: str) -> tuple[str, int]:
+    """The tapped category id, or the Coin Network name map when that site has no choice."""
+    try:
+        from newsagent_v2.control.site_flow import current_category_id, current_category_name
+        from newsagent_v2.control.sites import COIN_NETWORK_SITE_ID
+
+        chosen_id = current_category_id()
+        chosen_name = current_category_name()
+    except Exception:
+        chosen_id, chosen_name = 0, ""
+    if chosen_id:
+        return chosen_name or SITE_CATEGORIES.get(writer_category, "News"), chosen_id
+    site_id = _active_site_id()
+    if site_id and site_id != COIN_NETWORK_SITE_ID:
+        return "", 0
+    return SITE_CATEGORIES.get(writer_category, "News"), 0
+
+
 def article_record(
     article: Article,
     *,
@@ -105,9 +132,9 @@ def article_record(
 ) -> dict[str, Any]:
     """The article in the shape the image, WordPress and Telegram code read."""
     seo = article.seo
-    category = SITE_CATEGORIES.get(seo.category, "News")
+    category, category_id = _category_on_active_site(seo.category)
     report = outcome.report
-    return finalize_seo({
+    record = finalize_seo({
         "event_id": event_id,
         "pipeline": "v6",
         "preserve_structure": True,
@@ -120,7 +147,7 @@ def article_record(
         "keywords": [seo.focus_keyword, *seo.tags],
         "slug": seo.slug,
         "category": category,
-        "categories": [category],
+        "categories": [category] if category else [],
         "tags": list(seo.tags),
         "topic": category,
         "entities": [{"name": name} for name in dossier.entities[:8]],
@@ -130,6 +157,14 @@ def article_record(
         "qa_flags": [i.to_dict() for i in report.issues] if report else [],
         "structured": article.to_dict(),
     })
+    if category_id:
+        record["wp_category_id"] = category_id
+    elif _active_site_id():
+        from newsagent_v2.control.sites import COIN_NETWORK_SITE_ID
+
+        if _active_site_id() != COIN_NETWORK_SITE_ID:
+            record["category_choice_missing"] = True
+    return record
 
 
 def _cached_screen(event_id: str) -> tuple[ResearchDossier | None, Any] | None:

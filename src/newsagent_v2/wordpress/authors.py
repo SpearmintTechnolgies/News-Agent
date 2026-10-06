@@ -18,6 +18,8 @@ Transport = Callable[..., Any]
 DEFAULT_PATH = Path("data/v5_state/author.json")
 BYLINE_ROLES = frozenset({"author", "editor", "administrator", "contributor"})
 MAX_AUTHORS = 24
+# Set when a website is chosen so its bylines stay separate from the other sites.
+active_site_id = ""
 
 
 @dataclass(frozen=True)
@@ -26,15 +28,7 @@ class SiteAuthor:
     name: str
 
 
-def list_site_authors(config: WordPressConfig, transport: Transport) -> list[SiteAuthor]:
-    """Users who can be a byline. Subscribers and nameless accounts are left out."""
-    url = urljoin(config.base_url + "/", "wp-json/wp/v2/users?context=edit&who=authors&per_page=100")
-    response = transport("GET", url, auth=(config.username, config.app_password))
-    if not response.get("ok"):
-        return []
-    payload = response.get("payload")
-    if not isinstance(payload, list):
-        return []
+def _authors_from_rows(payload: list[Any]) -> list[SiteAuthor]:
     authors: list[SiteAuthor] = []
     for row in payload:
         if not isinstance(row, dict):
@@ -55,8 +49,35 @@ def list_site_authors(config: WordPressConfig, transport: Transport) -> list[Sit
     return authors
 
 
+def list_site_authors(config: WordPressConfig, transport: Transport) -> list[SiteAuthor]:
+    """Users who can be a byline. Subscribers and nameless accounts are left out.
+
+    Some sites refuse users?context=edit&who=authors. The public user list is the fallback.
+    """
+    url = urljoin(config.base_url + "/", "wp-json/wp/v2/users?context=edit&who=authors&per_page=100")
+    response = transport("GET", url, auth=(config.username, config.app_password))
+    payload = response.get("payload") if response.get("ok") else None
+    authors = _authors_from_rows(payload) if isinstance(payload, list) else []
+    if authors:
+        return authors
+    public_url = urljoin(config.base_url + "/", "wp-json/wp/v2/users?per_page=100")
+    public = transport("GET", public_url)
+    public_payload = public.get("payload") if public.get("ok") else None
+    if not isinstance(public_payload, list):
+        return []
+    return _authors_from_rows(public_payload)
+
+
+def store_path(path: Path | None = None) -> Path:
+    if path is not None:
+        return path
+    if active_site_id:
+        return DEFAULT_PATH.with_name(f"author-{active_site_id}.json")
+    return DEFAULT_PATH
+
+
 def _read(path: Path | None = None) -> dict[str, Any]:
-    store = path or DEFAULT_PATH
+    store = store_path(path)
     if not store.exists():
         return {}
     try:
@@ -67,7 +88,7 @@ def _read(path: Path | None = None) -> dict[str, Any]:
 
 
 def _write(payload: dict[str, Any], path: Path | None = None) -> None:
-    store = path or DEFAULT_PATH
+    store = store_path(path)
     store.parent.mkdir(parents=True, exist_ok=True)
     store.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

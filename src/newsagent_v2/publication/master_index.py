@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import html
 import re
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -165,9 +165,17 @@ class MasterIndexStore:
         with self._lock:
             write_json_utf8(self.root / "sync_state.json", state)
 
-    def search_wordpress(self, query: str, *, entities: list[str] | None = None, limit: int = 3) -> list[MasterIndexRecord]:
+    def search_wordpress(
+        self,
+        query: str,
+        *,
+        entities: list[str] | None = None,
+        limit: int = 3,
+        host: str = "",
+    ) -> list[MasterIndexRecord]:
         terms = {part.lower() for part in query.split() if part.strip()}
         terms.update(str(item).lower() for item in (entities or []) if str(item).strip())
+        wanted = host.lower().removeprefix("www.")
         scored: list[tuple[int, MasterIndexRecord]] = []
         for row in self.list_records():
             if row.source != "wordpress":
@@ -177,6 +185,10 @@ class MasterIndexStore:
                 continue
             if not (row.canonical_url or "").startswith(("http://", "https://")):
                 continue
+            if wanted and wanted not in {"example.com", "site.test"}:
+                row_host = (urlparse(row.canonical_url).hostname or "").lower().removeprefix("www.")
+                if row_host != wanted:
+                    continue
             if not (row.title or "").strip():
                 continue
             haystack = " ".join([row.title or "", row.topic or "", *row.entities, *row.categories, *row.tags]).lower()

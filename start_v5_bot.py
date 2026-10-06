@@ -37,7 +37,7 @@ try:
 
     _env_path = Path(__file__).resolve().parent / ".env"
     if _env_path.exists():
-        load_dotenv(_env_path, override=True)
+        load_dotenv(_env_path, override=False)
 except ImportError:
     pass
 
@@ -139,7 +139,7 @@ def safe_get_message_text(update: dict) -> str:
 _CHAT_SYSTEM_PROMPT = (
     "You are the News Agent Telegram assistant for CoinNetwork.\n"
     "Be brief, friendly, and practical (2–6 short sentences).\n"
-    "You help operate this bot: /start opens the story menu; then RUN STORY → "
+    "You help operate this bot: /start lists the websites; pick one, then RUN STORY → "
     "GENERATE NOW → APPROVE → PUBLISH.\n"
     "Answer normal chat questions normally.\n"
     "Do not invent live news facts or claim a story was generated unless told.\n"
@@ -336,11 +336,135 @@ def auto_generate_top(client, config, discovery, runtime) -> dict[str, Any]:
     )
     return {"ok": started, "target": target, "candidates": len(events)}
 
-def send_story_menu(client: TelegramTestClient, config) -> None:
+def send_site_menu(client: TelegramTestClient, config, *, chat_id: str | None = None) -> None:
+    """Ask which website to write for. /start sends this."""
+    from newsagent_v2.control.sites import MENU_TEXT, active_id, list_sites, menu_keyboard
+
+    sites = list_sites(environ=os.environ)
+    text = MENU_TEXT
+    markup = menu_keyboard(sites, active=active_id())
+    if chat_id:
+        client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        return
+    broadcast_message(client, config, text=text, reply_markup=markup)
+
+
+def send_story_menu(client: TelegramTestClient, config, *, chat_id: str | None = None, site_name: str = "") -> None:
     """Ask which stories to fetch before a scan starts."""
     from newsagent_v2.control.story_picker import MENU_TEXT, menu_keyboard
 
-    broadcast_message(client, config, text=MENU_TEXT, reply_markup=menu_keyboard())
+    text = f"Writing for {site_name}.\n\n{MENU_TEXT}" if site_name else MENU_TEXT
+    if chat_id:
+        client.send_message(chat_id=chat_id, text=text, reply_markup=menu_keyboard())
+        return
+    broadcast_message(client, config, text=text, reply_markup=menu_keyboard())
+
+
+def _incoming_image_id(update: dict) -> str:
+    message = update.get("message") or {}
+    photos = message.get("photo") or []
+    if isinstance(photos, list) and photos:
+        last = photos[-1]
+        if isinstance(last, dict) and last.get("file_id"):
+            return str(last["file_id"])
+    document = message.get("document") or {}
+    if isinstance(document, dict) and document.get("file_id"):
+        mime = str(document.get("mime_type") or "")
+        name = str(document.get("file_name") or "").lower()
+        if mime.startswith("image/") or name.endswith(".png"):
+            return str(document["file_id"])
+    return ""
+
+
+def _download_telegram_file(client: TelegramTestClient, file_id: str) -> bytes:
+    import requests
+
+    meta = client._post("getFile", json_body={"file_id": file_id})
+    payload = meta.get("payload") if isinstance(meta.get("payload"), dict) else {}
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    file_path = str(result.get("file_path") or "")
+    if not meta.get("ok") or not file_path:
+        raise RuntimeError("telegram file missing")
+    response = requests.get(
+        f"https://api.telegram.org/file/bot{client.config.bot_token}/{file_path}",
+        timeout=60,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def _accept_site_logo(runtime, chat_id: str, update: dict) -> None:
+    from newsagent_v2.control.site_flow import fetch_categories
+    from newsagent_v2.control.sites import attach_logo, confirm_text, logo_is_replacement, rankmath_warning_for, wordpress_config
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.authors import list_site_authors
+
+    log_event("[MESSAGE] site logo received")
+    file_id = _incoming_image_id(update)
+    try:
+        raw = _download_telegram_file(runtime.client, file_id)
+    except Exception as exc:
+        log_event(f"[SITE] logo download failed {type(exc).__name__}")
+        runtime.client.send_message(chat_id=chat_id, text="I could not read that photo. Send the logo again.")
+        return
+    replacing = logo_is_replacement(str(chat_id or ""))
+    warning = rankmath_warning_for(str(chat_id or ""))
+    site, reason = attach_logo(str(chat_id or ""), raw)
+    if site is None:
+        runtime.client.send_message(chat_id=chat_id, text=reason)
+        return
+    if replacing:
+        _use_site(runtime, site)
+        runtime.client.send_message(chat_id=chat_id, text=f"Logo replaced for {site.name}.")
+        send_site_menu(runtime.client, runtime.config, chat_id=str(chat_id or ""))
+        log_event(f"[SITE] logo replaced site={site.name}")
+        return
+    transport = build_live_wordpress_transport()
+    categories = fetch_categories(site, transport)
+    authors = list_site_authors(wordpress_config(site), transport)
+    posts = _use_site(runtime, site)
+    runtime.client.send_message(
+        chat_id=chat_id,
+        text=confirm_text(site, len(categories), len(authors), posts, warning),
+    )
+    send_site_menu(runtime.client, runtime.config, chat_id=str(chat_id or ""))
+    log_event(f"[SITE] added={site.name} categories={len(categories)} authors={len(authors)} posts={posts}")
+
+
+def _use_site(runtime, site) -> None:
+    """Point drafts, authors, and the admin link at the chosen website."""
+    from newsagent_v2.control.sites import activate, wordpress_config
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
+
+    activate(site.id, environ=os.environ)
+    wp_config = wordpress_config(site)
+    worker = runtime.generation_worker
+    handler = runtime.review_handler
+    lifecycle = getattr(worker, "wordpress_lifecycle", None) if worker is not None else None
+    if lifecycle is None and worker is not None:
+        lifecycle = WordPressDraftLifecycle(wp_config, build_live_wordpress_transport())
+        worker.wordpress_lifecycle = lifecycle
+        if handler is not None:
+            handler.wordpress_lifecycle = lifecycle
+    elif lifecycle is not None:
+        lifecycle.config = wp_config
+    posts = _index_site(site)
+    log_event(f"[SITE] active={site.name} posts={posts}")
+    return posts
+
+
+def _index_site(site) -> int:
+    """Read this website's sitemap and recent posts. Used for internal links."""
+    from newsagent_v2.seo6.sitemap import load_site_index
+
+    try:
+        index = load_site_index(site.base_url)
+    except Exception as exc:
+        log_event(f"[SITE] sitemap failed site={site.name} {type(exc).__name__}")
+        return 0
+    log_event(f"[SITE] sitemap site={site.name} posts={len(index.posts)}")
+    return len(index.posts)
 
 
 def execute_make_with_acknowledgement(
@@ -428,7 +552,7 @@ def execute_make_with_acknowledgement(
         )
         discovery.replace_ranked(postable)
         if page:
-            OfferedStories.load().remember(page)
+            OfferedStories.load().remember(page, site_id=os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", ""))
             log_event(f"[MAKE] [OFFERED] remembered={len(page)}")
         log_event(f"[MAKE] [SCREEN] checked={checked} postable={len(postable)} dropped={dropped}")
         
@@ -662,6 +786,267 @@ def _handle_review_callback(
         return {"ok": False, "error": str(e), "callback_data": callback_data}
 
 
+def _manage_site_callback(client, runtime, chat_id: str, callback_data: str) -> dict[str, any] | None:
+    """Logo, password, and removal for one saved website."""
+    from newsagent_v2.control.sites import (
+        begin_logo,
+        begin_replace_password,
+        begin_replace_username,
+        find_site,
+        remove_confirm_keyboard,
+        remove_site,
+        settings_keyboard,
+    )
+
+    prefixes = (
+        ("site:remove:yes:", "remove_yes"),
+        ("site:remove:", "remove"),
+        ("site:settings:", "settings"),
+        ("site:logo:", "logo"),
+        ("site:user:", "username"),
+        ("site:password:", "password"),
+    )
+    action = ""
+    site_id = ""
+    for prefix, name in prefixes:
+        if callback_data.startswith(prefix):
+            action = name
+            site_id = callback_data[len(prefix):]
+            break
+    if not action:
+        return None
+    if action == "remove_yes":
+        removed = remove_site(site_id)
+        if removed is None:
+            client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start to see the list.")
+            return {"ok": False, "error": "unknown_site"}
+        if os.environ.get("NEWSAGENT_ACTIVE_SITE_ID") == removed.id:
+            from newsagent_v2.control.sites import list_sites
+
+            remaining = list_sites()
+            if remaining:
+                _use_site(runtime, remaining[0])
+        send_site_menu(client, runtime.config, chat_id=str(chat_id or ""))
+        log_event(f"[SITE] removed={removed.name}")
+        return {"ok": True, "action": "remove_site", "site": removed.name}
+    site = find_site(site_id, environ=os.environ)
+    if site is None:
+        client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start to see the list.")
+        return {"ok": False, "error": "unknown_site"}
+    if action == "settings":
+        client.send_message(
+            chat_id=chat_id,
+            text=f"{site.name}\nAccount: {site.username}\n\nReplace the logo, username or email, application password, or remove this website.",
+            reply_markup=settings_keyboard(site.id),
+        )
+        return {"ok": True, "action": "site_settings", "site": site.name}
+    if action == "logo":
+        client.send_message(chat_id=chat_id, text=begin_logo(chat_id, site, replacing=True))
+        log_event(f"[SITE] logo replace site={site.name}")
+        return {"ok": True, "action": "replace_logo", "site": site.name}
+    if action == "username":
+        client.send_message(chat_id=chat_id, text=begin_replace_username(chat_id, site))
+        log_event(f"[SITE] username replace site={site.name}")
+        return {"ok": True, "action": "replace_username", "site": site.name}
+    if action == "password":
+        client.send_message(chat_id=chat_id, text=begin_replace_password(chat_id, site))
+        log_event(f"[SITE] password replace site={site.name}")
+        return {"ok": True, "action": "replace_password", "site": site.name}
+    client.send_message(
+        chat_id=chat_id,
+        text=f"Remove {site.name}? Articles already on the site stay there.",
+        reply_markup=remove_confirm_keyboard(site.id),
+    )
+    return {"ok": True, "action": "confirm_remove", "site": site.name}
+
+
+def _handle_site_callback(
+    *,
+    client: TelegramTestClient,
+    config,
+    runtime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """Choose a website, or start adding one."""
+    from newsagent_v2.control.sites import ADD_CALLBACK, FINISH_PREFIX, begin_add, begin_logo, find_site, is_ready
+
+    chat_id = safe_get_chat_id(update) or ""
+    try:
+        client.answer_callback_query(callback_query_id=callback_query_id, text="Okay")
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer site: {exc}")
+    if callback_data == ADD_CALLBACK:
+        prompt = begin_add(chat_id)
+        client.send_message(chat_id=chat_id, text=prompt)
+        log_event("[SITE] add started")
+        return {"ok": True, "action": "add_site"}
+    if str(callback_data).startswith(FINISH_PREFIX):
+        site_id = str(callback_data)[len(FINISH_PREFIX):]
+        site = find_site(site_id, environ=os.environ)
+        if site is None:
+            client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start to see the list.")
+            return {"ok": False, "error": "unknown_site"}
+        if is_ready(site):
+            _use_site(runtime, site)
+            _send_site_categories(client, chat_id, site)
+            return {"ok": True, "action": "select_site", "site": site.name}
+        prompt = begin_logo(chat_id, site)
+        client.send_message(chat_id=chat_id, text=prompt)
+        log_event(f"[SITE] logo requested site={site.name}")
+        return {"ok": True, "action": "finish_setup"}
+    managed = _manage_site_callback(client, runtime, chat_id, str(callback_data))
+    if managed is not None:
+        return managed
+    site_id = callback_data.split(":", 1)[1]
+    site = find_site(site_id, environ=os.environ)
+    if site is None:
+        client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start to see the list.")
+        return {"ok": False, "error": "unknown_site"}
+    _use_site(runtime, site)
+    _send_site_categories(client, chat_id, site)
+    return {"ok": True, "action": "select_site", "site": site.name}
+
+
+def _send_site_categories(client, chat_id: str, site) -> None:
+    """The categories that exist on this website, not a shared list."""
+    from newsagent_v2.control.site_flow import (
+        category_keyboard,
+        category_menu_text,
+        fetch_categories,
+        store_categories,
+    )
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+
+    categories = fetch_categories(site, build_live_wordpress_transport())
+    store_categories(site.id, categories)
+    client.send_message(
+        chat_id=chat_id,
+        text=category_menu_text(site.name, len(categories)),
+        reply_markup=category_keyboard(site.id, categories),
+    )
+    log_event(f"[SITE] categories site={site.name} count={len(categories)}")
+
+
+def _handle_category_callback(
+    *,
+    client: TelegramTestClient,
+    runtime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """A category on the chosen website opens that site's authors."""
+    from newsagent_v2.control.site_flow import (
+        author_keyboard,
+        author_menu_text,
+        cached_categories,
+        category_name_for,
+        fetch_categories,
+        remember_category,
+        store_categories,
+    )
+    from newsagent_v2.control.sites import find_site, wordpress_config
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.authors import list_site_authors
+
+    chat_id = safe_get_chat_id(update) or ""
+    try:
+        client.answer_callback_query(callback_query_id=callback_query_id, text="Okay")
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer category: {exc}")
+    _prefix, site_id, category_text = (callback_data.split(":") + ["", ""])[:3]
+    site = find_site(site_id, environ=os.environ)
+    if site is None:
+        client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start.")
+        return {"ok": False, "error": "unknown_site"}
+    try:
+        category_id = int(category_text)
+    except ValueError:
+        return {"ok": False, "error": "bad_category"}
+    categories = cached_categories(site.id) or fetch_categories(site, build_live_wordpress_transport())
+    store_categories(site.id, categories)
+    name = category_name_for(site.id, category_id, categories)
+    if not name:
+        client.send_message(chat_id=chat_id, text="That category is no longer on the site. Send /start.")
+        return {"ok": False, "error": "unknown_category"}
+    _use_site(runtime, site)
+    remember_category(chat_id, site.id, category_id, name)
+    transport = build_live_wordpress_transport()
+    authors = list_site_authors(wordpress_config(site), transport)
+    log_event(f"[SITE] authors site={site.name} category={name} count={len(authors)}")
+    if not authors:
+        client.send_message(chat_id=chat_id, text=f"{site.name} did not return any authors for {name}.")
+        return {"ok": False, "error": "no_authors"}
+    client.send_message(
+        chat_id=chat_id,
+        text=author_menu_text(site.name, name, len(authors)),
+        reply_markup=author_keyboard(site.id, authors),
+    )
+    return {"ok": True, "action": "site_category", "category": name}
+
+
+def _handle_site_author_callback(
+    *,
+    client: TelegramTestClient,
+    config,
+    state: V5BotState,
+    discovery: V5DiscoveryPipeline,
+    runtime,
+    update_id: int,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """The author completes this website's flow and starts the scan."""
+    from newsagent_v2.control.site_flow import pending_category, remember_publication
+    from newsagent_v2.control.sites import find_site, wordpress_config
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.authors import find_author, list_site_authors
+
+    chat_id = safe_get_chat_id(update) or ""
+    _prefix, site_id, user_text = (callback_data.split(":") + ["", ""])[:3]
+    site = find_site(site_id, environ=os.environ)
+    chosen = pending_category(chat_id)
+    if site is None or chosen is None or chosen.get("site_id") != site_id:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Pick a category first")
+        except Exception:
+            pass
+        client.send_message(chat_id=chat_id, text="Pick the website and a category first. Send /start.")
+        return {"ok": False, "error": "no_category"}
+    authors = list_site_authors(wordpress_config(site), build_live_wordpress_transport())
+    author = find_author(authors, user_text)
+    if author is None:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Author not found")
+        except Exception:
+            pass
+        return {"ok": False, "error": "unknown_author"}
+    _use_site(runtime, site)
+    remember_publication(site.id, int(chosen["category_id"]), str(chosen["category_name"]), author)
+    try:
+        client.answer_callback_query(
+            callback_query_id=callback_query_id,
+            text=f"{chosen['category_name']} · {author.name}"[:200],
+        )
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer author: {exc}")
+    log_event(f"[SITE] flow site={site.name} category={chosen['category_name']} author={author.name}")
+    return execute_make_with_acknowledgement(
+        client=client,
+        config=config,
+        state=state,
+        discovery=discovery,
+        persistent_store=runtime.persistent_store,
+        runtime=runtime,
+        update_id=update_id,
+        update=update,
+        selection=str(chosen["category_name"]),
+    )
+
+
 # ============ CALLBACK HANDLER ============
 
 def execute_callback(
@@ -698,6 +1083,38 @@ def execute_callback(
         except Exception as e:
             log_event(f"[CALLBACK ERROR] Failed to answer: {e}")
         return {"ok": False, "error": "no_callback_data"}
+
+    if str(callback_data).startswith("c:"):
+        return _handle_category_callback(
+            client=client,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
+    if str(callback_data).startswith("a:"):
+        return _handle_site_author_callback(
+            client=client,
+            config=config,
+            state=state,
+            discovery=discovery,
+            runtime=runtime,
+            update_id=update_id,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
+    if str(callback_data) == "site:add" or str(callback_data).startswith("site:"):
+        return _handle_site_callback(
+            client=client,
+            config=config,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
 
     if str(callback_data).startswith("pick:"):
         choice = str(callback_data).split(":", 1)[1]
@@ -945,11 +1362,21 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
 
         wp_status = runtime.preflight.check_wordpress()
         if wp_status.status == "READY":
+            from newsagent_v2.control.sites import activate, active_id, list_sites, wordpress_config
+
             wordpress_lifecycle = WordPressDraftLifecycle(
                 config=load_wordpress_config(os.environ),
                 transport=build_live_wordpress_transport(),
             )
-            log_event("[PREFLIGHT] WordPress draft lifecycle READY")
+            saved = list_sites(environ=os.environ)
+            chosen = active_id() or (saved[0].id if saved else "")
+            current = next((site for site in saved if site.id == chosen), None)
+            if current is not None:
+                activate(current.id, environ=os.environ)
+                wordpress_lifecycle.config = wordpress_config(current)
+                log_event(f"[PREFLIGHT] WordPress draft lifecycle READY site={current.name}")
+            else:
+                log_event("[PREFLIGHT] WordPress draft lifecycle READY")
         else:
             log_event(f"[PREFLIGHT] WordPress: {wp_status.status} (publish disabled)")
     except Exception as exc:  # noqa: BLE001 — keep bot up if WP wiring fails
@@ -1041,10 +1468,10 @@ def main() -> int:
     log_event("=" * 60)
     log_event("")
     log_event("Listening for commands...")
-    log_event("  - /start -> TRENDING, 6 HOURS, or a category")
+    log_event("  - /start -> websites, then TRENDING, 6 HOURS, or a category")
     try:
-        send_story_menu(runtime.client, runtime.config)
-        log_event("[MENU] story picker sent")
+        send_site_menu(runtime.client, runtime.config)
+        log_event("[MENU] website list sent")
     except Exception as exc:
         log_event(f"[MENU] send failed: {exc}")
     log_event("  - [Buttons] RUN/FOLLOW/IGNORE/SEE NEXT")
@@ -1134,6 +1561,19 @@ def main() -> int:
                             continue
 
                         text = safe_get_message_text(update)
+                        from newsagent_v2.control.sites import logo_step, onboarding_hides_text
+
+                        if logo_step(str(chat_id or "")) and _incoming_image_id(update):
+                            _accept_site_logo(runtime, chat_id, update)
+                            runtime.state.mark_update_processed(update_id)
+                            continue
+
+                        if onboarding_hides_text(str(chat_id or "")):
+                            log_event("[MESSAGE] site onboarding (text hidden)")
+                        else:
+                            raw_preview = (text or "").strip()
+                            preview_cmd = raw_preview.split()[0].split("@", 1)[0].lower() if raw_preview else ""
+                            log_event(f"[MESSAGE] text={raw_preview!r} cmd={preview_cmd.strip('!.?,:;…')!r}")
 
                         # ==== CHECK FOR FEEDBACK MODE ====
                         # First check if this message is feedback for awaiting story
@@ -1166,7 +1606,6 @@ def main() -> int:
                         greetings = frozenset(
                             {"/help", "hey", "hi", "hello", "heloo", "hola"}
                         )
-                        log_event(f"[MESSAGE] text={raw_text!r} cmd={cmd_key!r}")
 
                         def _reply(body: str) -> None:
                             send_result = runtime.client.send_message(
@@ -1179,11 +1618,115 @@ def main() -> int:
                                     f"desc={send_result.get('telegram_description')!r}"
                                 )
 
+                        from newsagent_v2.control.sites import (
+                            ASK_USERNAME,
+                            PASSWORD_PROMPT,
+                            match_site,
+                            open_site,
+                            resume_password,
+                            resume_username,
+                            save_site,
+                            take_reply,
+                        )
+
+                        outcome = take_reply(str(chat_id or ""), raw_text)
+                        if outcome is not None:
+                            if outcome.get("ready"):
+                                from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+
+                                transport = build_live_wordpress_transport()
+                                if outcome.get("username"):
+                                    site, message = open_site(
+                                        outcome["base_url"],
+                                        outcome["username"],
+                                        outcome["app_password"],
+                                        transport,
+                                        discover=not outcome.get("replacing"),
+                                    )
+                                else:
+                                    site, message = match_site(
+                                        outcome["base_url"],
+                                        outcome["app_password"],
+                                        transport,
+                                    )
+                                if site is None and message == ASK_USERNAME:
+                                    resume_username(str(chat_id or ""), outcome["base_url"], outcome["app_password"])
+                                    runtime.client.send_message(chat_id=chat_id, text=message)
+                                    log_event("[SITE] add needs username")
+                                elif site is None:
+                                    if outcome.get("username"):
+                                        resume_password(str(chat_id or ""), outcome["base_url"], outcome["username"])
+                                    runtime.client.send_message(
+                                        chat_id=chat_id,
+                                        text=f"{message}\n\n{PASSWORD_PROMPT}" if outcome.get("username") else message,
+                                    )
+                                    log_event("[SITE] add rejected " + (message.splitlines()[0] if message else ""))
+                                else:
+                                    from newsagent_v2.control.sites import (
+                                        adopt_saved_logo,
+                                        begin_logo,
+                                        hold_password,
+                                        is_ready,
+                                        publishing_rights,
+                                        rights_message,
+                                    )
+
+                                    missing, warning = publishing_rights(
+                                        site.base_url,
+                                        site.username,
+                                        site.app_password,
+                                        transport,
+                                    )
+                                    if missing:
+                                        hold_password(
+                                            str(chat_id or ""),
+                                            outcome["base_url"],
+                                            outcome.get("username") or "",
+                                            replacing=bool(outcome.get("replacing")),
+                                            site_id=outcome.get("site_id") or site.id,
+                                        )
+                                        runtime.client.send_message(chat_id=chat_id, text=rights_message(missing))
+                                        log_event("[SITE] rights missing " + ",".join(missing))
+                                    elif outcome.get("replacing"):
+                                        site = adopt_saved_logo(site)
+                                        save_site(site)
+                                        _use_site(runtime, site)
+                                        runtime.client.send_message(
+                                            chat_id=chat_id,
+                                            text=f"Password replaced for {site.name}.",
+                                        )
+                                        send_site_menu(runtime.client, runtime.config, chat_id=str(chat_id or ""))
+                                        log_event(f"[SITE] password replaced site={site.name}")
+                                    else:
+                                        site = adopt_saved_logo(site)
+                                        if is_ready(site):
+                                            save_site(site)
+                                            _use_site(runtime, site)
+                                            runtime.client.send_message(chat_id=chat_id, text=message)
+                                            send_site_menu(runtime.client, runtime.config, chat_id=str(chat_id or ""))
+                                            log_event(f"[SITE] added={site.name}")
+                                        else:
+                                            prompt = begin_logo(
+                                                str(chat_id or ""),
+                                                site,
+                                                rankmath_warning=warning,
+                                            )
+                                            runtime.client.send_message(chat_id=chat_id, text=prompt)
+                                            log_event(f"[SITE] logo requested site={site.name}")
+                            elif outcome.get("cancel"):
+                                send_site_menu(runtime.client, runtime.config, chat_id=str(chat_id or ""))
+                                log_event("[SITE] add cancelled")
+                            else:
+                                runtime.client.send_message(chat_id=chat_id, text=outcome.get("text") or "")
+                                log_event("[SITE] add step")
+                            runtime.state.mark_update_processed(update_id)
+                            continue
+
                         if cmd_key == "/start":
-                            send_story_menu(runtime.client, runtime.config)
-                            log_event("[START] menu_sent")
+                            send_site_menu(runtime.client, runtime.config, chat_id=str(chat_id or ""))
+                            log_event("[START] websites_sent")
                         elif cmd_key == "/make":
-                            _reply("Send /start to open TRENDING, 6 HOURS, and the categories.")
+                            _reply("Send /start to choose a website.")
                             log_event("[MAKE] redirected_to_start")
                         elif cmd_key == "/author":
                             _reply_author_menu(runtime, chat_id)
@@ -1192,7 +1735,7 @@ def main() -> int:
                             _reply(
                                 "👋 News Agent is online.\n\n"
                                 "Commands:\n"
-                                "• /start — TRENDING, 6 HOURS, or one category (that category's keywords, newest first)\n"
+                                "• /start — your websites, then TRENDING, 6 HOURS, or one category\n"
                                 "• RUN STORY writes only the card you tap\n"
                                 "• /author — choose the byline used for the next articles\n"
                                 "• Each draft arrives as a review card: REVISE, EDIT, CHANGE AUTHOR, REJECT or APPROVE & PUBLISH\n\n"

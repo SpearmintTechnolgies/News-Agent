@@ -487,6 +487,7 @@ class V5DiscoveryPipeline:
         backfill_considered = 0
         skipped_offered = 0
         offered = OfferedStories.load()
+        offer_site = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "")
         t_expand_all = perf_counter()
         # A category list is judged later by opening the article. The RSS blurb
         # gate was rejecting single-feed stories before that fetch happened.
@@ -494,7 +495,7 @@ class V5DiscoveryPipeline:
             for event in matched_events:
                 if not event.reports:
                     continue
-                if offered.already(event):
+                if offered.already(event, site_id=offer_site):
                     skipped_offered += 1
                     continue
                 selected.append(event)
@@ -507,7 +508,7 @@ class V5DiscoveryPipeline:
                     continue
                 if len(selected) >= OFFER_BATCH:
                     break
-                if offered.already(event):
+                if offered.already(event, site_id=offer_site):
                     skipped_offered += 1
                     continue
                 backfill_considered += 1

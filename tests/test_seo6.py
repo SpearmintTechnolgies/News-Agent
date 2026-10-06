@@ -105,6 +105,51 @@ def test_load_site_index_falls_back_to_stale_cache(tmp_path):
     assert [p.url for p in again.posts] == [p.url for p in first.posts]
 
 
+def test_a_flat_sitemap_keeps_recent_posts_the_file_does_not_list():
+    def get(url, params=None):
+        if url.endswith("/sitemap_index.xml"):
+            return _Resp("<html>missing</html>", status_code=404)
+        if url.endswith("/sitemap.xml"):
+            return _Resp(
+                f"<urlset><url><loc>{BASE}/old-bitcoin-note/</loc><lastmod>2024-01-01</lastmod></url></urlset>"
+            )
+        if url.endswith("/post-sitemap.xml") or url.endswith("/wp-sitemap.xml"):
+            return _Resp("", status_code=404)
+        if url.endswith("/wp-json/wp/v2/posts"):
+            return _Resp(data=[{
+                "link": f"{BASE}/bitcoin-etf-inflow-streak/",
+                "title": {"rendered": "Bitcoin ETF Inflow Streak Reaches Five Days"},
+                "modified": "2026-10-01T00:00:00",
+            }])
+        raise AssertionError(url)
+
+    index = fetch_site_index(BASE, http_get=get)
+    recent = next(post for post in index.posts if post.slug == "bitcoin-etf-inflow-streak")
+    assert recent.lastmod.startswith("2026-10-01")
+    _body, plan = plan_and_apply(_article(), index)
+    urls = {link["url"] for link in plan.inline} | {item["url"] for item in plan.related}
+    assert f"{BASE}/bitcoin-etf-inflow-streak/" in urls
+    assert f"{BASE}/old-bitcoin-note/" not in urls
+
+
+def test_another_sites_index_is_not_reused(tmp_path):
+    import json
+
+    cache = tmp_path / "index.json"
+    cache.write_text(json.dumps({
+        "base_url": "https://other.test",
+        "fetched_at": 9_999_999_999,
+        "posts": [{"url": "https://other.test/a/", "slug": "a", "title": "Other", "lastmod": "2026-10-01"}],
+    }), encoding="utf-8")
+
+    def down(url, params=None):
+        raise OSError("site down")
+
+    index = load_site_index(BASE, cache_path=cache, http_get=down)
+    assert index.base_url == BASE
+    assert index.posts == []
+
+
 def test_links_only_relevant_posts_with_unique_anchors():
     body, plan = plan_and_apply(_article(), _index())
     urls = {link["url"] for link in plan.inline} | {r["url"] for r in plan.related}

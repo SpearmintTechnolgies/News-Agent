@@ -47,3 +47,22 @@ def test_next_batch_keeps_stories_that_were_not_offered(tmp_path):
     fresh = _event("Story 10", "https://news.example/10")
     assert len(skipped) == 10
     assert not later.already(fresh)
+
+
+def test_a_story_offered_on_one_website_is_still_offered_on_another(tmp_path):
+    from newsagent_v2.control.sites import COIN_NETWORK_SITE_ID
+
+    store = OfferedStories([], path=tmp_path / "offered.json")
+    story = _event("Bitcoin tests $87,363 resistance", "https://news.example/btc")
+    store.remember([story], site_id=COIN_NETWORK_SITE_ID)
+    store.records.append({
+        "title": "legacy coin network headline",
+        "urls": ["https://news.example/legacy"],
+        "offered_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    assert store.already(story, site_id=COIN_NETWORK_SITE_ID)
+    assert not store.already(story, site_id="318215a2")
+    legacy = _event("legacy coin network headline", "https://news.example/legacy")
+    assert store.already(legacy, site_id=COIN_NETWORK_SITE_ID)
+    assert not store.already(legacy, site_id="318215a2")

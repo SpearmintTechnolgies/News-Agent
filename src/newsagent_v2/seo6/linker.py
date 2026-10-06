@@ -33,7 +33,7 @@ GENERIC_TERMS = frozenset("crypto cryptocurrency bitcoin btc market markets pric
 # Real English words that show up in titles without meaning the same story.
 WEAK_TERMS = frozenset(
     "holding hold boost double strategy spend plan look rise fall company share stock report update "
-    "reach file under owner after next test may can role exchange".split()
+    "reach file under owner after next test may can role exchange short long term terms high low".split()
 )
 TREND_DAYS = 120
 
@@ -208,9 +208,16 @@ def _anchor_in(paragraph: str, post: SitePost, idf: dict[str, float]) -> tuple[i
             stem = _stem(words[j].group())
             if stem in target:
                 content += 1
-                specific = specific or stem not in GENERIC_TERMS
+                specific = specific or (stem not in GENERIC_TERMS and stem not in WEAK_TERMS)
                 weight += idf.get(stem, 1.0) * (0.3 if stem in GENERIC_TERMS else 1.0)
-                if content >= 2 and specific and (best is None or weight > best[2]):
+                is_strong_entity = (
+                    content == 1
+                    and specific
+                    and len(words[i].group()) >= 4
+                    and words[i].group()[0].isupper()
+                    and idf.get(stem, 1.0) >= 0.35
+                )
+                if (content >= 2 and specific or is_strong_entity) and (best is None or weight > best[2]):
                     best = (first.start(), words[j].end(), weight)
             elif stem not in STOPWORDS:
                 break
@@ -229,8 +236,9 @@ def plan_and_apply(article: dict[str, Any], index: SiteIndex) -> tuple[str, Link
     plan = LinkPlan()
     if not index.posts:
         return body, plan
-    ranked = rank_related(article, index)[:TARGET_LINKS]
-    plan.candidates = [{"url": r["post"].url, "title": r["post"].label, "score": r["score"]} for r in ranked]
+    ranked = rank_related(article, index, limit=15)
+    candidates = ranked[:TARGET_LINKS]
+    plan.candidates = [{"url": r["post"].url, "title": r["post"].label, "score": r["score"]} for r in candidates]
     if ranked and ranked[0]["headline_overlap"] >= DUPLICATE_SHARE:
         top = ranked[0]["post"]
         plan.possible_duplicate = {"url": top.url, "title": top.label}

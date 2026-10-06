@@ -37,6 +37,24 @@ def test_list_keeps_bylines_and_drops_subscribers():
     assert [author.name for author in authors] == ["Ada Stone"]
 
 
+def test_public_users_fill_in_when_the_author_query_is_empty():
+    calls: list[str] = []
+
+    def transport(method, url, **kwargs):
+        calls.append(url)
+        if "who=authors" in url:
+            return {"ok": True, "payload": []}
+        return {"ok": True, "payload": [
+            {"id": 19, "name": "Desk Editor", "slug": "desk"},
+            {"id": 8, "name": "Reader", "roles": ["subscriber"]},
+        ]}
+
+    authors = list_site_authors(_config(), transport)
+    assert [author.name for author in authors] == ["Desk Editor"]
+    assert any("who=authors" in url for url in calls)
+    assert any("who=authors" not in url and url.endswith("per_page=100") for url in calls)
+
+
 def test_story_choice_overrides_the_default(tmp_path: Path):
     path = tmp_path / "author.json"
     remember_default(SiteAuthor(4, "Ada Stone"), path)
