@@ -20,6 +20,12 @@ from newsagent_v2.image.providers.nova_proxy import (
     ENV_MODEL,
     NOVA_BEDROCK_MODEL_ID,
     PROMPT_CHAR_LIMIT,
+    PROMPT_TIER_GENERIC,
+    PROMPT_TIER_STORY,
+    classify_nova_http_error,
+    detect_story_themes,
+    nova_filter_stage,
+    sanitize_nova_text,
     NovaConfigError,
     NovaHttpResponse,
     NovaProxyImageProvider,
@@ -73,6 +79,16 @@ def _nova_ok():
         "created": 1,
         "data": [{"b64_json": base64.b64encode(_png_bytes()).decode("ascii")}],
     })
+
+
+INPUT_FILTER_MSG = (
+    'Nova image HTTP 400: {"message":"This request has been blocked by our content filters. '
+    'Please adjust your text prompt to submit a new request."}'
+)
+
+
+def _nova_blocked():
+    return _json_response(NovaHttpResponse, 400, {"error": {"message": INPUT_FILTER_MSG}})
 
 
 def _vertex_ok():
@@ -238,6 +254,8 @@ def test_daily_budget_exhausted_skips_vertex_and_uses_nova(harness, tmp_path: Pa
     files = _bundle_files(result)
     assert files["article_link.json"]["image_provider"] == "nova"
     assert files["article_link.json"]["fallback_reason"] == "daily_budget_exhausted"
+    assert files["article_link.json"]["nova_prompt_tier"] == PROMPT_TIER_STORY
+    assert result["nova_prompt_tier"] == PROMPT_TIER_STORY
     assert files["provider_result.json"]["provider_name"] == "nova"
     assert files["image_freeze.json"]["provider"] == "nova"
     ledger = VertexBudgetLedger(root=tmp_path / "budget", environ=env, batch_id="test-batch")
@@ -258,7 +276,8 @@ def test_vertex_429_falls_back_to_nova_once(harness, tmp_path: Path):
     assert result["vertex_request_count"] == 1 and result["nova_request_count"] == 1
     ledger = VertexBudgetLedger(root=tmp_path / "budget", environ=env, batch_id="test-batch")
     assert ledger.daily_calls_used() == 1  # only the real Vertex attempt
-    runs = {p.name.rsplit("-", 1)[-1]: p for p in (tmp_path / "make_runs").iterdir()}
+    runs = {("nova" if "-nova-" in p.name else p.name.rsplit("-", 1)[-1]): p
+            for p in (tmp_path / "make_runs").iterdir()}
     assert sorted(runs) == ["nova", "vertex"]
     vertex_receipt = json.loads((runs["vertex"] / "provider_result.json").read_text(encoding="utf-8"))
     assert vertex_receipt["failure_reason"] == "vertex_rate_limited"
@@ -308,4 +327,108 @@ def test_nova_failure_reports_both_codes(harness):
     assert result["success"] is False
     assert result["image_failure_code"].startswith("VERTEX_DAILY_BUDGET_EXHAUSTED; nova fallback failed:")
     assert result["nova_failure_code"] == "nova_http_error"
+    assert len(nova_tx.calls) == 1
+
+
+# ----- content-filter handling --------------------------------------------------------------
+
+WINKLEVOSS_BRIEF = {
+    "primary_subject": "Winklevoss Twins Propose Low-Fee Spot Zcash ETF at Token2049",
+    "event": "Winklevoss Twins Propose Low-Fee Spot Zcash ETF at Token2049",
+    "source_headline": "Winklevoss Twins Propose Low-Fee Spot Zcash ETF at Token2049",
+    "source_dek_truncated": (
+        "Tyler and Cameron Winklevoss presented plans for a spot Zcash ETF at Token2049, "
+        "aiming to challenge Grayscale's existing product with lower fees."
+    ),
+}
+
+
+def test_nova_prompt_never_copies_names_brands_or_tickers():
+    for tier in (PROMPT_TIER_STORY, PROMPT_TIER_GENERIC):
+        prompt = build_nova_prompt(WINKLEVOSS_BRIEF, category="ETF News", tier=tier)
+        low = prompt.lower()
+        for banned in ("winklevoss", "tyler", "cameron", "zcash", "token2049", "grayscale", "etf"):
+            assert banned not in low, (tier, banned, prompt)
+        assert len(prompt) <= PROMPT_CHAR_LIMIT
+    story = build_nova_prompt(WINKLEVOSS_BRIEF, category="ETF News")
+    assert "trading desk" in story and "privacy" in story
+    assert detect_story_themes("Hackers drain $40M from lender after exploit")[0] == "security"
+    assert detect_story_themes("SEC sues exchange over unregistered securities")[0] == "regulation"
+    generic_sec = build_nova_prompt({"source_headline": "Hackers drain bridge in exploit"}, tier=PROMPT_TIER_GENERIC)
+    assert "padlock" in generic_sec and "hack" not in generic_sec.lower()
+    cleaned = sanitize_nova_text('The Winklevoss Twins said "we will win" about $ZEC with BlackRock and NYSE.')
+    for banned in ("Winklevoss", "we will win", "ZEC", "BlackRock", "NYSE"):
+        assert banned not in cleaned
+
+
+def test_nova_safety_classification_is_specific():
+    assert classify_nova_http_error(400, INPUT_FILTER_MSG) == "nova_safety_block"
+    assert nova_filter_stage(INPUT_FILTER_MSG) == "input"
+    out_msg = "All of the generated images have been blocked by our content filters."
+    assert classify_nova_http_error(400, out_msg) == "nova_safety_block"
+    assert nova_filter_stage(out_msg) == "output"
+    # Other 4xx are request errors, even with words like "blocked" or "policy".
+    assert classify_nova_http_error(400, "ValidationException: size must be a multiple of 16") == "nova_bad_request"
+    assert classify_nova_http_error(400, "Request blocked: invalid parameter policy") == "nova_bad_request"
+    assert classify_nova_http_error(403, INPUT_FILTER_MSG) == "nova_auth_error"
+    assert classify_nova_http_error(500, INPUT_FILTER_MSG) == "nova_http_error"
+
+
+def test_safety_block_then_generic_prompt_succeeds(harness, tmp_path: Path):
+    env = _env(NEWSAGENT_V2_MAX_VERTEX_CALLS_PER_DAY="0")
+    fn, vertex_tx, nova_tx = harness(env, [], [_nova_blocked(), _nova_ok()])
+    result = fn(_job("evt-novaretry"))
+    assert result["success"] is True, result
+    assert result["provider"] == "nova" and result["nova_prompt_tier"] == PROMPT_TIER_GENERIC
+    assert result["fallback_reason"] == "daily_budget_exhausted"
+    assert [a["tier"] for a in result["nova_attempts"]] == [PROMPT_TIER_STORY, PROMPT_TIER_GENERIC]
+    assert result["nova_attempts"][0]["code"] == "nova_safety_block"
+    assert result["image_request_count"] == 2 and result["nova_request_count"] == 2
+    assert vertex_tx.calls == [] and len(nova_tx.calls) == 2
+    first, second = (c["json_body"]["prompt"] for c in nova_tx.calls)
+    assert first != second and "Abstract" in second
+    files = _bundle_files(result)
+    assert files["article_link.json"]["nova_prompt_tier"] == PROMPT_TIER_GENERIC
+    assert files["image_freeze.json"]["nova_prompt_tier"] == PROMPT_TIER_GENERIC
+    blocked_dir = Path(result["nova_attempts"][0]["bundle_dir"])
+    blocked = json.loads((blocked_dir / "provider_result.json").read_text(encoding="utf-8"))
+    diag = blocked["provider_reported_usage"]["_safe_response_diagnostic"]
+    assert blocked["failure_reason"] == "nova_safety_block"
+    assert diag["content_filter_stage"] == "input" and diag["prompt_sent"] == first
+    ledger = VertexBudgetLedger(root=tmp_path / "budget", environ=env, batch_id="test-batch")
+    assert ledger.daily_calls_used() == 0
+    _assert_no_key_on_disk(tmp_path)
+
+
+def test_both_nova_prompts_blocked_gives_clean_error(harness):
+    env = _env(NEWSAGENT_V2_MAX_VERTEX_CALLS_PER_DAY="0")
+    fn, vertex_tx, nova_tx = harness(env, [], [_nova_blocked(), _nova_blocked()])
+    result = fn(_job("evt-novablock2"))
+    assert result["success"] is False
+    assert result["image_failure_code"] == (
+        "VERTEX_DAILY_BUDGET_EXHAUSTED; nova fallback failed: nova_safety_block (story_scene, category_generic)"
+    )
+    assert result["nova_failure_code"] == "nova_safety_block"
+    assert len(nova_tx.calls) == 2  # never a third call
+
+
+def test_vertex_429_then_nova_block_then_generic(harness, tmp_path: Path):
+    env = _env()
+    fn, vertex_tx, nova_tx = harness(env, [_vertex_429()], [_nova_blocked(), _nova_ok()])
+    result = fn(_job("evt-nova429b"))
+    assert result["success"] is True, result
+    assert result["fallback_reason"] == "vertex_rate_limited"
+    assert result["nova_prompt_tier"] == PROMPT_TIER_GENERIC
+    assert result["vertex_request_count"] == 1 and result["nova_request_count"] == 2
+    assert result["image_request_count"] == 3
+    ledger = VertexBudgetLedger(root=tmp_path / "budget", environ=env, batch_id="test-batch")
+    assert ledger.daily_calls_used() == 1
+
+
+def test_non_safety_nova_error_is_not_retried(harness):
+    env = _env(NEWSAGENT_V2_MAX_VERTEX_CALLS_PER_DAY="0")
+    bad = _json_response(NovaHttpResponse, 400, {"error": {"message": "ValidationException: bad size"}})
+    fn, vertex_tx, nova_tx = harness(env, [], [bad])
+    result = fn(_job("evt-novabad"))
+    assert result["success"] is False and result["nova_failure_code"] == "nova_bad_request"
     assert len(nova_tx.calls) == 1

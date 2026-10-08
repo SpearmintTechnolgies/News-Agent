@@ -15,7 +15,9 @@ Config failures must leave budget reservations at 0.
 Nova fallback (NEWSAGENT_V2_NOVA_FALLBACK_ENABLED, default on):
   - daily Vertex budget exhausted -> skip Vertex, one Nova Canvas call
   - Vertex rejected for rate limit / quota (429, RESOURCE_EXHAUSTED) -> one Nova call
-  Safety blocks, prompt errors and config/auth failures never fall back.
+  Nova prompt is brand/name-free (story_scene tier). If Nova's content filter blocks it,
+  one more call with a very safe generic prompt (category_generic tier). Max 2 Nova calls.
+  Vertex safety blocks, prompt errors and config/auth failures never fall back.
   Nova calls do not touch the Vertex budget ledger counters.
 """
 
@@ -36,6 +38,8 @@ from newsagent_v2.image.contract import CARD_HEIGHT, CARD_WIDTH
 from newsagent_v2.image.provider import canonical_provider_request
 from newsagent_v2.image.providers.nova_proxy import (
     NOVA_BEDROCK_MODEL_ID,
+    PROMPT_TIER_GENERIC,
+    PROMPT_TIER_STORY,
     NovaConfigError,
     NovaProxyImageProvider,
     build_nova_prompt,
@@ -289,10 +293,12 @@ def build_vertex_make_image_fn(
             model: str,
             region: str | None,
             fallback_reason: str | None = None,
+            prompt_tier: str | None = None,
         ) -> dict[str, Any]:
             # One provider attempt: brief -> generate -> validate -> brand -> freeze record.
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            bundle_dir = MAKE_RUNS_ROOT / f"{event_id}-{stamp}-{label}"
+            tag = f"{label}-{prompt_tier}" if prompt_tier else label
+            bundle_dir = MAKE_RUNS_ROOT / f"{event_id}-{stamp}-{tag}"
             raw_dir = bundle_dir / "raw"
             final_dir = bundle_dir / "final"
             raw_dir.mkdir(parents=True, exist_ok=True)
@@ -318,12 +324,19 @@ def build_vertex_make_image_fn(
             if fallback_reason:
                 link["fallback_from"] = "vertex"
                 link["fallback_reason"] = fallback_reason
+            if prompt_tier:
+                link["nova_prompt_tier"] = prompt_tier
             write_json_utf8(bundle_dir / "article_link.json", link)
 
             request = canonical_provider_request(visual)
             if label == "nova":
-                # Nova Canvas: text-to-image only, prompt <= 1024 chars, positive phrasing.
-                request.prompt = build_nova_prompt(story_brief, request.prompt)
+                # Nova Canvas: text-to-image only, <= 1024 chars, no names/brands/tickers/quotes.
+                request.prompt = build_nova_prompt(
+                    story_brief,
+                    "",
+                    category=str(article.get("category") or getattr(visual, "story_category", "") or ""),
+                    tier=prompt_tier or PROMPT_TIER_STORY,
+                )
             if hasattr(gen_provider, "recorded_request"):
                 write_json_utf8(
                     bundle_dir / "provider_request_metadata.json",
@@ -355,6 +368,8 @@ def build_vertex_make_image_fn(
             extra_out: dict[str, Any] = {}
             if fallback_reason:
                 extra_out = {"fallback_from": "vertex", "fallback_reason": fallback_reason}
+            if prompt_tier:
+                extra_out["nova_prompt_tier"] = prompt_tier
 
             if not result.success or not result.raw_image_path:
                 return {
@@ -396,6 +411,8 @@ def build_vertex_make_image_fn(
                     "image_failure_code": "raw_validation_failed",
                     "image_request_count": calls,
                     "bundle_dir": str(bundle_dir),
+                    "provider": label,
+                    **extra_out,
                 }
 
             card_raw = raw_dir / "artwork_1280x720.png"
@@ -467,7 +484,11 @@ def build_vertex_make_image_fn(
             }
 
         def _nova_fallback(reason: str) -> dict[str, Any]:
-            """Exactly one Nova attempt. Never reserves or counts Vertex budget."""
+            """Nova attempts never reserve or count Vertex budget.
+
+            Tier 1 (story_scene) once; only on a Nova content-filter block, tier 2
+            (category_generic) once. Max 2 Nova calls per image, no other retries.
+            """
             logger.warning("image_fallback vertex->nova reason=%s event=%s", reason, event_id)
             try:
                 nova_config = load_nova_proxy_config(environ)
@@ -483,32 +504,50 @@ def build_vertex_make_image_fn(
                     "fallback_from": "vertex",
                     "fallback_reason": reason,
                 }
-            nova = (
-                nova_provider_factory(nova_config)
-                if nova_provider_factory is not None
-                else NovaProxyImageProvider(nova_config)
-            )
-            out = _run_provider(
-                nova,
-                label="nova",
-                model=NOVA_BEDROCK_MODEL_ID,
-                region=None,
-                fallback_reason=reason,
-            )
-            logger.warning(
-                "image_fallback nova result=%s event=%s latency_ms=%s code=%s",
-                "ok" if out.get("success") else "failed",
-                event_id,
-                out.get("latency_ms"),
-                out.get("image_failure_code"),
-            )
+            attempts: list[dict[str, Any]] = []
+            out: dict[str, Any] = {}
+            for tier in (PROMPT_TIER_STORY, PROMPT_TIER_GENERIC):
+                nova = (
+                    nova_provider_factory(nova_config)
+                    if nova_provider_factory is not None
+                    else NovaProxyImageProvider(nova_config)
+                )
+                out = _run_provider(
+                    nova,
+                    label="nova",
+                    model=NOVA_BEDROCK_MODEL_ID,
+                    region=None,
+                    fallback_reason=reason,
+                    prompt_tier=tier,
+                )
+                code = out.get("image_failure_code")
+                attempts.append({"tier": tier, "success": bool(out.get("success")), "code": code,
+                                 "bundle_dir": out.get("bundle_dir")})
+                logger.warning(
+                    "image_fallback nova attempt=%s tier=%s result=%s event=%s latency_ms=%s code=%s",
+                    len(attempts),
+                    tier,
+                    "ok" if out.get("success") else "failed",
+                    event_id,
+                    out.get("latency_ms"),
+                    code,
+                )
+                if out.get("success") or code != "nova_safety_block":
+                    break
+            out["nova_attempts"] = attempts
+            out["image_request_count"] = len(attempts)
+            if not out.get("success") and len(attempts) > 1:
+                out["image_failure_code"] = (
+                    f"{out.get('image_failure_code')} ({', '.join(a['tier'] for a in attempts)})"
+                )
             return out
 
         def _combined_failure(vertex_code: str, nova_out: dict[str, Any]) -> dict[str, Any]:
             nova_code = str(nova_out.get("image_failure_code") or nova_out.get("reason") or "nova_failed")
+            nova_out = dict(nova_out)
+            nova_out.setdefault("nova_failure_code", nova_code.split(" ", 1)[0])
             out = dict(nova_out)
             out["vertex_failure_code"] = vertex_code
-            out["nova_failure_code"] = nova_code
             out["image_failure_code"] = f"{vertex_code}; nova fallback failed: {nova_code}"
             out["reason"] = out["image_failure_code"]
             return out
@@ -543,7 +582,7 @@ def build_vertex_make_image_fn(
         ):
             return guarded
 
-        # Daily Vertex cap reached: skip Vertex entirely, one Nova call, no budget reservation.
+        # Daily Vertex cap reached: skip Vertex entirely, Nova (max 2 calls), no budget reservation.
         nova_out = _nova_fallback(FALLBACK_DAILY_BUDGET)
         nova_out.setdefault("event_id", event_id)
         nova_out["canonical_article_hash"] = article_hash

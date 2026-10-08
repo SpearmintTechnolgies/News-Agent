@@ -128,36 +128,187 @@ def fit_nova_prompt(prompt: str, limit: int = PROMPT_CHAR_LIMIT) -> str:
     return (head[:space] if space > 0 else head).rstrip(" ,;:-")
 
 
-def build_nova_prompt(story_brief: Mapping[str, Any] | None, fallback_prompt: str = "") -> str:
-    """Short, positive-phrased hero-image prompt for Nova Canvas (<= 1024 chars).
+PROMPT_TIER_STORY = "story_scene"
+PROMPT_TIER_GENERIC = "category_generic"
+PROMPT_TIERS = (PROMPT_TIER_STORY, PROMPT_TIER_GENERIC)
 
-    Nova follows positive descriptions best; the long Vertex prompt is mostly
-    "do not render X" clauses and is over Nova's limit.
-    """
-    brief = story_brief or {}
-    subject = " ".join(str(brief.get("primary_subject") or "").split())[:200]
-    event = " ".join(str(brief.get("event") or "").split())[:200]
-    if not subject:
-        return fit_nova_prompt(fallback_prompt or "Premium financial-news editorial photograph.")
-    parts = [
-        "Premium financial-news editorial photograph, professional crypto and business newsroom hero image, wide 16:9 landscape.",
-        f"Story subject: {subject}.",
-    ]
-    if event and event.lower() != subject.lower():
-        parts.append(f"Event: {event}.")
-    objects = [str(o) for o in (brief.get("important_objects") or []) if o][:5]
-    if objects:
-        parts.append("Include: " + "; ".join(objects) + ".")
-    location = brief.get("location_if_supported")
-    if location:
-        parts.append(f"Setting: {location}.")
-    parts.append(
-        "One clear focal subject, clean institutional composition, strong depth, cinematic "
-        "news-feature lighting, serious and restrained mood, realistic textures, generic "
-        "unnamed people only. Clean open space in the top-right corner. Pure imagery, "
-        "textless surfaces, blank screens."
+# Story themes, detected from headline / dek / category. Only the fixed scene text on the
+# right ever reaches Nova: no headline words, so no real people, companies, brands,
+# tickers, logos or quoted text. Order is priority; at most two themes are combined.
+_THEMES: tuple[tuple[str, re.Pattern[str], str], ...] = tuple(
+    (name, re.compile(pattern, re.I), scene)
+    for name, pattern, scene in (
+        (
+            "security",
+            r"\b(hack\w*|exploit\w*|breach\w*|stole\w*|steal\w*|drain\w*|attack\w*|heist|phish\w*|"
+            r"scam\w*|fraud\w*|launder\w*|vulnerab\w*|rug ?pull\w*|theft|compromis\w*)\b",
+            "a glowing digital padlock floating above a dark network of connected nodes, cybersecurity concept",
+        ),
+        (
+            "regulation",
+            r"\b(sec|cftc|regulat\w*|law|laws|legislat\w*|bill|bills|senate|congress\w*|court\w*|judge\w*|"
+            r"lawsuit\w*|ruling\w*|polic(y|ies)|complian\w*|mica|ban|bans|banned|tax\w*|government\w*|"
+            r"treasury|lawmaker\w*|regulator\w*|approv\w*)\b",
+            "a classical stone government building with tall columns at dusk, warm light, calm civic atmosphere",
+        ),
+        (
+            "etf",
+            r"\b(etfs?|etps?|funds?|asset managers?|issuers?|inflows?|outflows?|filings?|spot product)\b",
+            "a modern trading desk with several large monitors showing abstract glowing line charts, "
+            "institutional investment atmosphere",
+        ),
+        (
+            "privacy",
+            r"\b(privacy|private|zcash|zec|monero|xmr|zero[- ]knowledge|zk\w*|shielded|anonym\w*)\b",
+            "streams of softly glowing encrypted data flowing through translucent shields, digital privacy concept",
+        ),
+        (
+            "mining",
+            r"\b(min(ing|er|ers)|hash ?rate|halving)\b",
+            "long rows of computer mining rigs with small blinking lights inside a cool blue data center",
+        ),
+        (
+            "payments",
+            r"\b(stablecoins?|payments?|remittances?|cbdcs?|digital dollar)\b",
+            "a sleek contactless payment terminal beside a smartphone on a clean desk, digital payments concept",
+        ),
+        (
+            "meme",
+            r"\b(memes?|memecoins?|doge\w*|shiba\w*|pepe|floki|bonk)\b",
+            "a friendly shiba inu dog sitting calmly beside a small stack of shiny golden coins, soft studio light",
+        ),
+        (
+            "network",
+            r"\b(defi|decentrali\w*|lending|liquidity|staking|yield|dex|protocols?|layer[- ]?(2|two)|"
+            r"blockchains?|upgrades?|mainnet|testnet|smart contracts?)\b",
+            "an abstract three-dimensional web of glowing connected blocks and nodes, decentralized network concept",
+        ),
+        (
+            "ai",
+            r"\b(ai|artificial intelligence|machine learning|agents?)\b",
+            "an abstract neural network made of soft light inside a modern server room",
+        ),
+        (
+            "conference",
+            r"\b(conferences?|summits?|forums?|expo|keynotes?|token2049|consensus|devcon)\b",
+            "a modern conference stage with large blank screens and softly lit audience silhouettes",
+        ),
+        (
+            "markets",
+            r"\b(prices?|rall\w*|surg\w*|jump\w*|climb\w*|gain\w*|drop\w*|fall\w*|slump\w*|crash\w*|"
+            r"plung\w*|record|highs?|lows?|markets?|trad(e|es|ing|ers?)|volatil\w*|liquidat\w*|bull\w*|bear\w*)\b",
+            "large blank trading screens with abstract glowing candlestick charts in a dim modern trading room",
+        ),
+        (
+            "crypto",
+            r"\b(bitcoin|btc|ethereum|eth|crypto\w*|tokens?|coins?|altcoins?|xrp|solana|wallets?|exchanges?)\b",
+            "a single polished golden cryptocurrency coin with an abstract circuit pattern on a dark reflective surface",
+        ),
     )
-    return fit_nova_prompt(" ".join(parts))
+)
+
+_GENERIC_SCENES = {
+    "security": (
+        "Abstract digital art of a glowing geometric padlock shape made of blue light on a dark gradient "
+        "background, soft floating particles, clean minimal modern style, wide 16:9 landscape."
+    ),
+    "regulation": (
+        "Abstract digital art of balanced geometric shapes and soft light beams on a dark blue gradient "
+        "background, calm and orderly, clean minimal modern style, wide 16:9 landscape."
+    ),
+    "default": (
+        "Abstract visualization of digital market data: flowing glowing blue and teal lines, soft light "
+        "particles and gentle bokeh on a dark gradient background, clean minimal modern style, wide 16:9 landscape."
+    ),
+}
+
+_STORY_STYLE = (
+    "Single clear focal point, clean uncluttered composition, strong depth of field, cinematic soft lighting, "
+    "serious and calm mood, realistic textures, muted blue and teal palette with warm accents. "
+    "Open empty space in the top-right corner. Imagery only, plain unmarked surfaces."
+)
+
+# Safety net for any free text: names, brands, tickers and quotes are removed.
+_BRAND_TERMS = (
+    "binance", "coinbase", "okx", "kraken", "bybit", "bitget", "kucoin", "gemini", "robinhood", "blackrock",
+    "fidelity", "grayscale", "vanguard", "invesco", "franklin templeton", "ark invest", "bitwise", "vaneck",
+    "nyse", "nasdaq", "cme", "jpmorgan", "goldman sachs", "morgan stanley", "citi", "hsbc", "visa", "mastercard",
+    "paypal", "tether", "circle", "ripple", "microstrategy", "tesla", "metamask", "uniswap", "opensea",
+    "federal reserve", "the fed", "white house", "token2049",
+)
+_QUOTED_RE = re.compile(r"[\"\u201c\u201d][^\"\u201c\u201d]{0,200}[\"\u201c\u201d]|'[^']{2,80}'|\u2018[^\u2019]{0,200}\u2019")
+_TICKER_RE = re.compile(r"\$[A-Za-z]{2,10}\b|\b[A-Z]{2,6}\b")
+_BRAND_RE = re.compile(r"\b(" + "|".join(re.escape(t) for t in _BRAND_TERMS) + r")\b", re.I)
+# Two or more consecutive Capitalised words that are not sentence-initial (likely a proper name).
+_PROPER_RE = re.compile(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b")
+
+
+def sanitize_nova_text(text: str) -> str:
+    """Remove quoted text, tickers, known brand/organisation names and multi-word proper names."""
+    out = _QUOTED_RE.sub(" ", str(text or ""))
+    out = _BRAND_RE.sub(" ", out)
+    out = _TICKER_RE.sub(" ", out)
+    out = _PROPER_RE.sub(" ", out)
+    out = re.sub(r"\s+([,.;:])", r"\1", " ".join(out.split()))
+    return out.strip()
+
+
+def detect_story_themes(*texts: str, limit: int = 2) -> list[str]:
+    blob = " ".join(str(t or "") for t in texts)
+    found = [name for name, pattern, _scene in _THEMES if pattern.search(blob)]
+    return found[:limit]
+
+
+def _theme_scene(name: str) -> str:
+    for theme, _pattern, scene in _THEMES:
+        if theme == name:
+            return scene
+    return ""
+
+
+def _story_texts(story_brief: Mapping[str, Any] | None, category: str | None, extra: str = "") -> list[str]:
+    brief = story_brief or {}
+    return [
+        str(brief.get("source_headline") or brief.get("primary_subject") or ""),
+        str(brief.get("event") or ""),
+        str(brief.get("source_dek_truncated") or ""),
+        str(category or ""),
+        extra,
+    ]
+
+
+def build_nova_prompt(
+    story_brief: Mapping[str, Any] | None,
+    fallback_prompt: str = "",
+    *,
+    category: str | None = None,
+    tier: str = PROMPT_TIER_STORY,
+) -> str:
+    """Nova Canvas prompt (<= 1024 chars) built only from fixed, brand-free scene text.
+
+    The story's headline, dek and category are used to *choose* a generic editorial scene
+    (ETF, regulation, privacy, security, markets, ...). None of their words are copied in,
+    because Nova's input filter blocks real people, companies, brands, logos and some
+    finance/crime words. The Coin Network logo is added later by the compositor.
+
+    tier=story_scene: topic scene for this story.
+    tier=category_generic: very safe abstract image for the story's broad category
+    (used once after a story_scene safety block).
+    """
+    themes = detect_story_themes(*_story_texts(story_brief, category, fallback_prompt))
+    if tier == PROMPT_TIER_GENERIC:
+        key = "security" if "security" in themes else "regulation" if "regulation" in themes else "default"
+        return fit_nova_prompt(sanitize_nova_text(_GENERIC_SCENES[key]))
+    if not themes:
+        themes = ["crypto"]
+    parts = [
+        "Premium editorial news photograph for a financial news website, wide 16:9 landscape.",
+        f"Scene: {_theme_scene(themes[0])}.",
+    ]
+    if len(themes) > 1:
+        parts.append(f"Secondary element: {_theme_scene(themes[1])}.")
+    parts.append(_STORY_STYLE)
+    return fit_nova_prompt(sanitize_nova_text(" ".join(parts)))
 
 
 class NovaHttpResponse:
@@ -209,7 +360,18 @@ def _error_message(payload: Any, text: str) -> str:
     return " ".join(str(text or "").split())[:300]
 
 
-_SAFETY_RE = re.compile(r"content filter|filtered|safety|blocked|responsible ai|moderation|policy", re.I)
+# Nova / Bedrock content-filter wording, e.g.
+#   input:  "This request has been blocked by our content filters. Please adjust your text prompt..."
+#   output: "All of the generated images have been blocked by our content filters..."
+_SAFETY_RE = re.compile(r"content filters?|responsible ai|blocked by (our|the) (content|safety)", re.I)
+_OUTPUT_FILTER_RE = re.compile(r"generated images? (has|have) been blocked|all of the generated", re.I)
+
+
+def nova_filter_stage(message: str) -> str | None:
+    """'input' or 'output' for a content-filter message, else None."""
+    if not _SAFETY_RE.search(str(message or "")):
+        return None
+    return "output" if _OUTPUT_FILTER_RE.search(str(message or "")) else "input"
 
 
 def classify_nova_http_error(status: int | None, message: str) -> str:
@@ -220,7 +382,8 @@ def classify_nova_http_error(status: int | None, message: str) -> str:
         return "nova_rate_limited"
     if status == 404:
         return "nova_model_not_found"
-    if status is not None and 400 <= status < 500 and _SAFETY_RE.search(blob):
+    # Only Bedrock's content-filter wording is a safety block; other 4xx are request errors.
+    if status is not None and 400 <= status < 500 and nova_filter_stage(message):
         return "nova_safety_block"
     if status is not None and 400 <= status < 500:
         return "nova_bad_request"
@@ -349,6 +512,8 @@ class NovaProxyImageProvider(ImageProvider):
                 "http_status": status,
                 "response_content_type": content_type,
                 "safe_error_message": str(redact_secrets(message[:320], self.secrets())),
+                "content_filter_stage": nova_filter_stage(message),
+                "prompt_sent": body["prompt"],
             }
             return self._failure(identity, cold_start, elapsed, status, request_id, reason, diagnostic=diagnostic)
 
