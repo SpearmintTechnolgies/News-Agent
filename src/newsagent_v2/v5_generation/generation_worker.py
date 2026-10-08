@@ -7,6 +7,7 @@ through the same path so every version the editor sees is a real, linked draft.
 
 from __future__ import annotations
 
+import contextvars
 import html
 import threading
 from dataclasses import asdict
@@ -141,8 +142,11 @@ class GenerationWorker:
             environ=self.environ,
         )
         if not delivery.get("ok"):
-            self.client.send_message(
-                chat_id=self.config.test_chat_id,
+            from newsagent_v2.telegram.operators import broadcast_message
+
+            broadcast_message(
+                self.client,
+                self.config,
                 text=f"❌ Review package delivery failed: {html.escape(str(delivery.get('error', 'unknown')))}",
                 parse_mode="HTML",
             )
@@ -332,7 +336,7 @@ class GenerationWorker:
             return {"ok": True, "job_id": running.job_id, "state": running.state, "new": False,
                     "message": f"Generation already {running.state.lower()}"}
         job = self._new_job(event.event_id, discovery_run_id or "")
-        threading.Thread(target=self.run_generation, args=(event, job), daemon=True).start()
+        threading.Thread(target=contextvars.copy_context().run, args=(self.run_generation, event, job), daemon=True).start()
         return {"ok": True, "job_id": job.job_id, "state": "RESERVED", "new": True, "message": "Generation started"}
 
     def start_revision(self, event_id: str, revision: Revision, headline: str = "") -> dict[str, Any]:
@@ -341,7 +345,7 @@ class GenerationWorker:
             return {"ok": False, "reason": "busy", "message": "This story is already being written; try again shortly."}
         event = self._load_event(event_id, headline)
         job = self._new_job(event_id)
-        threading.Thread(target=self.run_generation, args=(event, job, revision), daemon=True).start()
+        threading.Thread(target=contextvars.copy_context().run, args=(self.run_generation, event, job, revision), daemon=True).start()
         return {"ok": True, "job_id": job.job_id, "new": True}
 
     def apply_edit(self, event_id: str, article_version: str, image_version: str | None) -> dict[str, Any]:
@@ -351,7 +355,7 @@ class GenerationWorker:
         result = {"ok": True, "article_version": article_version, "image_version": image_version,
                   "event_id": event_id, "revision": True}
         threading.Thread(
-            target=self._finish_safely, args=(event, job, result), daemon=True
+            target=contextvars.copy_context().run, args=(self._finish_safely, event, job, result), daemon=True
         ).start()
         return {"ok": True, "job_id": job.job_id}
 
@@ -416,7 +420,7 @@ class GenerationWorker:
             finally:
                 GenerationWorker._batch_running = False
 
-        threading.Thread(target=_run, daemon=True, name="v6-auto-generate").start()
+        threading.Thread(target=contextvars.copy_context().run, args=(_run,), daemon=True, name="v6-auto-generate").start()
         return True
 
     def get_active_job_count(self) -> int:

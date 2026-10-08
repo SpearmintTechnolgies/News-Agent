@@ -49,7 +49,7 @@ from newsagent_v2.telegram.singleton import (
     SingletonError,
 )
 from newsagent_v2.telegram.config import CHAT_ENV, load_telegram_config
-from newsagent_v2.telegram.operators import broadcast_message
+from newsagent_v2.telegram.operators import broadcast_message, operator_ids, set_origin_chat
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.contract import SEND_TYPE_GET_UPDATES
 from newsagent_v2.telegram.live_transport import create_live_transport
@@ -539,12 +539,13 @@ def execute_make_with_acknowledgement(
     runtime.current_discovery_run_id = make_run_id
     log_event(f"[MAKE] accepted update_id={update_id} make_run_id={make_run_id}")
     
+    ack_targets = operator_ids(config) or (str(config.test_chat_id),)
     ack = MakeAcknowledgement(
         client=client,
-        chat_id=config.test_chat_id,
+        chat_id=ack_targets[0],
         update_id=update_id,
         make_run_id=make_run_id,
-        chat_ids=tuple(config.chat_ids),
+        chat_ids=ack_targets,
     )
     
     log_event("[MAKE] acknowledgement_sending...")
@@ -620,7 +621,7 @@ def execute_make_with_acknowledgement(
             created_at=datetime.now(timezone.utc).isoformat(),
             event_ids=all_event_ids,
             total_events=raw_count,
-            chat_id=config.test_chat_id,
+            chat_id=safe_get_chat_id(update) or config.test_chat_id,
         )
         persistent_store.save_discovery_run(discovery_run)
         log_event(f"[MAKE] persisted_discovery_run run_id={make_run_id} events={raw_count}")
@@ -1642,6 +1643,7 @@ def main() -> int:
 
                 # ROUTE BY UPDATE TYPE - wrapped in try/except to ensure errors don't cause replay
                 try:
+                    set_origin_chat("")
                     if is_callback_update(update):
                         # HANDLE CALLBACK
                         chat_id = safe_get_chat_id(update)
@@ -1650,6 +1652,7 @@ def main() -> int:
                                 log_event(f"[SKIP] wrong chat_id={chat_id}")
                             runtime.state.mark_update_processed(update_id)
                             continue
+                        set_origin_chat(chat_id)
 
                         execute_callback(
                             client=runtime.client,
@@ -1669,6 +1672,7 @@ def main() -> int:
                                 log_event(f"[SKIP] wrong chat_id={chat_id}")
                             runtime.state.mark_update_processed(update_id)
                             continue
+                        set_origin_chat(chat_id)
 
                         text = safe_get_message_text(update)
                         from newsagent_v2.control.sites import logo_step, onboarding_hides_text
@@ -1714,6 +1718,9 @@ def main() -> int:
                         cmd = cmd_token.split("@", 1)[0].lower()
                         cmd_key = cmd.strip("!.?,:;…")
                         bot_username = str(bot_info.get("username") or "")
+                        cmd_target = cmd_token.split("@", 1)[1].lower() if cmd_token.startswith("/") and "@" in cmd_token else ""
+                        if cmd_target and bot_username and cmd_target != bot_username.lower():
+                            cmd_key = ""  # /start@SomeOtherBot
 
                         def _reply(body: str) -> None:
                             send_result = runtime.client.send_message(
@@ -1882,6 +1889,8 @@ def main() -> int:
                     traceback.print_exc()
                     # Still mark as processed so we don't retry
                     runtime.state.mark_update_processed(update_id)
+                finally:
+                    set_origin_chat("")
             
         except KeyboardInterrupt:
             log_event("")
