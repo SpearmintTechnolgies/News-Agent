@@ -26,8 +26,8 @@ from newsagent_v2.image.validate import file_sha256, refuse_overwrite
 MARGIN = 48
 LOGO_MAX_HEIGHT = 56
 LOGO_MAX_WIDTH = 240
-LOGO_ONLY_MAX_HEIGHT = 40
-LOGO_ONLY_MAX_WIDTH = 168
+LOGO_ONLY_MAX_HEIGHT = 78
+LOGO_ONLY_MAX_WIDTH = 320
 GRADIENT_HEIGHT = 300
 HEADLINE_SIZE = 42
 HEADLINE_MIN_SIZE = 26
@@ -213,6 +213,32 @@ def _inside_safe(
     )
 
 
+def _readable_logo(logo: Image.Image) -> Image.Image:
+    """Keep brand colors, but make a faint wordmark solid on a dark plate.
+
+    Memecoinist is a white word plus a colored mark on a transparent field.
+    At partial alpha the white letters take on the photo behind them and vanish.
+    """
+    src = logo.convert("RGBA")
+    solid: list[tuple[int, int, int, int]] = []
+    for r, g, b, a in src.getdata():
+        if a < 28:
+            solid.append((0, 0, 0, 0))
+            continue
+        solid.append((r, g, b, 255 if a >= 80 else min(255, a * 3)))
+    mark = Image.new("RGBA", src.size)
+    mark.putdata(solid)
+    pad = 10
+    plate_alpha = mark.getchannel("A").point(lambda value: 220 if value > 16 else 0)
+    plate_alpha = plate_alpha.filter(ImageFilter.GaussianBlur(radius=3))
+    canvas = Image.new("RGBA", (src.width + pad * 2, src.height + pad * 2), (0, 0, 0, 0))
+    plate = Image.new("RGBA", src.size, (8, 12, 24, 255))
+    plate.putalpha(plate_alpha)
+    canvas.paste(plate, (pad, pad), plate)
+    canvas.paste(mark, (pad, pad), mark)
+    return canvas
+
+
 def _subtle_logo_shadow(logo: Image.Image) -> Image.Image:
     alpha = logo.getchannel("A")
     if alpha.getextrema()[0] >= 250:
@@ -240,7 +266,7 @@ def _place_logo(
         ratio = min(max_width / logo.width, max_height / logo.height, 1.0)
         size = (max(1, int(logo.width * ratio)), max(1, int(logo.height * ratio)))
         logo = logo.resize(size, Image.Resampling.LANCZOS)
-        placed = _subtle_logo_shadow(logo)
+        placed = _readable_logo(logo)
     x = canvas.width - MARGIN - placed.width
     y = MARGIN
     work = canvas.convert("RGBA")
