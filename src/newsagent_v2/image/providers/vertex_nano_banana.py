@@ -329,6 +329,12 @@ def classify_vertex_http_error(status: int | None, payload: dict[str, Any] | Non
 
     if status == 401 or "unauthenticated" in blob:
         return "vertex_auth_error"
+    if (
+        status == 402
+        or "billing_disabled" in blob
+        or "requires billing to be enabled" in blob
+    ):
+        return "vertex_billing_disabled"
     if status == 403 or "permission_denied" in blob or "permission denied" in blob:
         if "api" in blob and ("enable" in blob or "not been used" in blob or "disabled" in blob):
             return "vertex_api_not_enabled"

@@ -19,6 +19,15 @@ Nova fallback (NEWSAGENT_V2_NOVA_FALLBACK_ENABLED, default on):
   one more call with a very safe generic prompt (category_generic tier). Max 2 Nova calls.
   Vertex safety blocks, prompt errors and config/auth failures never fall back.
   Nova calls do not touch the Vertex budget ledger counters.
+
+Backup Vertex (NEWSAGENT_V2_VERTEX_BACKUP_ENABLED, default off; see vertex_backup.py):
+  a second service account/project tried BEFORE Nova on the same two triggers
+  (primary daily cap exhausted, or primary 429/RESOURCE_EXHAUSTED/quota). It has its
+  own daily cap (NEWSAGENT_V2_MAX_VERTEX_BACKUP_CALLS_PER_DAY, default 25) and never
+  counts against the primary ledger. Chain: vertex -> vertex_backup -> nova.
+  A backup safety block does not fall through to Nova (same rule as the primary).
+  Run records carry image_provider/provider = vertex | vertex_backup | nova and
+  vertex_cred = primary | backup on Vertex attempts.
 """
 
 from __future__ import annotations
@@ -54,7 +63,18 @@ from newsagent_v2.image.providers.vertex_nano_banana import (
     resolve_vertex_config_status,
 )
 from newsagent_v2.image.story_image_brief import build_story_image_brief
+from newsagent_v2.image.vertex_backup import (
+    BACKUP_LABEL,
+    CODE_BACKUP_CONFIG,
+    CODE_BACKUP_DAILY_EXHAUSTED,
+    VertexBackupConfigError,
+    VertexBackupDailyBudget,
+    backup_access_token_provider,
+    load_vertex_backup_config,
+    vertex_backup_enabled,
+)
 from newsagent_v2.image.validate import file_sha256, validate_raw_artwork
+from newsagent_v2.image.image_proxy import Gx10ImageProxy, image_via_proxy
 from newsagent_v2.image.vertex_budget import (
     CODE_DAILY_EXHAUSTED,
     CODE_VERTEX_DISABLED,
@@ -82,7 +102,10 @@ def is_vertex_quota_failure(result: dict[str, Any]) -> bool:
     so a plain 4xx needs explicit quota wording before we fall back.
     Safety blocks and prompt errors never qualify.
     """
-    if str(result.get("image_failure_code") or "") != "vertex_rate_limited":
+    code = str(result.get("image_failure_code") or "")
+    if code == "vertex_billing_disabled" or result.get("http_status") == 402:
+        return True
+    if code != "vertex_rate_limited":
         return False
     if result.get("http_status") == 429:
         return True
@@ -229,6 +252,7 @@ def build_vertex_make_image_fn(
     budget_root: Path | None = None,
     provider_factory: Callable[..., Any] | None = None,
     nova_provider_factory: Callable[..., Any] | None = None,
+    backup_provider_factory: Callable[..., Any] | None = None,
 ) -> Callable[[dict[str, Any]], dict[str, Any]]:
     """
     Production image_fn: config-ready → guards/reserve → StoryImageBrief → Vertex once → brand.
@@ -237,6 +261,8 @@ def build_vertex_make_image_fn(
       (config) -> provider with .generate(...) and .generation_calls / .recorded_request
     nova_provider_factory: optional injectable factory for the Nova fallback in tests
       (NovaProxyConfig) -> provider
+    backup_provider_factory: optional injectable factory for the backup Vertex in tests
+      (VertexNanoBananaConfig) -> provider
     """
 
     ledger = VertexBudgetLedger(
@@ -244,6 +270,7 @@ def build_vertex_make_image_fn(
         environ=environ,
         batch_id=batch_id or "make-batch",
     )
+    backup_budget = VertexBackupDailyBudget(root=budget_root, environ=environ)
 
     def image_fn(job: dict[str, Any]) -> dict[str, Any]:
         event_id = str(job.get("event_id") or "")
@@ -285,6 +312,7 @@ def build_vertex_make_image_fn(
         model = getattr(config, "model", "fake-vertex")
         region = getattr(config, "location", "global")
         nova_on = nova_fallback_enabled(environ)
+        backup_on = vertex_backup_enabled(environ)
 
         def _run_provider(
             gen_provider: Any,
@@ -326,6 +354,9 @@ def build_vertex_make_image_fn(
                 link["fallback_reason"] = fallback_reason
             if prompt_tier:
                 link["nova_prompt_tier"] = prompt_tier
+            vertex_cred = {"vertex": "primary", BACKUP_LABEL: "backup"}.get(label)
+            if vertex_cred:
+                link["vertex_cred"] = vertex_cred
             write_json_utf8(bundle_dir / "article_link.json", link)
 
             request = canonical_provider_request(visual)
@@ -346,7 +377,7 @@ def build_vertex_make_image_fn(
             raw_dest = raw_dir / "artwork.png"
             result = gen_provider.generate(request, dest_path=str(raw_dest), cold_start=True)
             if (
-                label == "vertex"
+                label in ("vertex", BACKUP_LABEL)
                 and not result.success
                 and result.http_status == 429
                 and result.provider_reported_cost_usd is None
@@ -370,6 +401,8 @@ def build_vertex_make_image_fn(
                 extra_out = {"fallback_from": "vertex", "fallback_reason": fallback_reason}
             if prompt_tier:
                 extra_out["nova_prompt_tier"] = prompt_tier
+            if vertex_cred:
+                extra_out["vertex_cred"] = vertex_cred
 
             if not result.success or not result.raw_image_path:
                 return {
@@ -483,13 +516,13 @@ def build_vertex_make_image_fn(
                 **extra_out,
             }
 
-        def _nova_fallback(reason: str) -> dict[str, Any]:
+        def _nova_fallback(reason: str, *, source: str = "vertex") -> dict[str, Any]:
             """Nova attempts never reserve or count Vertex budget.
 
             Tier 1 (story_scene) once; only on a Nova content-filter block, tier 2
             (category_generic) once. Max 2 Nova calls per image, no other retries.
             """
-            logger.warning("image_fallback vertex->nova reason=%s event=%s", reason, event_id)
+            logger.warning("image_fallback %s->nova reason=%s event=%s", source, reason, event_id)
             try:
                 nova_config = load_nova_proxy_config(environ)
             except NovaConfigError as exc:
@@ -542,66 +575,179 @@ def build_vertex_make_image_fn(
                 )
             return out
 
-        def _combined_failure(vertex_code: str, nova_out: dict[str, Any]) -> dict[str, Any]:
+        def _combined_failure(
+            vertex_code: str, nova_out: dict[str, Any], backup_code: str | None = None
+        ) -> dict[str, Any]:
             nova_code = str(nova_out.get("image_failure_code") or nova_out.get("reason") or "nova_failed")
             nova_out = dict(nova_out)
             nova_out.setdefault("nova_failure_code", nova_code.split(" ", 1)[0])
             out = dict(nova_out)
             out["vertex_failure_code"] = vertex_code
-            out["image_failure_code"] = f"{vertex_code}; nova fallback failed: {nova_code}"
+            if backup_code:
+                out["vertex_backup_failure_code"] = backup_code
+                out["image_failure_code"] = (
+                    f"{vertex_code}; vertex backup failed: {backup_code}; nova fallback failed: {nova_code}"
+                )
+            else:
+                out["image_failure_code"] = f"{vertex_code}; nova fallback failed: {nova_code}"
             out["reason"] = out["image_failure_code"]
             return out
+
+        def _vertex_backup(reason: str) -> dict[str, Any] | None:
+            """One call on the backup service account. None when the backup is disabled."""
+            if not backup_on:
+                return None
+            base = {"success": False, "event_id": event_id, "image_request_count": 0,
+                    "provider": BACKUP_LABEL, "vertex_cred": "backup",
+                    "fallback_from": "vertex", "fallback_reason": reason}
+            try:
+                bconfig, bcred = load_vertex_backup_config(environ)
+            except VertexBackupConfigError as exc:
+                logger.warning("image_fallback vertex_backup not configured event=%s: %s", event_id, exc)
+                return {**base, "reason": str(exc), "image_failure_code": CODE_BACKUP_CONFIG}
+            allowed, used = backup_budget.try_reserve(event_id=event_id, article_hash=article_hash, reason=reason)
+            if not allowed:
+                logger.warning("image_fallback vertex_backup daily cap reached (%s/%s) event=%s",
+                               used, backup_budget.limit(), event_id)
+                return {**base, "reason": "daily Vertex backup ceiling reached",
+                        "image_failure_code": CODE_BACKUP_DAILY_EXHAUSTED}
+            logger.warning("image_fallback vertex->vertex_backup reason=%s event=%s backup_calls_today=%s/%s",
+                           reason, event_id, used, backup_budget.limit())
+            bprovider = (
+                backup_provider_factory(bconfig)
+                if backup_provider_factory is not None
+                else VertexNanoBananaImageProvider(
+                    bconfig, access_token_provider=backup_access_token_provider(bcred)
+                )
+            )
+            out = _run_provider(bprovider, label=BACKUP_LABEL, model=bconfig.model,
+                                region=bconfig.location, fallback_reason=reason)
+            out["vertex_backup_calls_today"] = used
+            logger.warning("image_fallback vertex_backup result=%s event=%s latency_ms=%s code=%s",
+                           "ok" if out.get("success") else "failed", event_id,
+                           out.get("latency_ms"), out.get("image_failure_code"))
+            return out
+
+        def _fallback_chain(reason: str, vertex_code: str, vertex_calls: int,
+                            primary_out: dict[str, Any] | None) -> dict[str, Any]:
+            """Primary is out (cap or quota): backup Vertex, then Nova."""
+            backup_out = _vertex_backup(reason)
+            backup_calls = int((backup_out or {}).get("image_request_count") or 0)
+            backup_code: str | None = None
+            if backup_out is not None:
+                if backup_out.get("success"):
+                    backup_out["vertex_request_count"] = vertex_calls
+                    backup_out["vertex_backup_request_count"] = backup_calls
+                    backup_out["image_request_count"] = vertex_calls + backup_calls
+                    backup_out["fallback_chain"] = ["vertex", BACKUP_LABEL]
+                    return backup_out
+                backup_code = str(backup_out.get("image_failure_code") or backup_out.get("reason")
+                                  or "vertex_backup_failed")
+                if backup_code == "vertex_safety_block" or not nova_on:
+                    out = dict(backup_out)
+                    out["vertex_failure_code"] = vertex_code
+                    out["vertex_backup_failure_code"] = backup_code
+                    out["vertex_request_count"] = vertex_calls
+                    out["vertex_backup_request_count"] = backup_calls
+                    out["image_request_count"] = vertex_calls + backup_calls
+                    out["image_failure_code"] = f"{vertex_code}; vertex backup failed: {backup_code}"
+                    out["reason"] = out["image_failure_code"]
+                    return out
+            elif not nova_on:
+                assert primary_out is not None
+                return primary_out
+
+            nova_out = _nova_fallback(reason, source=BACKUP_LABEL if backup_out is not None else "vertex")
+            nova_out["nova_request_count"] = int(nova_out.get("image_request_count") or 0)
+            if vertex_calls or backup_out is not None:
+                nova_out["vertex_request_count"] = vertex_calls
+            if backup_out is not None:
+                nova_out["vertex_backup_request_count"] = backup_calls
+                nova_out["vertex_backup_failure_code"] = backup_code
+                nova_out["fallback_chain"] = ["vertex", BACKUP_LABEL, "nova"]
+            nova_out["image_request_count"] = vertex_calls + backup_calls + nova_out["nova_request_count"]
+            if not nova_out.get("success"):
+                return _combined_failure(vertex_code, nova_out, backup_code)
+            return nova_out
+
+
+        def _do_proxy() -> dict[str, Any]:
+            proxy = Gx10ImageProxy(environ)
+            return _run_provider(
+                proxy,
+                label="image_proxy",
+                model=proxy.model_name,
+                region=None,
+            )
 
         def _do_generate() -> dict[str, Any]:
             # Runs ONLY after budget reservation inside guarded_vertex_generate.
             out = _run_provider(provider, label="vertex", model=model, region=region)
-            if out.get("success") or not nova_on or not is_vertex_quota_failure(out):
+            if out.get("success") or not (nova_on or backup_on) or not is_vertex_quota_failure(out):
                 return out
             vertex_calls = int(out.get("image_request_count") or 1)
-            nova_out = _nova_fallback(FALLBACK_VERTEX_RATE_LIMITED)
-            nova_out["vertex_request_count"] = vertex_calls
-            nova_out["nova_request_count"] = int(nova_out.get("image_request_count") or 0)
-            nova_out["image_request_count"] = vertex_calls + nova_out["nova_request_count"]
-            if not nova_out.get("success"):
-                return _combined_failure(str(out.get("image_failure_code")), nova_out)
-            return nova_out
+            return _fallback_chain(FALLBACK_VERTEX_RATE_LIMITED, str(out.get("image_failure_code")),
+                                   vertex_calls, out)
 
         # ------------------------------------------------------------------
         # 4–5: reserve budget, then provider.generate (inside generate_fn)
         # ------------------------------------------------------------------
-        guarded = guarded_vertex_generate(
-            ledger=ledger,
-            event_id=event_id,
-            article_hash=article_hash,
-            generate_fn=_do_generate,
-        )
+        if image_via_proxy(environ):
+            proxy_guarded = guarded_vertex_generate(
+                ledger=ledger,
+                event_id=event_id,
+                article_hash=article_hash,
+                generate_fn=_do_proxy,
+            )
+            proxy_code = str(proxy_guarded.get("image_failure_code") or "")
+            if proxy_guarded.get("success") or proxy_code == CODE_DAILY_EXHAUSTED:
+                guarded = proxy_guarded
+            else:
+                logger.warning(
+                    "image_proxy failed; using direct Vertex path event=%s code=%s",
+                    event_id,
+                    proxy_code,
+                )
+                guarded = guarded_vertex_generate(
+                    ledger=ledger,
+                    event_id=event_id,
+                    article_hash=article_hash,
+                    generate_fn=_do_generate,
+                )
+        else:
+            guarded = guarded_vertex_generate(
+                ledger=ledger,
+                event_id=event_id,
+                article_hash=article_hash,
+                generate_fn=_do_generate,
+            )
         if (
             guarded.get("success")
-            or not nova_on
+            or not (nova_on or backup_on)
             or guarded.get("image_failure_code") != CODE_DAILY_EXHAUSTED
         ):
             return guarded
 
-        # Daily Vertex cap reached: skip Vertex entirely, Nova (max 2 calls), no budget reservation.
-        nova_out = _nova_fallback(FALLBACK_DAILY_BUDGET)
-        nova_out.setdefault("event_id", event_id)
-        nova_out["canonical_article_hash"] = article_hash
-        nova_out["safe_telemetry"] = guarded.get("safe_telemetry")
-        nova_out["nova_request_count"] = int(nova_out.get("image_request_count") or 0)
-        if not nova_out.get("success"):
-            return _combined_failure(CODE_DAILY_EXHAUSTED, nova_out)
-        branded = Path(str(nova_out.get("final_path") or ""))
+        # Daily primary Vertex cap reached: skip the primary entirely. Backup Vertex (own cap),
+        # then Nova (max 2 calls). Neither reserves primary budget.
+        chain_out = _fallback_chain(FALLBACK_DAILY_BUDGET, CODE_DAILY_EXHAUSTED, 0, guarded)
+        chain_out.setdefault("event_id", event_id)
+        chain_out["canonical_article_hash"] = article_hash
+        chain_out["safe_telemetry"] = guarded.get("safe_telemetry")
+        if not chain_out.get("success"):
+            return chain_out
+        branded = Path(str(chain_out.get("final_path") or ""))
         if branded.is_file():
             ledger.register_frozen_image(
                 event_id=event_id,
                 article_hash=article_hash,
                 branded_image_path=str(branded),
-                branded_image_hash=str(nova_out.get("branded_image_hash") or file_sha256(branded)),
-                raw_image_path=nova_out.get("raw_image_path"),
-                raw_image_hash=nova_out.get("raw_image_hash"),
-                extra={"provider": "nova", "model": nova_out.get("model")},
+                branded_image_hash=str(chain_out.get("branded_image_hash") or file_sha256(branded)),
+                raw_image_path=chain_out.get("raw_image_path"),
+                raw_image_hash=chain_out.get("raw_image_hash"),
+                extra={"provider": chain_out.get("provider"), "model": chain_out.get("model")},
             )
-        return nova_out
+        return chain_out
 
     image_fn.vertex_budget_ledger = ledger  # type: ignore[attr-defined]
     return image_fn
