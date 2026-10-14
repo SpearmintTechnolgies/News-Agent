@@ -127,6 +127,27 @@ class GenerationWorker:
 
             broadcast_message(self.client, self.config, text=text, parse_mode="HTML")
 
+    def _offer_qa_revise(self, event: NewsEvent, job: GenerationJob, result: dict[str, Any]) -> None:
+        """QA blocked after the write budget — ask before spending a repair round."""
+        from newsagent_v2.v5_generation.telegram_delivery import send_qa_revise_offer
+
+        self._update_progress(
+            job,
+            "QA blocked — waiting: shall we revise the listed lines?",
+            "⚠️",
+        )
+        send_qa_revise_offer(
+            client=self.client,
+            config=self.config,
+            event_id=job.event_id,
+            canonical_title=event.canonical_title,
+            article_version=str(result.get("article_version") or "v1"),
+            reason=str(result.get("error") or result.get("user_message") or ""),
+            qa=result.get("qa") if isinstance(result.get("qa"), dict) else None,
+            budget=result.get("budget") if isinstance(result.get("budget"), dict) else None,
+            environ=self.environ,
+        )
+
     def _send_review_package(self, event: NewsEvent, result: dict[str, Any], job: GenerationJob) -> None:
         from .telegram_delivery import send_initial_v5_review_package
 
@@ -182,6 +203,18 @@ class GenerationWorker:
 
             if not result.get("ok"):
                 error = result.get("error") or "Unknown error"
+                if (
+                    result.get("failure_class") == "QA_BLOCKED"
+                    and result.get("can_revise")
+                    and result.get("article_version")
+                ):
+                    self.persistent_store.update_job_state(
+                        job.job_id, "FAILED_FINAL", error=str(error)[:200],
+                        article_version=result.get("article_version"),
+                        article_hash=result.get("article_hash"),
+                    )
+                    self._offer_qa_revise(event, job, result)
+                    return result
                 self.persistent_store.update_job_state(
                     job.job_id, "FAILED_FINAL", error=str(error)[:200],
                     image_version=result.get("image_version"), image_hash=result.get("image_hash"),

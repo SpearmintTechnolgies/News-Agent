@@ -96,36 +96,51 @@ def write_and_check(
     *,
     today: str | None = None,
     feedback: str = "",
+    starting_raw: dict[str, Any] | None = None,
 ) -> DraftOutcome:
-    """Draft once, then spend the remaining budget on QA-driven revisions.
+    """Draft once (or resume a saved draft), then revise until clean or budget is spent.
 
     A revision is kept only if it does not add blocking problems or problems to fix.
-    A worse revision is discarded and not retried; the draft already in hand continues.
+    A worse revision is discarded; the draft in hand stays and further attempts use
+    the remaining budget (targeted to the listed lines only).
     The final status is ``blocked`` when a blocking problem remains (invented facts, junk).
     A short body is revised and, if it is still short, sent to review with that note.
     Remaining fix/warn items are shown to the editor. ``feedback`` is the editor's
-    note on a previous version (REVISE).
+    note on a previous version (REVISE). ``starting_raw`` skips the draft call and
+    runs QA + targeted repairs on that article JSON (QA repair offer).
     """
     day = today or datetime.now(timezone.utc).strftime("%A, %B %d, %Y")
     messages = build_messages(
         bank, today=day, facts=select_facts(bank), quotes=usable_quotes(bank), feedback=feedback
     )
     outcome = DraftOutcome(status=STATUS_FAILED)
-    try:
-        raw = client.chat_json(messages, budget=budget, stage="draft")
-    except KimiError as exc:
-        outcome.error = str(exc)
-        outcome.budget = budget.to_dict()
-        return outcome
 
-    article = _parse(raw)
-    if article is None:
-        outcome.error = "draft was not a valid article"
-        outcome.budget = budget.to_dict()
-        return outcome
-    report = run_qa(article, bank, dossier)
-    outcome.history.append({"stage": "draft", "score": _score(report), "summary": report.summary()})
-    article, report = _paraphrase_invented_quotes(article, bank, dossier, report, outcome.history)
+    if starting_raw is not None:
+        raw = dict(starting_raw)
+        article = _parse(raw)
+        if article is None:
+            outcome.error = "saved draft was not a valid article"
+            outcome.budget = budget.to_dict()
+            return outcome
+        report = run_qa(article, bank, dossier)
+        outcome.history.append({"stage": "resume", "score": _score(report), "summary": report.summary()})
+        article, report = _paraphrase_invented_quotes(article, bank, dossier, report, outcome.history)
+    else:
+        try:
+            raw = client.chat_json(messages, budget=budget, stage="draft")
+        except KimiError as exc:
+            outcome.error = str(exc)
+            outcome.budget = budget.to_dict()
+            return outcome
+
+        article = _parse(raw)
+        if article is None:
+            outcome.error = "draft was not a valid article"
+            outcome.budget = budget.to_dict()
+            return outcome
+        report = run_qa(article, bank, dossier)
+        outcome.history.append({"stage": "draft", "score": _score(report), "summary": report.summary()})
+        article, report = _paraphrase_invented_quotes(article, bank, dossier, report, outcome.history)
 
     while report.revision_requests() and budget.calls < budget.max_calls and budget.total_tokens < budget.max_tokens:
         stage = f"revise_{outcome.revisions + 1}"
@@ -148,7 +163,8 @@ def write_and_check(
         )
         logger.info("[WRITE-LOOP] event=%s %s %s kept=%s", bank.event_id, stage, candidate_report.summary(), kept)
         if not kept:
-            break
+            # Spend the rest of the budget on further targeted attempts; do not hang mid-budget.
+            continue
         raw, article, report = candidate_raw, candidate, candidate_report
         article, report = _paraphrase_invented_quotes(article, bank, dossier, report, outcome.history)
 

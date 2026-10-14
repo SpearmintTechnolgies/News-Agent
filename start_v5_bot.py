@@ -19,6 +19,7 @@ Generation support via GenerationWorker (V6 story pipeline).
 from __future__ import annotations
 
 import atexit
+import contextvars
 import html
 import os
 import re
@@ -367,11 +368,16 @@ def _ack_callback(client: TelegramTestClient, callback_query_id: str, text: str 
 
 
 def _run_in_background(name: str, fn: Callable[[], Any]) -> None:
-    """Keep getUpdates free while long scans / publishes run."""
+    """Keep getUpdates free while long scans / publishes run.
+
+    Copies the caller's contextvars (origin chat) into the worker thread so
+    cards and progress stay in the group that clicked the button.
+    """
+    ctx = contextvars.copy_context()
 
     def _wrap() -> None:
         try:
-            fn()
+            ctx.run(fn)
         except Exception:
             log_event(f"[BG ERROR] {name}")
             traceback.print_exc()
@@ -2129,6 +2135,109 @@ def _handle_category_callback(
     return {"ok": True, "action": "site_category", "category": name}
 
 
+def _qa_repair_feedback(version_store, event_id: str, article_version: str) -> str:
+    """Turn saved QA blocking issues into a short repair brief for the writer."""
+    record = version_store.get_article(event_id, article_version) or {}
+    qa = record.get("qa_result") or {}
+    lines: list[str] = []
+    for row in qa.get("issues") or []:
+        if not isinstance(row, dict) or str(row.get("severity") or "") != "block":
+            continue
+        loc = str(row.get("location") or "?")
+        msg = str(row.get("message") or "").strip()
+        if msg:
+            lines.append(f"[{loc}] {msg}")
+        if len(lines) >= 8:
+            break
+    if not lines:
+        return (
+            "QA blocked this draft. Fix only inventing figures, names, or quotes. "
+            "Remove unsourced numbers; do not rewrite the whole article."
+        )
+    return (
+        "QA repair: fix only these blocking problems in the named locations. "
+        "Prefer deleting or rephrasing the bad figure/name/quote. Do not invent new facts.\n- "
+        + "\n- ".join(lines)
+    )
+
+
+def _handle_qa_revise_offer_callback(
+    *,
+    client: TelegramTestClient,
+    runtime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """YES revises the QA-blocked draft with a fresh repair budget; NO discards."""
+    from newsagent_v2.v5_generation.run_story_adapter import Revision
+
+    chat_id = safe_get_chat_id(update) or ""
+    parts = str(callback_data).split(":")
+    action = parts[0] if parts else ""
+    event_id = parts[1] if len(parts) > 1 else ""
+    article_version = parts[2] if len(parts) > 2 else "v1"
+    if not event_id:
+        _ack_callback(client, callback_query_id, "Unknown story")
+        return {"ok": False, "error": "no_event"}
+
+    if action == "qa_discard":
+        _ack_callback(client, callback_query_id, "Discarded")
+        client.send_message(
+            chat_id=chat_id,
+            text=f"OK — left {event_id} without a review card. Run the story again later if you want a new draft.",
+        )
+        return {"ok": True, "action": "qa_discard", "event_id": event_id}
+
+    worker = getattr(runtime, "generation_worker", None)
+    store = getattr(runtime, "version_store", None) or (
+        worker._version_store() if worker is not None else None
+    )
+    if worker is None or store is None:
+        _ack_callback(client, callback_query_id, "Unavailable")
+        client.send_message(chat_id=chat_id, text="Revising is unavailable right now.")
+        return {"ok": False, "error": "no_worker"}
+
+    record = store.get_article(event_id, article_version) or {}
+    if not record.get("article"):
+        _ack_callback(client, callback_query_id, "No draft")
+        client.send_message(chat_id=chat_id, text="No saved draft to revise. Tap RUN STORY again.")
+        return {"ok": False, "error": "no_draft"}
+
+    feedback = _qa_repair_feedback(store, event_id, article_version)
+    try:
+        repair = int(str(os.environ.get("NEWSAGENT_QA_REPAIR_CALLS") or "2").strip() or "2")
+    except ValueError:
+        repair = 2
+    _ack_callback(client, callback_query_id, "Revising…")
+    started = worker.start_revision(
+        event_id,
+        Revision(
+            article_feedback=feedback,
+            image_feedback="",
+            article_version=article_version,
+            image_version=store.get_current_version(event_id, "image"),
+            qa_repair=True,
+        ),
+        headline=str((record.get("article") or {}).get("headline") or ""),
+    )
+    if not started.get("ok"):
+        client.send_message(
+            chat_id=chat_id,
+            text=started.get("message") or "Could not start the QA repair.",
+        )
+        return {"ok": False, "error": started.get("reason") or "start_failed"}
+    client.send_message(
+        chat_id=chat_id,
+        text=(
+            f"✍️ Revising the blocked lines on {event_id} "
+            f"(up to {max(1, min(repair, 6))} writer calls). "
+            "A review card follows if QA clears; otherwise you will be asked again."
+        ),
+    )
+    return {"ok": True, "action": "qa_revise", "event_id": event_id, "job_id": started.get("job_id")}
+
+
 def _handle_site_author_callback(
     *,
     client: TelegramTestClient,
@@ -2368,6 +2477,15 @@ def execute_callback(
         return _handle_site_callback(
             client=client,
             config=config,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
+    if str(callback_data).startswith("qa_revise:") or str(callback_data).startswith("qa_discard:"):
+        return _handle_qa_revise_offer_callback(
+            client=client,
             runtime=runtime,
             update=update,
             callback_query_id=callback_query_id,

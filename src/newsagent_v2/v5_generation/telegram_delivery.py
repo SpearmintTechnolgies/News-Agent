@@ -351,3 +351,66 @@ def _deliver_review_card(
     return result
 
 
+def qa_revise_keyboard(event_id: str, article_version: str = "v1") -> dict[str, Any]:
+    return {
+        "inline_keyboard": [[
+            {"text": "YES — REVISE", "callback_data": f"qa_revise:{event_id}:{article_version}"},
+            {"text": "NO — DISCARD", "callback_data": f"qa_discard:{event_id}:{article_version}"},
+        ]]
+    }
+
+
+def send_qa_revise_offer(
+    *,
+    client: Any,
+    config: Any,
+    event_id: str,
+    canonical_title: str,
+    article_version: str,
+    reason: str,
+    qa: dict[str, Any] | None = None,
+    budget: dict[str, Any] | None = None,
+    environ: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Ask before spending another repair budget on a QA-blocked draft."""
+    from newsagent_v2.telegram.operators import broadcast_message
+
+    issues = []
+    for row in (qa or {}).get("issues") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("severity") or "") != "block":
+            continue
+        loc = str(row.get("location") or "?")
+        msg = str(row.get("message") or "")
+        issues.append(f"• [{_escape_html(loc)}] {_escape_html(msg)}")
+        if len(issues) >= 6:
+            break
+    issue_block = "\n".join(issues) if issues else _escape_html(str(reason or "QA blocked this draft.")[:500])
+    budget = budget or {}
+    used = int(budget.get("calls") or 0)
+    max_calls = int(budget.get("max_calls") or 0)
+    try:
+        repair = int(str((environ or {}).get("NEWSAGENT_QA_REPAIR_CALLS") or "2").strip() or "2")
+    except ValueError:
+        repair = 2
+    repair = max(1, min(repair, 6))
+    text = (
+        f"⚠️ <b>QA BLOCKED — shall we revise?</b>\n\n"
+        f"<b>Story:</b> {_escape_html(str(canonical_title or event_id)[:160])}\n"
+        f"<b>Version:</b> {_escape_html(article_version)}\n"
+        f"<b>Writer budget used:</b> {used}/{max_calls or '?'} calls\n"
+        f"<b>Repair budget if you say yes:</b> {repair} targeted rewrite call(s) "
+        f"(only the listed lines)\n\n"
+        f"<b>Blocking issues:</b>\n{issue_block}\n\n"
+        f"YES revises those portions and re-checks. NO leaves this story without a review card."
+    )
+    sent = broadcast_message(
+        client,
+        config,
+        text=text,
+        parse_mode="HTML",
+        reply_markup=qa_revise_keyboard(event_id, article_version),
+    )
+    return {"ok": bool(sent.get("ok")), "message_id": sent.get("message_id"), "error": sent.get("error")}
+

@@ -107,3 +107,17 @@ def test_trusted_outlet_skips_the_evidence_bar():
     assert gate.passed and gate.metrics["trusted_outlet"] == "coindesk.com"
     still_thin = qualify(thin, build_fact_bank(thin), ["https://random.example/story"])
     assert not still_thin.passed
+
+
+def test_og_whitelist_includes_sources_json_and_aliases():
+    from newsagent_v2.facts.gate import load_trusted_hosts, trusted_outlet
+
+    hosts = load_trusted_hosts()
+    assert "theblock.co" in hosts
+    assert "blockworks.co" in hosts
+    assert "cnbc.com" in hosts  # alias from search.cnbc.com feed
+    assert "bbc.co.uk" in hosts  # alias from feeds.bbci.co.uk
+    assert trusted_outlet(["https://www.theblock.co/post/123"], hosts) == "theblock.co"
+    assert trusted_outlet(["https://www.cnbc.com/2026/01/01/crypto.html"], hosts) == "cnbc.com"
+    extra = load_trusted_hosts(environ={"NEWSAGENT_TRUSTED_HOSTS": "example-og.com"})
+    assert "example-og.com" in extra

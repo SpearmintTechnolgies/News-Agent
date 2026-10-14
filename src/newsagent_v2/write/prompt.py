@@ -160,8 +160,10 @@ def revision_messages(
         )
     else:
         note = (
-            "Your draft has these problems. Fix only the listed lines and return the full article in the same JSON shape. "
-            "Leave every other sentence as it is. Do not add a name, number, date, or quotation that is not already in "
+            "Your draft has these problems. Fix only the listed locations (the small portions named in brackets) "
+            "and return the full article in the same JSON shape. "
+            "Leave every other sentence as it is. Prefer deleting or rephrasing the bad figure/name/quote over "
+            "rewriting the whole section. Do not add a name, number, date, or quotation that is not already in "
             "the draft or the FACTS. Do not shorten the body.\n- "
             + "\n- ".join(issues)
         )

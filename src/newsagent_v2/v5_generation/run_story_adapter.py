@@ -45,6 +45,7 @@ class Revision:
     image_feedback: str = ""
     article_version: str | None = None  # current (base) versions
     image_version: str | None = None
+    qa_repair: bool = False  # resume targeted QA repair on the saved blocked draft
 
 
 @dataclass
@@ -181,12 +182,22 @@ class RunStoryAdapter:
             "log": list(budget.get("log") or []),
         }
 
-    def _write_article(self, event: NewsEvent, job: GenerationJob, version: str, feedback: str) -> dict[str, Any]:
+    def _write_article(
+        self,
+        event: NewsEvent,
+        job: GenerationJob,
+        version: str,
+        feedback: str,
+        *,
+        starting_raw: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         from newsagent_v2.story6 import run_story as run_v6_story
 
         job.state = "GENERATING"
         self._update_job(job)
-        story = run_v6_story(event, self.environ, feedback=feedback)
+        story = run_v6_story(
+            event, self.environ, feedback=feedback, starting_raw=starting_raw,
+        )
         diagnostics = story.diagnostics()
         if self.version_store:
             self.version_store.save_generation_diagnostics(event.event_id, diagnostics)
@@ -194,6 +205,42 @@ class RunStoryAdapter:
         from newsagent_v2.v5_generation.article_spend import record_text_spend
 
         record_text_spend(event.event_id, text_usage)
+        if story.outcome == "blocked" and story.article:
+            article = story.article
+            article_hash = sha256(str(article.get("article_body") or ""))
+            if self.version_store:
+                self.version_store.save_article(
+                    event_id=event.event_id,
+                    version=version,
+                    article=article,
+                    article_hash=article_hash,
+                    qa_result=story.qa,
+                    metadata={
+                        "pipeline": "v6",
+                        "qa_blocked": True,
+                        "word_count": article.get("body_words"),
+                        "total_words": article.get("total_words"),
+                        "gate": story.gate,
+                        "research": story.research,
+                        "text_usage": text_usage,
+                        "budget": story.budget,
+                        **({"revision_feedback": feedback} if feedback else {}),
+                    },
+                )
+            return {
+                "ok": False,
+                "error": story.reason,
+                "user_message": story.reason,
+                "failure_class": "QA_BLOCKED",
+                "can_revise": True,
+                "article_version": version,
+                "article": article,
+                "article_hash": article_hash,
+                "kimi_usage": text_usage,
+                "diagnostics": diagnostics,
+                "qa": story.qa,
+                "budget": story.budget,
+            }
         if not story.ok or not story.article:
             return {"ok": False, "error": story.reason, "user_message": story.reason,
                     "failure_class": story.outcome.upper(), "kimi_usage": text_usage, "diagnostics": diagnostics}
@@ -241,13 +288,27 @@ class RunStoryAdapter:
         return result
 
     def _run_generation(self, event: NewsEvent, job: GenerationJob, revision: Revision | None) -> dict[str, Any]:
-        rewrite = revision is None or bool(revision.article_feedback.strip())
+        qa_repair = bool(revision and revision.qa_repair)
+        rewrite = revision is None or bool(revision.article_feedback.strip()) or qa_repair
         article_version = "v1" if revision is None else (
             next_version(revision.article_version) if rewrite else revision.article_version
         )
         text_usage: dict[str, Any] = {}
         if rewrite:
-            written = self._write_article(event, job, article_version, revision.article_feedback if revision else "")
+            starting_raw = None
+            if qa_repair and revision and self.version_store:
+                base = self.version_store.get_article(event.event_id, revision.article_version or "v1") or {}
+                saved = (base.get("article") or {})
+                starting_raw = saved.get("writer_raw") or saved.get("structured")
+                if not isinstance(starting_raw, dict):
+                    starting_raw = None
+            written = self._write_article(
+                event,
+                job,
+                article_version,
+                revision.article_feedback if revision else "",
+                starting_raw=starting_raw,
+            )
             if not written.get("ok"):
                 return written
             article, article_hash, text_usage = written["article"], written["article_hash"], written["kimi_usage"]

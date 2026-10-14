@@ -176,10 +176,22 @@ def test_loop_keeps_better_version_when_revision_is_worse():
     worse = _with_paragraph(_clean_article(), "Analyst Walter Pennington said inflows reached $45 million.")
     post, calls = _post_returning(copied, worse)
     outcome = write_and_check(_bank(), None, KimiClient("k", http_post=post), StoryBudget())
-    assert len(calls) == 2 and outcome.revisions == 1
-    assert [h.get("kept") for h in outcome.history[1:]] == [False]
+    # Worse revisions are discarded, but remaining budget is still spent on more attempts.
+    assert len(calls) == 3 and outcome.revisions == 2
+    assert [h.get("kept") for h in outcome.history[1:]] == [False, False]
     assert outcome.status == STATUS_REVIEW
     assert any(i.code == "copied_phrasing" for i in outcome.report.issues)
+
+
+def test_loop_resumes_starting_raw_without_a_new_draft_call():
+    invented = _with_paragraph(_clean_article(), "Analyst Walter Pennington said inflows reached $45 million.")
+    post, calls = _post_returning(_clean_article())
+    outcome = write_and_check(
+        _bank(), None, KimiClient("k", http_post=post), StoryBudget(max_calls=2), starting_raw=invented,
+    )
+    assert len(calls) == 1 and outcome.revisions == 1
+    assert outcome.history[0]["stage"] == "resume"
+    assert outcome.status == STATUS_REVIEW
 
 
 def _short_article() -> dict:

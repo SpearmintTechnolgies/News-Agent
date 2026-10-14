@@ -1,5 +1,8 @@
 """Several Telegram chats can operate the bot and receive the same cards."""
 
+import threading
+import time
+
 from newsagent_v2.telegram.config import CHAT_ENV, TOKEN_ENV, load_telegram_config
 from newsagent_v2.telegram.operators import broadcast_message, operator_ids, set_origin_chat
 
@@ -45,5 +48,31 @@ def test_replies_go_to_the_chat_that_started_the_action():
         assert operator_ids(config) == ("-1004400759917",)
         set_origin_chat("5480651602")  # not allowed: never routed there
         assert operator_ids(config) == ("6877637692",)
+    finally:
+        set_origin_chat("")
+
+
+def test_background_worker_keeps_origin_chat_for_group_replies():
+    """Author / HIGH / FILL run off the poller; cards must stay in the group."""
+    from start_v5_bot import _run_in_background
+
+    config = load_telegram_config({
+        TOKEN_ENV: "123456:test-token",
+        CHAT_ENV: "111,-1004400759917",
+    })
+    set_origin_chat("-1004400759917")
+    seen: list[str] = []
+    done = threading.Event()
+
+    def _work() -> None:
+        try:
+            seen.extend(operator_ids(config))
+        finally:
+            done.set()
+
+    try:
+        _run_in_background("origin-test", _work)
+        assert done.wait(2.0), "background worker did not finish"
+        assert seen == ["-1004400759917"]
     finally:
         set_origin_chat("")

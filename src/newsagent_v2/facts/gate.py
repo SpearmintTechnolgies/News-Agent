@@ -2,27 +2,142 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from newsagent_v2.facts.bank import FactBank
 from newsagent_v2.research.dossier import ResearchDossier, host_of
 
-# Outlets the desk treats as already vetted. A story they cover skips this bar.
-TRUSTED_HOSTS = (
+# Built-in OG desks (kept even if config/sources.json is missing).
+_CORE_OG_HOSTS = (
     "coindesk.com",
     "cointelegraph.com",
-    "beincrypto.com",
+    "theblock.co",
+    "bitcoinmagazine.com",
     "decrypt.co",
+    "cryptoslate.com",
     "news.bitcoin.com",
+    "newsbtc.com",
+    "cryptopotato.com",
+    "beincrypto.com",
+    "blockworks.co",
+    "thedefiant.io",
+    "dlnews.com",
+    "cryptobriefing.com",
+    "u.today",
+    "ambcrypto.com",
+    "coinjournal.net",
+    "bitcoinist.com",
+    "coinbase.com",
+    "kraken.com",
+    "blog.kraken.com",
+    "ethereum.org",
+    "blog.ethereum.org",
+    "ripple.com",
+    "circle.com",
+    # Mainstream / wires that often carry the same stories
+    "reuters.com",
+    "bloomberg.com",
+    "cnbc.com",
+    "bbc.com",
+    "bbc.co.uk",
+    "npr.org",
+    "marketwatch.com",
+    "yahoo.com",
+    "finance.yahoo.com",
+    "investing.com",
+    "wsj.com",
+    "ft.com",
+    "nytimes.com",
+    "theguardian.com",
+    "forbes.com",
+    "fortune.com",
+    "axios.com",
+    "apnews.com",
+    "afp.com",
 )
 
+# RSS CDN hosts in sources.json → the host that appears on article URLs.
+_FEED_HOST_ALIASES = {
+    "feeds.bbci.co.uk": ("bbc.co.uk", "bbc.com"),
+    "feeds.marketwatch.com": ("marketwatch.com",),
+    "feeds.npr.org": ("npr.org",),
+    "search.cnbc.com": ("cnbc.com",),
+    "home.treasury.gov": ("treasury.gov",),
+    "blog.kraken.com": ("kraken.com", "blog.kraken.com"),
+    "blog.ethereum.org": ("ethereum.org", "blog.ethereum.org"),
+}
 
-def trusted_outlet(urls: list[str]) -> str:
-    """Return the trusted host when any URL is from one of those outlets."""
+
+def _sources_config_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "config" / "sources.json"
+
+
+def _hosts_from_sources_json(path: Path | None = None) -> tuple[str, ...]:
+    config = path or _sources_config_path()
+    if not config.is_file():
+        return ()
+    try:
+        payload = json.loads(config.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+    hosts: set[str] = set()
+    for row in payload.get("feeds") or []:
+        if not isinstance(row, dict) or row.get("enabled") is False:
+            continue
+        host = host_of(str(row.get("url") or ""))
+        if not host:
+            continue
+        aliases = _FEED_HOST_ALIASES.get(host)
+        if aliases:
+            hosts.update(aliases)
+        else:
+            hosts.add(host)
+    return tuple(sorted(hosts))
+
+
+def _hosts_from_env(environ: dict[str, str] | None = None) -> tuple[str, ...]:
+    env = environ if environ is not None else os.environ
+    raw = str(env.get("NEWSAGENT_TRUSTED_HOSTS") or "").strip()
+    if not raw:
+        return ()
+    out: list[str] = []
+    for part in raw.replace(";", ",").split(","):
+        host = part.strip().lower().removeprefix("www.")
+        if host:
+            out.append(host)
+    return tuple(out)
+
+
+def load_trusted_hosts(
+    *,
+    environ: dict[str, str] | None = None,
+    sources_path: Path | None = None,
+) -> tuple[str, ...]:
+    """All OG outlets: core desks + every enabled feed in sources.json + env extras."""
+    merged = {
+        *_CORE_OG_HOSTS,
+        *_hosts_from_sources_json(sources_path),
+        *_hosts_from_env(environ),
+    }
+    return tuple(sorted(merged))
+
+
+# Module default used by qualify(); refreshed if config changes rarely enough for process life.
+TRUSTED_HOSTS = load_trusted_hosts()
+
+
+def trusted_outlet(urls: list[str], hosts: tuple[str, ...] | None = None) -> str:
+    """Return the trusted host when any URL is from one of those OG outlets."""
+    allow = hosts if hosts is not None else TRUSTED_HOSTS
     for url in urls:
         host = host_of(url or "")
-        for trusted in TRUSTED_HOSTS:
+        if not host:
+            continue
+        for trusted in allow:
             if host == trusted or host.endswith("." + trusted):
                 return trusted
     return ""
@@ -89,10 +204,17 @@ def assess_evidence(
     return GateResult(passed=not reasons, reasons=reasons, metrics=metrics)
 
 
-def qualify(dossier: ResearchDossier, bank: FactBank, urls: list[str], policy: GatePolicy | None = None) -> GateResult:
-    """Pass a story those five outlets already cover; otherwise use the relaxed bar."""
+def qualify(
+    dossier: ResearchDossier,
+    bank: FactBank,
+    urls: list[str],
+    policy: GatePolicy | None = None,
+    *,
+    trusted_hosts: tuple[str, ...] | None = None,
+) -> GateResult:
+    """Pass when an OG / trusted outlet is already covering the story; else use the evidence bar."""
     gate = assess_evidence(dossier, bank, policy)
-    outlet = trusted_outlet(urls)
+    outlet = trusted_outlet(urls, hosts=trusted_hosts)
     if not outlet:
         return gate
     gate.passed = True

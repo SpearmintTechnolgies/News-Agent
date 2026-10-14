@@ -179,6 +179,10 @@ class WordPressDraftLifecycle:
             permalink_slug=permalink_slug,
             featured_media_id=featured_media_id,
         )
+        rank_math_missing = not rm.get("ok") and "No route was found" in str(rm.get("error") or "")
+        if rank_math_missing:
+            # Rank Math is not active on this site (no rankmath/v1 route): keep the draft, skip SEO meta.
+            rm = {"ok": True, "media_alt_applied": False}
         if not rm.get("ok"):
             return DraftResult(
                 ok=False,
@@ -211,7 +215,7 @@ class WordPressDraftLifecycle:
             taxonomy_created=taxonomy_created if taxonomy_created else None,
             seo=seo,
             seo_validation=seo_validation,
-            rank_math_applied=True,
+            rank_math_applied=not rank_math_missing,
             media_alt_applied=bool(rm.get("media_alt_applied")),
         )
 

@@ -222,10 +222,22 @@ def run_story(
     research_fn: Callable[[dict[str, Any]], ResearchDossier] | None = None,
     budget: StoryBudget | None = None,
     feedback: str = "",
+    starting_raw: dict[str, Any] | None = None,
 ) -> StoryResult:
-    """``feedback``: the editor's REVISE note on the previous version, passed to the writer."""
+    """``feedback``: the editor's REVISE note on the previous version, passed to the writer.
+
+    ``starting_raw``: resume QA repair on a saved article JSON (skips a new draft call).
+    """
     started = time.monotonic()
-    budget = budget or StoryBudget()
+    if budget is None:
+        if starting_raw is not None:
+            try:
+                repair_calls = int(str(environ.get("NEWSAGENT_QA_REPAIR_CALLS") or "2").strip() or "2")
+            except ValueError:
+                repair_calls = 2
+            budget = StoryBudget(max_calls=max(1, min(repair_calls, 6)))
+        else:
+            budget = StoryBudget()
     story = story_from_event(event)
 
     cached = None if research_fn else _cached_screen(event.event_id)
@@ -257,7 +269,9 @@ def run_story(
         return result
 
     client = client or KimiClient.from_env(environ)
-    outcome = write_and_check(bank, dossier, client, budget, feedback=feedback)
+    outcome = write_and_check(
+        bank, dossier, client, budget, feedback=feedback, starting_raw=starting_raw,
+    )
     result.budget = outcome.budget
     result.history = outcome.history
     if outcome.report:
@@ -271,6 +285,15 @@ def run_story(
         blocking = [i for i in outcome.report.issues if i.severity == "block"] if outcome.report else []
         details = "; ".join(f"{i.location}: {i.message}" for i in blocking[:3])
         result.reason = f"Blocked by QA after {outcome.revisions} revision(s): {details}"
+        # Keep the draft so Telegram can offer a targeted repair instead of hanging.
+        if outcome.article:
+            result.article = article_record(
+                outcome.article, event_id=event.event_id, dossier=dossier, outcome=outcome
+            )
+            result.article["qa_blocked"] = True
+            result.article["structured"] = outcome.article.to_dict()
+            if outcome.raw:
+                result.article["writer_raw"] = outcome.raw
     else:
         result.outcome = OUTCOME_FAILED
         result.reason = f"Writer failed: {outcome.error or 'no article returned'}"
