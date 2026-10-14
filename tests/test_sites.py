@@ -44,8 +44,9 @@ def test_start_lists_the_saved_site_and_an_add_button(tmp_path: Path):
     sites = list_sites(path, environ)
     assert [site.name for site in sites] == ["coinnetwork.info"]
     buttons = [button["text"] for row in menu_keyboard(sites, active=sites[0].id)["inline_keyboard"] for button in row]
-    assert buttons == ["✓ coinnetwork.info", "ADD WEBSITE"]
-    assert menu_keyboard(sites)["inline_keyboard"][-1][0]["callback_data"] == ADD_CALLBACK
+    assert buttons == ["✓ coinnetwork.info", "🤖 AUTOPILOT", "ADD WEBSITE"]
+    assert menu_keyboard(sites)["inline_keyboard"][-1][1]["callback_data"] == ADD_CALLBACK
+    assert menu_keyboard(sites)["inline_keyboard"][-1][0]["callback_data"] == "idle:menu"
     again = list_sites(path, {})
     assert again[0].base_url == "https://coinnetwork.info"
 
@@ -205,7 +206,7 @@ def test_telegram_add_uses_the_password_not_its_name(tmp_path: Path):
     path.write_text('{"active":"keep","sites":[{"id":"aaaaaaaa","name":"coinnetwork.info","base_url":"https://coinnetwork.info","username":"editor","app_password":"app-secret"}]}', encoding="utf-8")
     sites = save_site(site, path)
     labels = [button["text"] for row in menu_keyboard(sites, active="keep")["inline_keyboard"] for button in row]
-    assert labels == ["coinnetwork.info", "FINISH SETUP Coinography", "ADD WEBSITE"]
+    assert labels == ["coinnetwork.info", "FINISH SETUP Coinography", "🤖 AUTOPILOT", "ADD WEBSITE"]
     finish = menu_keyboard(sites)["inline_keyboard"][1][0]["callback_data"]
     assert finish == f"{FINISH_PREFIX}{site.id}"
 
@@ -259,7 +260,7 @@ def test_wizard_asks_for_address_password_and_logo_before_listing(tmp_path: Path
     assert Path(saved.logo_path).is_file()
     assert is_ready(saved)
     buttons = [button["text"] for row in menu_keyboard([saved])["inline_keyboard"] for button in row]
-    assert buttons == ["Example News", "ADD WEBSITE"]
+    assert buttons == ["Example News", "🤖 AUTOPILOT", "ADD WEBSITE"]
     text = confirm_text(saved, 52, 8)
     assert "Example News" in text
     assert "editor@example.com" in text
@@ -321,7 +322,7 @@ def test_replace_logo_keeps_the_account_and_remove_drops_the_site(tmp_path, monk
     removed = remove_site(saved.id, path)
     assert removed is not None and removed.name == "Example News"
     labels = [button["text"] for row in menu_keyboard(list_sites(path))["inline_keyboard"] for button in row]
-    assert labels == ["ADD WEBSITE"]
+    assert labels == ["🤖 AUTOPILOT", "ADD WEBSITE"]
 
 
 def test_replace_username_in_settings(tmp_path):

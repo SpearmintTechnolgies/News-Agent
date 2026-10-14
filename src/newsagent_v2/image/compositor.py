@@ -75,7 +75,7 @@ class CompositionSpec:
     test_mode: bool = False
     width: int = CARD_WIDTH
     height: int = CARD_HEIGHT
-    output_name: str = "card.png"
+    output_name: str = "card.jpg"
     logo_only: bool = False
 
 
@@ -432,14 +432,16 @@ def compose_card(
     if file_sha256(raw_path) != raw_hash:
         raise CompositorError("raw_mutated", "compositor must not mutate the raw artwork file")
 
-    canvas.save(dest_path, format="PNG")
+    from newsagent_v2.image.compress import jpeg_quality, save_featured_image
+
+    encode = save_featured_image(canvas, dest_path, quality=jpeg_quality())
     if file_sha256(raw_path) != raw_hash:
         raise CompositorError("raw_mutated", "compositor must not mutate the raw artwork file")
 
     with Image.open(dest_path) as final:
         final.load()
         final_width, final_height = final.size
-        final_format = (final.format or "PNG").upper()
+        final_format = (final.format or encode.get("format") or "PNG").upper()
 
     if final_width != spec.width or final_height != spec.height:
         raise CompositorError(
@@ -450,7 +452,10 @@ def compose_card(
     compositor_validation = {
         "passed": True,
         "output_exactly_1280x720": final_width == 1280 and final_height == 720,
-        "valid_image_file": final_format == "PNG",
+        "valid_image_file": final_format in {"PNG", "JPEG"},
+        "encode_format": final_format,
+        "jpeg_quality": encode.get("quality"),
+        "encoded_bytes": encode.get("size_bytes"),
         "approved_logo_loaded": bool(logo_meta and logo_meta.get("present")),
         "logo_inside_safe_bounds": None if logo_meta is None else logo_meta.get("inside_safe_bounds"),
         "headline_inside_safe_bounds": True if spec.logo_only else True,

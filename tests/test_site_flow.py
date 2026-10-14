@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 from newsagent_v2.control.site_flow import (
+    FILL_GAPS_TOTAL,
     author_keyboard,
+    best_category_for_event,
+    bind_event_category,
+    category_for_event,
     category_keyboard,
     category_labels,
     category_menu_text,
     clamp_fetch_count,
     fetch_count_keyboard,
     fetch_count_text,
+    lacking_categories,
 )
 from newsagent_v2.control.story_picker import category_queries, skips_age_cap, story_matches
 from newsagent_v2.wordpress.authors import SiteAuthor
@@ -44,13 +49,49 @@ def test_each_site_shows_its_own_categories_and_then_its_authors():
     keyboard = category_keyboard("abcd1234", categories)
     callbacks = [button["callback_data"] for row in keyboard["inline_keyboard"] for button in row]
     assert "c:abcd1234:52" in callbacks
+    assert "fill:abcd1234" in callbacks
+    assert "high:abcd1234" in callbacks
     assert all(len(item) <= 64 for item in callbacks)
     text = category_menu_text("Coinography", 4)
     assert "Coinography" in text and "4 categories" in text
+    assert "FILL GAPS" in text
+    assert "HIGH TREND" in text
 
     authors = author_keyboard("abcd1234", [SiteAuthor(19, "DMI@Coinography.com"), SiteAuthor(1, "Ahmed Falah")])
     author_callbacks = [button["callback_data"] for row in authors["inline_keyboard"] for button in row]
     assert author_callbacks == ["a:abcd1234:19", "a:abcd1234:1"]
+
+
+def test_lacking_categories_are_the_thinnest_up_to_fifteen():
+    categories = [
+        {"id": 1, "name": "Bitcoin News", "parent": 0, "count": 40},
+        {"id": 2, "name": "Thin A", "parent": 0, "count": 0},
+        {"id": 3, "name": "Thin B", "parent": 0, "count": 1},
+        {"id": 4, "name": "Busy", "parent": 0, "count": 200},
+        {"id": 5, "name": "Thin C", "parent": 0, "count": 2},
+    ]
+    thin = lacking_categories(categories, total=3)
+    assert [row["name"] for row in thin] == ["Thin A", "Thin B", "Thin C"]
+    assert lacking_categories(categories, total=FILL_GAPS_TOTAL)[0]["name"] == "Thin A"
+
+
+def test_fill_gaps_pins_the_category_on_each_story_card(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "newsagent_v2.control.site_flow.EVENT_CATEGORY_PATH",
+        tmp_path / "event_categories.json",
+    )
+    bind_event_category(
+        "evt-1",
+        site_id="site-a",
+        category_id=52,
+        category_name="Bitcoin News",
+    )
+    assert category_for_event("evt-1") == {
+        "site_id": "site-a",
+        "category_id": 52,
+        "category_name": "Bitcoin News",
+    }
+    assert category_for_event("missing") is None
 
 
 def test_the_fetch_step_offers_one_through_fifteen_stories():
@@ -70,14 +111,24 @@ def test_a_site_category_filters_stories_by_its_own_name():
     assert not skips_age_cap("trend")
     assert story_matches(_event("Bitcoin miners sell into the rally"), "Bitcoin News")
     assert not story_matches(_event("Ethereum fees drop after the upgrade"), "Bitcoin News")
-    assert category_queries("Bitcoin News") == ("bitcoin",)
-    assert category_queries("bitcoin") == ("bitcoin",)
+    assert "bitcoin" in category_queries("Bitcoin News")
+    assert "bitcoin" in category_queries("bitcoin")
     assert story_matches(_event("Pepe rallies as traders pile in"), "Animals Memecoins")
     assert story_matches(_event("Dogecoin jumps after a whale buy"), "Animals Memecoins")
     assert not story_matches(_event("Ethereum fees drop after the upgrade"), "Animals Memecoins")
     assert story_matches(_event("Bridge hack drains locked crypto"), "Exploits News")
     assert "dogecoin" in category_queries("Animals Memecoins")
     assert "pepe" in category_queries("Animals Memecoins")
+
+
+def test_best_category_requires_relevance_hits():
+    categories = [
+        {"id": 1, "name": "Solana News", "parent": 0, "count": 0},
+        {"id": 2, "name": "Animals Memecoins", "parent": 0, "count": 0},
+    ]
+    sol = best_category_for_event(_event("Solana TVL hits a new high"), categories)
+    assert sol is not None and sol["name"] == "Solana News"
+    assert best_category_for_event(_event("Oil prices climb on supply fears"), categories) is None
 
 
 def test_tapped_category_id_is_the_one_that_is_filed(tmp_path, monkeypatch):

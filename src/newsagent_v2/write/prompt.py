@@ -148,12 +148,23 @@ def revision_messages(
     draft: dict[str, Any],
     issues: list[str],
 ) -> list[dict[str, str]]:
-    note = (
-        "Your draft has these problems. Fix only the listed lines and return the full article in the same JSON shape. "
-        "Leave every other sentence as it is. Do not add a name, number, date, or quotation that is not already in "
-        "the draft or the FACTS. Do not shorten the body.\n- "
-        + "\n- ".join(issues)
-    )
+    expand = any("expand it to at least" in issue for issue in issues)
+    if expand:
+        note = (
+            "The draft is under the word minimum. Return the full article in the same JSON shape, with a longer body. "
+            f"The body (all sections, excluding conclusion and FAQ) must be at least {BODY_MIN_WORDS} words. "
+            "Add depth by developing facts already cited in the draft: more of what happened, the figures, "
+            "the reaction, and what the facts say comes next. Do not repeat sentences. Do not add a name, number, "
+            "date, or quotation that is not already in the draft or the FACTS. Do not shorten anything.\n- "
+            + "\n- ".join(issues)
+        )
+    else:
+        note = (
+            "Your draft has these problems. Fix only the listed lines and return the full article in the same JSON shape. "
+            "Leave every other sentence as it is. Do not add a name, number, date, or quotation that is not already in "
+            "the draft or the FACTS. Do not shorten the body.\n- "
+            + "\n- ".join(issues)
+        )
     return base_messages + [
         {"role": "assistant", "content": json.dumps(draft, ensure_ascii=False)},
         {"role": "user", "content": note},

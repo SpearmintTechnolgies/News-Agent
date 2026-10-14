@@ -7,3 +7,6 @@ google-auth>=2.0.0
 httpx==0.28.1
 trafilatura==2.3.0
 playwright==1.63.0
+# Amazon Polly TTS (generative/long-form engines need >= 1.34). Credentials
+# come from the EC2 instance role via boto3's default chain - never from .env.
+boto3>=1.35,<2

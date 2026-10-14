@@ -5,11 +5,12 @@ Create, update, publish, unpublish, retrieve WordPress drafts for events.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from .adapter import sanitize_wp_error
 from .config import WordPressConfig
@@ -27,6 +28,20 @@ from newsagent_v2.publication.master_index import MasterIndexStore
 from newsagent_v2.wordpress.authors import author_id_for
 
 Transport = Callable[..., Any]
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+def featured_image_filename(article_name: str, source: Path) -> str:
+    """WordPress file name from the article slug, not image-v1.png."""
+    suffix = source.suffix.lower()
+    if suffix not in _IMAGE_SUFFIXES:
+        suffix = ".png"
+    plain = str(article_name or "").replace("'", "").replace("\u2019", "")
+    slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
+    slug = slug[:80].strip("-")
+    if not slug:
+        slug = "article"
+    return f"{slug}{suffix}"
 
 
 @dataclass
@@ -73,16 +88,54 @@ class WordPressDraftLifecycle:
         self.store = store or WordPressDraftStore()
         self.master_index = master_index or MasterIndexStore()
 
-    def _wp_api(self, endpoint: str) -> str:
+    def _wp_api(self, endpoint: str, config: WordPressConfig | None = None) -> str:
         """Build WordPress REST API URL."""
-        return urljoin(self.config.base_url + "/", f"wp-json/wp/v2/{endpoint}")
+        base = (config or self.config).base_url
+        return urljoin(base + "/", f"wp-json/wp/v2/{endpoint}")
 
-    def _auth(self) -> tuple[str, str]:
+    def _auth(self, config: WordPressConfig | None = None) -> tuple[str, str]:
         """Return auth tuple."""
-        return (self.config.username, self.config.app_password)
+        cfg = config or self.config
+        return (cfg.username, cfg.app_password)
 
-    def _upload_media(self, image_path: str, event_id: str) -> dict[str, Any]:
-        """Upload featured image to WordPress media library."""
+    @staticmethod
+    def _host(url: str) -> str:
+        return (urlsplit(str(url or "")).hostname or "").lower()
+
+    def _site_fields(self) -> tuple[str, str]:
+        """Site id + base URL stamped onto every draft for this lifecycle."""
+        try:
+            from newsagent_v2.control.sites import site_id_for
+
+            return site_id_for(self.config.base_url), self.config.base_url
+        except Exception:
+            return "", self.config.base_url
+
+    def _config_for_draft(self, record: WordPressDraftRecord) -> WordPressConfig:
+        """Publish/update on the website that owns the draft, not only the active one."""
+        wanted = self._host(record.site_base_url) or self._host(record.wp_url)
+        if not wanted or wanted == self._host(self.config.base_url):
+            return self.config
+        try:
+            from newsagent_v2.control.sites import list_sites, wordpress_config
+
+            for site in list_sites():
+                if record.site_id and site.id == record.site_id:
+                    return wordpress_config(site)
+                if self._host(site.base_url) == wanted:
+                    return wordpress_config(site)
+        except Exception:
+            pass
+        return self.config
+
+    def _draft_matches_active_site(self, record: WordPressDraftRecord) -> bool:
+        wanted = self._host(record.site_base_url) or self._host(record.wp_url)
+        if not wanted:
+            return True
+        return wanted == self._host(self.config.base_url)
+
+    def _upload_media(self, image_path: str, event_id: str, article_name: str = "") -> dict[str, Any]:
+        """Upload featured image to WordPress media library under the article name."""
         path = Path(image_path)
         if not path.is_file():
             return {"ok": False, "error": "Image file not found"}
@@ -90,7 +143,7 @@ class WordPressDraftLifecycle:
         resp = self.transport(
             "POST",
             self._wp_api("media"),
-            files={"file": (path.name, path.read_bytes())},
+            files={"file": (featured_image_filename(article_name, path), path.read_bytes())},
             auth=self._auth(),
         )
         return resp
@@ -191,6 +244,11 @@ class WordPressDraftLifecycle:
         """
         secrets = self.config.secrets()
         existing = self.store.load(event_id)
+        # Same event on a different active site must create a new draft, not
+        # PUT the old post id against the wrong WordPress.
+        if existing is not None and not self._draft_matches_active_site(existing):
+            existing = None
+        site_id, site_base_url = self._site_fields()
 
         pinned_id = 0
         try:
@@ -225,13 +283,29 @@ class WordPressDraftLifecycle:
             taxonomy_created = tax_result.created_categories + tax_result.created_tags
             taxonomy_errors = tax_result.errors
 
+        # The image file is named with this same slug.
+        seo_article = dict(article)
+        if topic and not seo_article.get("topic"):
+            seo_article["topic"] = topic
+        if entities and not seo_article.get("entities"):
+            seo_article["entities"] = list(entities)
+        seo, seo_validation = build_seo_for_article(
+            article=seo_article,
+            wp_base_url=self.config.base_url,
+            repair=True,
+        )
+
         # Upload featured image if provided
         featured_media_id = None
         if image_path and existing and existing.featured_media_id:
             # Keep existing media if no new image
             featured_media_id = existing.featured_media_id
         elif image_path:
-            media_resp = self._upload_media(image_path, event_id)
+            media_resp = self._upload_media(
+                image_path,
+                event_id,
+                article_name=seo.slug or seo.title or article.get("headline") or "",
+            )
             if media_resp.get("ok"):
                 payload = media_resp.get("payload") or {}
                 featured_media_id = payload.get("id")
@@ -262,18 +336,6 @@ class WordPressDraftLifecycle:
             headings = formatted.headings
             source_links = formatted.source_links
             internal_links = formatted.internal_links
-
-        # Build SEO metadata and validate (topic/entities aid focus keyphrase)
-        seo_article = dict(article)
-        if topic and not seo_article.get("topic"):
-            seo_article["topic"] = topic
-        if entities and not seo_article.get("entities"):
-            seo_article["entities"] = list(entities)
-        seo, seo_validation = build_seo_for_article(
-            article=seo_article,
-            wp_base_url=self.config.base_url,
-            repair=True,
-        )
 
         # Build post body (use SEO-optimized slug)
         body: dict[str, Any] = {
@@ -347,6 +409,8 @@ class WordPressDraftLifecycle:
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 wp_modified=payload.get("modified"),
                 featured_media_id=featured_media_id or existing.featured_media_id,
+                site_id=site_id or existing.site_id,
+                site_base_url=site_base_url or existing.site_base_url,
             )
             self.store.save(record)
             self.master_index.remove_publication(event_id)
@@ -404,6 +468,8 @@ class WordPressDraftLifecycle:
             updated_at=now,
             wp_modified=payload.get("modified"),
             featured_media_id=featured_media_id,
+            site_id=site_id,
+            site_base_url=site_base_url,
         )
         self.store.save(record)
         return self._apply_rankmath_after_draft(
@@ -423,7 +489,6 @@ class WordPressDraftLifecycle:
 
     def publish_draft(self, event_id: str) -> DraftResult:
         """Publish the draft for this event."""
-        secrets = self.config.secrets()
         existing = self.store.load(event_id)
         if not existing:
             return DraftResult(
@@ -443,15 +508,17 @@ class WordPressDraftLifecycle:
                 updated=False,
             )
 
+        config = self._config_for_draft(existing)
+        secrets = config.secrets()
         publish_body: dict[str, Any] = {"status": "publish"}
         chosen_author = author_id_for(event_id)
         if chosen_author:
             publish_body["author"] = chosen_author
         resp = self.transport(
             "PUT",
-            self._wp_api(f"posts/{existing.wp_post_id}"),
+            self._wp_api(f"posts/{existing.wp_post_id}", config),
             json=publish_body,
-            auth=self._auth(),
+            auth=self._auth(config),
         )
         if not resp.get("ok"):
             return DraftResult(
@@ -462,6 +529,10 @@ class WordPressDraftLifecycle:
             )
 
         payload = resp.get("payload") or {}
+        site_id, site_base_url = self._site_fields()
+        if config.base_url != self.config.base_url:
+            site_id = existing.site_id or site_id
+            site_base_url = existing.site_base_url or config.base_url
         record = WordPressDraftRecord(
             event_id=event_id,
             wp_post_id=existing.wp_post_id,
@@ -473,6 +544,8 @@ class WordPressDraftLifecycle:
             updated_at=datetime.now(timezone.utc).isoformat(),
             wp_modified=payload.get("modified"),
             featured_media_id=existing.featured_media_id,
+            site_id=site_id or existing.site_id,
+            site_base_url=site_base_url or existing.site_base_url or config.base_url,
         )
         self.store.save(record)
         return DraftResult(
@@ -486,7 +559,6 @@ class WordPressDraftLifecycle:
 
     def assign_author(self, event_id: str, user_id: int) -> DraftResult:
         """Set the byline on an existing draft without publishing it."""
-        secrets = self.config.secrets()
         existing = self.store.load(event_id)
         if not existing:
             return DraftResult(
@@ -495,11 +567,13 @@ class WordPressDraftLifecycle:
                 error="No draft found for this event",
                 error_code="draft_not_found",
             )
+        config = self._config_for_draft(existing)
+        secrets = config.secrets()
         resp = self.transport(
             "PUT",
-            self._wp_api(f"posts/{existing.wp_post_id}"),
+            self._wp_api(f"posts/{existing.wp_post_id}", config),
             json={"author": int(user_id)},
-            auth=self._auth(),
+            auth=self._auth(config),
         )
         if not resp.get("ok"):
             return DraftResult(
@@ -520,7 +594,6 @@ class WordPressDraftLifecycle:
 
     def unpublish_draft(self, event_id: str) -> DraftResult:
         """Unpublish: revert published post to draft status."""
-        secrets = self.config.secrets()
         existing = self.store.load(event_id)
         if not existing:
             return DraftResult(
@@ -530,11 +603,13 @@ class WordPressDraftLifecycle:
                 error_code="draft_not_found",
             )
 
+        config = self._config_for_draft(existing)
+        secrets = config.secrets()
         resp = self.transport(
             "PUT",
-            self._wp_api(f"posts/{existing.wp_post_id}"),
+            self._wp_api(f"posts/{existing.wp_post_id}", config),
             json={"status": "draft"},
-            auth=self._auth(),
+            auth=self._auth(config),
         )
         if not resp.get("ok"):
             return DraftResult(
@@ -556,6 +631,8 @@ class WordPressDraftLifecycle:
             updated_at=datetime.now(timezone.utc).isoformat(),
             wp_modified=payload.get("modified"),
             featured_media_id=existing.featured_media_id,
+            site_id=existing.site_id,
+            site_base_url=existing.site_base_url or config.base_url,
         )
         self.store.save(record)
         self.master_index.remove_publication(event_id)
@@ -570,15 +647,16 @@ class WordPressDraftLifecycle:
 
     def retrieve_wp_state(self, event_id: str) -> dict[str, Any]:
         """Retrieve current WordPress state for this event's draft."""
-        secrets = self.config.secrets()
         existing = self.store.load(event_id)
         if not existing:
             return {"ok": False, "error": "draft_not_found", "event_id": event_id}
 
+        config = self._config_for_draft(existing)
+        secrets = config.secrets()
         resp = self.transport(
             "GET",
-            self._wp_api(f"posts/{existing.wp_post_id}"),
-            auth=self._auth(),
+            self._wp_api(f"posts/{existing.wp_post_id}", config),
+            auth=self._auth(config),
         )
         if not resp.get("ok"):
             return {

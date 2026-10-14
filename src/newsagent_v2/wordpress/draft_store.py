@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,13 +31,16 @@ class WordPressDraftRecord:
     updated_at: str
     wp_modified: str | None  # WP's last modified time
     featured_media_id: int | None = None
+    site_id: str = ""
+    site_base_url: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> WordPressDraftRecord:
-        return cls(**d)
+        known = {item.name for item in fields(cls)}
+        return cls(**{key: value for key, value in d.items() if key in known})
 
 
 class WordPressDraftStore:

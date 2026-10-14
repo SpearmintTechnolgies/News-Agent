@@ -450,7 +450,8 @@ def build_vertex_make_image_fn(
 
             card_raw = raw_dir / "artwork_1280x720.png"
             _resize_to_card(raw_path, card_raw)
-            branded_path = final_dir / "branded.png"
+            # JPEG featured card for Telegram / WordPress (much smaller than PNG).
+            branded_path = final_dir / "branded.jpg"
             composition = compose_card(
                 card_raw,
                 branded_path,
@@ -460,7 +461,7 @@ def build_vertex_make_image_fn(
                     logo_path=logo,
                     test_mode=False,
                     logo_only=True,
-                    output_name="branded.png",
+                    output_name="branded.jpg",
                 ),
             )
             write_json_utf8(bundle_dir / "composition.json", composition)

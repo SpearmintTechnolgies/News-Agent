@@ -24,11 +24,12 @@ import os
 import re
 import signal
 import sys
+import threading
 import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 sys.path.insert(0, "src")
 
@@ -151,12 +152,14 @@ HELP_TEXT = (
     "👋 News Agent is online.\n\n"
     "Commands:\n"
     "• /start — your websites, then TRENDING, 6 HOURS, or one category\n"
+    "• /autopilot — idle auto-publish: hours quiet + articles per site\n"
     "• RUN STORY writes only the card you tap\n"
     "• /author — choose the byline used for the next articles\n"
-    "• Each draft arrives as a review card: REVISE, EDIT, CHANGE AUTHOR, REJECT or APPROVE & PUBLISH\n\n"
+    "• /voice — choose the narration voice for article audio (Amazon Polly)\n"
+    "• Each draft arrives as a review card: REVISE, EDIT, CHANGE AUTHOR, REJECT, 🔊 LISTEN or APPROVE & PUBLISH\n\n"
     "Anything else goes to Hermes. In a group, tag the bot first. A direct message does not need a tag."
 )
-_BOT_COMMANDS = frozenset({"/start", "/make", "/author", "/help"})
+_BOT_COMMANDS = frozenset({"/start", "/make", "/author", "/voice", "/help", "/autopilot"})
 
 
 def is_group_chat(update: dict, chat_id: str = "") -> bool:
@@ -346,16 +349,50 @@ def handle_startup_backlog(
 AUTO_GENERATE_ENV = "NEWSAGENT_V6_AUTO_GENERATE"
 AUTO_CANDIDATES_ENV = "NEWSAGENT_V6_AUTO_CANDIDATES"
 
+# Review actions that hit WordPress / the writer and must not block the poller.
+_HEAVY_REVIEW_ACTIONS = frozenset({
+    "approve", "publish", "revise", "edit", "unpublish", "set_author", "site_author",
+})
+
+
+def _ack_callback(client: TelegramTestClient, callback_query_id: str, text: str = "Okay") -> None:
+    """Clear the Telegram button spinner immediately."""
+    try:
+        client.answer_callback_query(
+            callback_query_id=callback_query_id,
+            text=(text or "Okay")[:200],
+        )
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer: {exc}")
+
+
+def _run_in_background(name: str, fn: Callable[[], Any]) -> None:
+    """Keep getUpdates free while long scans / publishes run."""
+
+    def _wrap() -> None:
+        try:
+            fn()
+        except Exception:
+            log_event(f"[BG ERROR] {name}")
+            traceback.print_exc()
+
+    threading.Thread(target=_wrap, daemon=True, name=name[:40]).start()
+
 
 def select_postable(events, screen, *, limit: int = 10, keep: int = 10, progress=None):
-    """Research stories in rank order and keep only those a full article can be written from."""
+    """Research stories in rank order and keep only those a full article can be written from.
+
+    ``limit`` is how many candidates to try; ``keep`` is how many passers to collect.
+    Use limit > keep so already-seen or thin stories do not leave the batch short.
+    """
     postable = []
     dropped = 0
     checked = 0
-    for event in list(events)[:limit]:
+    candidates = list(events)[: max(int(limit), int(keep))]
+    for event in candidates:
         checked += 1
         if progress is not None:
-            progress(checked, min(len(events), limit), event)
+            progress(checked, len(candidates), event)
         passed, _reason = screen(event)
         if passed:
             postable.append(event)
@@ -364,6 +401,106 @@ def select_postable(events, screen, *, limit: int = 10, keep: int = 10, progress
         else:
             dropped += 1
     return postable, dropped, checked
+
+
+def fill_until_quota(
+    discovery,
+    *,
+    selection: str,
+    keep: int,
+    screen,
+    unlimited_age: bool,
+    on_status=None,
+    on_screen=None,
+    max_rounds: int | None = None,
+):
+    """Keep searching and screening until ``keep`` writeable cards are found.
+
+    Round 0 uses full discovery (RSS + search). Later rounds pull fresh Bing /
+    Google query sets via ``supplement_from_search`` until the quota is met
+    or ``MAX_SEARCH_ROUNDS`` is exhausted.
+
+    ``on_status(message)`` gets round-level updates.
+    ``on_screen(index, event)`` gets each source-check (index is 1-based overall).
+    """
+    from newsagent_v2.control.offered_stories import OfferedStories
+    from newsagent_v2.control.story_picker import (
+        MAX_SEARCH_ROUNDS,
+        order_stories,
+        story_matches,
+    )
+
+    rounds = MAX_SEARCH_ROUNDS if max_rounds is None else max(1, int(max_rounds))
+    site_key = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "")
+    offered = OfferedStories.load()
+    kept = []
+    seen_ids: set[str] = set()
+    dropped = 0
+    checked = 0
+    queue: list = []
+
+    for round_idx in range(rounds):
+        if len(kept) >= keep:
+            break
+        if round_idx == 0:
+            if on_status is not None:
+                on_status(f"Scanning feeds + live search for {keep} cards...")
+            pool = max(keep * 4, 40)
+            events = discovery.run_discovery(
+                unlimited_age=unlimited_age,
+                selection=selection,
+                offer_batch=pool,
+            )
+        else:
+            if on_status is not None:
+                on_status(
+                    f"Have {len(kept)}/{keep} — search round {round_idx + 1}/{rounds}..."
+                )
+            events = discovery.supplement_from_search(
+                selection,
+                round=round_idx,
+                unlimited_age=unlimited_age,
+                exclude_ids=seen_ids,
+            )
+        fresh = order_stories(
+            [
+                event
+                for event in events
+                if getattr(event, "event_id", None)
+                and event.event_id not in seen_ids
+                and story_matches(event, selection)
+                and not offered.already(event, site_id=site_key)
+            ],
+            selection,
+        )
+        for event in fresh:
+            seen_ids.add(event.event_id)
+        queue.extend(fresh)
+        if not queue:
+            continue
+
+        need = keep - len(kept)
+
+        def _progress(index: int, _total: int, event, _base=checked) -> None:
+            if on_screen is not None:
+                on_screen(_base + index, event)
+
+        batch, batch_dropped, batch_checked = select_postable(
+            queue,
+            screen,
+            limit=len(queue),
+            keep=need,
+            progress=_progress,
+        )
+        checked += batch_checked
+        dropped += batch_dropped
+        queue = queue[batch_checked:]
+        for event in batch:
+            kept.append(event)
+            if len(kept) >= keep:
+                break
+
+    return kept, dropped, checked, len(seen_ids)
 
 
 def auto_generate_top(client, config, discovery, runtime) -> dict[str, Any]:
@@ -389,6 +526,136 @@ def auto_generate_top(client, config, discovery, runtime) -> dict[str, Any]:
     )
     return {"ok": started, "target": target, "candidates": len(events)}
 
+
+def run_idle_autopilot(runtime: V5BotRuntime, settings) -> dict[str, Any]:
+    """For each ready website: pick high-trend stories, write, approve, and publish.
+
+    Used when nobody has pressed RUN STORY or published for ``settings.idle_hours``.
+    """
+    from newsagent_v2.control.idle_autopilot import record_autopilot, record_publish, record_run
+    from newsagent_v2.control.offered_stories import OfferedStories
+    from newsagent_v2.control.site_flow import (
+        best_category_for_event,
+        bind_event_category,
+        fetch_categories,
+        remember_publication,
+        store_categories,
+    )
+    from newsagent_v2.control.sites import is_ready, list_sites
+    from newsagent_v2.control.story_picker import HIGH_TREND, skips_age_cap
+    from newsagent_v2.story6 import screen_story
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.authors import author_for, list_site_authors, remember_default
+    from newsagent_v2.control.sites import wordpress_config
+
+    client = runtime.client
+    config = runtime.config
+    discovery = runtime.discovery
+    worker = runtime.generation_worker
+    review = runtime.review_handler
+    if client is None or config is None or discovery is None or worker is None or review is None:
+        return {"ok": False, "reason": "runtime_incomplete"}
+    if runtime._controlled_e2e:
+        return {"ok": False, "reason": "controlled_e2e"}
+
+    count = int(settings.article_count)
+    sites = [s for s in list_sites(environ=os.environ) if is_ready(s)]
+    broadcast_message(
+        client,
+        config,
+        text=(
+            f"🤖 Idle autopilot: no RUN/publish for {settings.idle_hours:g}h. "
+            f"Writing and publishing up to {count} high-trend articles on {len(sites)} site(s)."
+        ),
+        parse_mode="HTML",
+    )
+    published_total = 0
+    for site in sites:
+        try:
+            _use_site(runtime, site, index_async=False)
+            transport = build_live_wordpress_transport()
+            authors = list_site_authors(wordpress_config(site), transport)
+            author = author_for("") or (authors[0] if authors else None)
+            if author is None:
+                log_event(f"[IDLE-AUTOPILOT] skip {site.name}: no authors")
+                continue
+            remember_default(author)
+            categories = fetch_categories(site, transport)
+            store_categories(site.id, categories)
+            ready_count = {"n": 0}
+
+            def _screen_and_bind(event, _site=site, _author=author, _cats=categories):
+                passed, reason = screen_story(event)
+                if not passed:
+                    return False, reason
+                category = best_category_for_event(event, _cats)
+                if category is None:
+                    return False, "no_matching_category"
+                remember_publication(_site.id, int(category["id"]), str(category["name"]), _author)
+                bind_event_category(
+                    event.event_id,
+                    site_id=_site.id,
+                    category_id=int(category["id"]),
+                    category_name=str(category["name"]),
+                )
+                event._high_trend_category = category  # type: ignore[attr-defined]
+                ready_count["n"] += 1
+                return True, "ok"
+
+            postable, _dropped, _checked, _cands = fill_until_quota(
+                discovery,
+                selection=HIGH_TREND,
+                keep=count,
+                screen=_screen_and_bind,
+                unlimited_age=skips_age_cap(HIGH_TREND),
+                max_rounds=3,
+            )
+            OfferedStories.load().remember(postable, site_id=site.id)
+            discovery.replace_ranked(postable)
+            site_published = 0
+            for event in postable[:count]:
+                record_run(site.id)
+                job = worker._new_job(event.event_id, discovery_run_id="idle-autopilot")
+                result = worker.run_generation(event, job)
+                if not result.get("ok"):
+                    log_event(f"[IDLE-AUTOPILOT] write failed {event.event_id}: {result.get('error')}")
+                    continue
+                version = str(result.get("article_version") or "v1")
+                pub = review.handle_approve_and_publish(
+                    event.event_id,
+                    reviewer="idle-autopilot",
+                    job_id=str(result.get("job_id") or job.job_id),
+                    version=version,
+                )
+                if pub.get("ok") and pub.get("action") == "publish":
+                    record_publish(site.id)
+                    site_published += 1
+                    published_total += 1
+                    log_event(f"[IDLE-AUTOPILOT] published {event.event_id} on {site.name}")
+                else:
+                    log_event(f"[IDLE-AUTOPILOT] publish failed {event.event_id}: {pub.get('message')}")
+            broadcast_message(
+                client,
+                config,
+                text=f"🤖 {site.name}: published {site_published}/{count} idle-autopilot articles.",
+                parse_mode="HTML",
+            )
+        except Exception as exc:
+            log_event(f"[IDLE-AUTOPILOT] site={site.name} error={type(exc).__name__}: {exc}")
+            traceback.print_exc()
+    record_autopilot()
+    return {"ok": True, "published": published_total, "sites": len(sites)}
+
+
+def tick_idle_autopilot(runtime: V5BotRuntime) -> dict[str, Any]:
+    """Poll-loop hook: start idle autopilot when the desk has been quiet long enough."""
+    from newsagent_v2.control.idle_autopilot import maybe_tick
+
+    return maybe_tick(
+        environ=dict(os.environ),
+        run_fn=lambda settings: run_idle_autopilot(runtime, settings),
+    )
+
 def send_site_menu(client: TelegramTestClient, config, *, chat_id: str | None = None) -> None:
     """Ask which website to write for. /start sends this."""
     from newsagent_v2.control.sites import MENU_TEXT, active_id, list_sites, menu_keyboard
@@ -400,6 +667,103 @@ def send_site_menu(client: TelegramTestClient, config, *, chat_id: str | None = 
         client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
         return
     broadcast_message(client, config, text=text, reply_markup=markup)
+
+
+def send_idle_settings_menu(client: TelegramTestClient, *, chat_id: str) -> None:
+    """Show editable idle-autopilot hours and article count."""
+    from newsagent_v2.control.idle_autopilot import load_settings, settings_keyboard, settings_menu_text
+
+    settings = load_settings(dict(os.environ))
+    client.send_message(
+        chat_id=chat_id,
+        text=settings_menu_text(settings),
+        parse_mode="HTML",
+        reply_markup=settings_keyboard(settings),
+    )
+
+
+def _handle_idle_settings_callback(
+    *,
+    client: TelegramTestClient,
+    config,
+    runtime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """Telegram buttons for idle hours / article count / on-off."""
+    from newsagent_v2.control.idle_autopilot import (
+        IDLE_BACK_CALLBACK,
+        IDLE_MENU_CALLBACK,
+        load_settings,
+        set_article_count,
+        set_enabled,
+        set_idle_hours,
+        settings_keyboard,
+        settings_menu_text,
+    )
+
+    chat_id = safe_get_chat_id(update) or ""
+    parts = str(callback_data).split(":")
+    action = parts[1] if len(parts) > 1 else "menu"
+
+    if callback_data == IDLE_BACK_CALLBACK or action == "back":
+        _ack_callback(client, callback_query_id, "Websites")
+        send_site_menu(client, config, chat_id=chat_id)
+        return {"ok": True, "action": "idle_back"}
+
+    if callback_data == IDLE_MENU_CALLBACK or action == "menu":
+        _ack_callback(client, callback_query_id, "Autopilot")
+        send_idle_settings_menu(client, chat_id=chat_id)
+        return {"ok": True, "action": "idle_menu"}
+
+    settings = load_settings(dict(os.environ))
+    try:
+        if action == "on":
+            settings = set_enabled(True)
+            _ack_callback(client, callback_query_id, "Autopilot ON")
+        elif action == "off":
+            settings = set_enabled(False)
+            _ack_callback(client, callback_query_id, "Autopilot OFF")
+        elif action == "hours" and len(parts) > 2:
+            settings = set_idle_hours(float(parts[2]))
+            _ack_callback(client, callback_query_id, f"{settings.idle_hours:g}h")
+        elif action == "count" and len(parts) > 2:
+            settings = set_article_count(int(parts[2]))
+            _ack_callback(client, callback_query_id, f"{settings.article_count} articles")
+        else:
+            _ack_callback(client, callback_query_id, "Unknown")
+            return {"ok": False, "error": "unknown_idle_action"}
+    except (TypeError, ValueError) as exc:
+        _ack_callback(client, callback_query_id, "Invalid value")
+        return {"ok": False, "error": str(exc)}
+
+    # Refresh the same card so the ✓ marks move.
+    message = (update.get("callback_query") or {}).get("message") or {}
+    message_id = message.get("message_id")
+    if message_id and chat_id:
+        try:
+            client.edit_message_text(
+                chat_id=str(chat_id),
+                message_id=int(message_id),
+                text=settings_menu_text(settings),
+                parse_mode="HTML",
+                reply_markup=settings_keyboard(settings),
+            )
+        except Exception as exc:
+            log_event(f"[IDLE] menu refresh failed {type(exc).__name__}")
+            send_idle_settings_menu(client, chat_id=chat_id)
+    else:
+        send_idle_settings_menu(client, chat_id=chat_id)
+    log_event(
+        f"[IDLE] settings enabled={settings.enabled} hours={settings.idle_hours:g} "
+        f"count={settings.article_count}"
+    )
+    return {
+        "ok": True,
+        "action": "idle_settings",
+        "settings": settings.to_dict(),
+    }
 
 
 def send_story_menu(client: TelegramTestClient, config, *, chat_id: str | None = None, site_name: str = "") -> None:
@@ -484,8 +848,11 @@ def _accept_site_logo(runtime, chat_id: str, update: dict) -> None:
     log_event(f"[SITE] added={site.name} categories={len(categories)} authors={len(authors)} posts={posts}")
 
 
-def _use_site(runtime, site) -> None:
-    """Point drafts, authors, and the admin link at the chosen website."""
+def _use_site(runtime, site, *, index_async: bool = True) -> None:
+    """Point drafts, authors, and the admin link at the chosen website.
+
+    Sitemap indexing is optional background work so site-switch buttons stay snappy.
+    """
     from newsagent_v2.control.sites import activate, wordpress_config
     from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
     from newsagent_v2.wordpress.draft_lifecycle import WordPressDraftLifecycle
@@ -498,13 +865,40 @@ def _use_site(runtime, site) -> None:
     if lifecycle is None and worker is not None:
         lifecycle = WordPressDraftLifecycle(wp_config, build_live_wordpress_transport())
         worker.wordpress_lifecycle = lifecycle
-        if handler is not None:
-            handler.wordpress_lifecycle = lifecycle
     elif lifecycle is not None:
         lifecycle.config = wp_config
-    posts = _index_site(site)
-    log_event(f"[SITE] active={site.name} posts={posts}")
-    return posts
+    if handler is not None and lifecycle is not None:
+        handler.wordpress_lifecycle = lifecycle
+    log_event(
+        f"[SITE] active={site.name} base={site.base_url} "
+        f"lifecycle={getattr(getattr(lifecycle, 'config', None), 'base_url', None)}"
+    )
+    if index_async:
+        _run_in_background(f"sitemap-{site.id}", lambda: _index_site(site))
+        return 0
+    return _index_site(site)
+
+
+def _refresh_site_menu_message(client, update: dict, site) -> None:
+    """Move the ✓ on the /start keyboard so the switch is visible."""
+    from newsagent_v2.control.sites import MENU_TEXT, list_sites, menu_keyboard
+
+    message = (update.get("callback_query") or {}).get("message") or {}
+    message_id = message.get("message_id")
+    chat_id = safe_get_chat_id(update)
+    if not message_id or not chat_id:
+        return
+    text = f"{MENU_TEXT}\n\nActive: {site.name}"
+    try:
+        client.edit_message_text(
+            chat_id=str(chat_id),
+            message_id=int(message_id),
+            text=text,
+            parse_mode="HTML",
+            reply_markup=menu_keyboard(list_sites(environ=os.environ), active=site.id),
+        )
+    except Exception as exc:
+        log_event(f"[SITE] menu refresh failed {type(exc).__name__}")
 
 
 def _index_site(site) -> int:
@@ -518,6 +912,332 @@ def _index_site(site) -> int:
         return 0
     log_event(f"[SITE] sitemap site={site.name} posts={len(index.posts)}")
     return len(index.posts)
+
+
+def execute_high_trend(
+    client: TelegramTestClient,
+    config,
+    state: V5BotState,
+    discovery: V5DiscoveryPipeline,
+    persistent_store: PersistentV5Store,
+    runtime: V5BotRuntime,
+    update_id: int,
+    update: dict,
+    site,
+    author,
+) -> dict[str, any]:
+    """Fetch the top high-traffic trend stories and file each under the closest category."""
+    from newsagent_v2.control.offered_stories import OfferedStories
+    from newsagent_v2.control.site_flow import (
+        best_category_for_event,
+        bind_event_category,
+        fetch_categories,
+        remember_publication,
+        store_categories,
+    )
+    from newsagent_v2.control.story_picker import (
+        HIGH_TREND,
+        HIGH_TREND_TOTAL,
+        skips_age_cap,
+        traffic_seo_score,
+    )
+    from newsagent_v2.story6 import screen_story
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+
+    start_time = time.perf_counter()
+    make_run_id = state.start_make_run(update_id)
+    runtime.current_discovery_run_id = make_run_id
+    log_event(f"[HIGH] accepted update_id={update_id} make_run_id={make_run_id} site={site.name}")
+
+    ack_targets = operator_ids(config) or (str(config.test_chat_id),)
+    ack = MakeAcknowledgement(
+        client=client,
+        chat_id=ack_targets[0],
+        update_id=update_id,
+        make_run_id=make_run_id,
+        chat_ids=ack_targets,
+    )
+    ack_result = ack.send_initial()
+    if not ack_result.get("ok"):
+        return {"ok": False, "error": "acknowledgement_failed", "make_run_id": make_run_id}
+
+    try:
+        ack.update_progress(f"Scanning high-traffic trends for {site.name}...")
+        categories = fetch_categories(site, build_live_wordpress_transport())
+        store_categories(site.id, categories)
+        site_key = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "") or site.id
+        offered = OfferedStories.load()
+        ready_count = {"n": 0}
+
+        def _status(message: str) -> None:
+            ack.update_progress(message)
+
+        def _screen(index: int, event) -> None:
+            title = str(getattr(event, "canonical_title", "") or "")[:80]
+            ack.update_progress(
+                f"Checking #{index} · {ready_count['n']}/{HIGH_TREND_TOTAL} cards ready: {title}"
+            )
+
+        def _screen_and_bind(event):
+            passed, reason = screen_story(event)
+            if not passed:
+                return False, reason
+            category = best_category_for_event(event, categories)
+            if category is None:
+                return False, "no_matching_category"
+            remember_publication(site.id, int(category["id"]), str(category["name"]), author)
+            bind_event_category(
+                event.event_id,
+                site_id=site.id,
+                category_id=int(category["id"]),
+                category_name=str(category["name"]),
+            )
+            event._high_trend_category = category  # type: ignore[attr-defined]
+            ready_count["n"] += 1
+            return True, "ok"
+
+        postable, dropped, checked, candidates = fill_until_quota(
+            discovery,
+            selection=HIGH_TREND,
+            keep=HIGH_TREND_TOTAL,
+            screen=_screen_and_bind,
+            unlimited_age=skips_age_cap(HIGH_TREND),
+            on_status=_status,
+            on_screen=_screen,
+        )
+        kept = []
+        filed: list[str] = []
+        for event in postable:
+            category = getattr(event, "_high_trend_category", None)
+            if category is None:
+                category = best_category_for_event(event, categories)
+            if category is None:
+                continue
+            offered.remember([event], site_id=site_key)
+            kept.append(event)
+            filed.append(f"{category['name']} ({traffic_seo_score(event):.1f})")
+
+        discovery.replace_ranked(kept)
+        from datetime import datetime, timezone
+
+        discovery_run = DiscoveryRun(
+            run_id=make_run_id,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            event_ids=[e.event_id for e in kept],
+            total_events=len(kept),
+            chat_id=safe_get_chat_id(update) or config.test_chat_id,
+        )
+        persistent_store.save_discovery_run(discovery_run)
+
+        if kept:
+            note = (
+                f"HIGH TREND on {site.name} · byline {author.name}. "
+                f"Showing {len(kept)} high-traffic stories"
+            )
+            if dropped:
+                note += f" ({dropped} too thin to write)."
+            else:
+                note += "."
+            note += f" Filed under: {', '.join(filed[:8])}"
+            if len(filed) > 8:
+                note += f", +{len(filed) - 8} more"
+            note += "."
+        else:
+            note = (
+                f"HIGH TREND on {site.name}: checked {checked} candidates, "
+                "but none had enough sources to write right now."
+            )
+        ack.mark_complete(len(kept), note)
+
+        results = discovery.send_to_telegram(
+            client=client,
+            config=config,
+            count=len(kept),
+            offset=0,
+        ) if kept else []
+        cards_sent = len([r for r in results if r.get("ok")])
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        log_event(
+            f"[HIGH] done cards={cards_sent} checked={checked} dropped={dropped} "
+            f"candidates={candidates} duration_ms={duration_ms}"
+        )
+        return {
+            "ok": True,
+            "action": "high_trend",
+            "make_run_id": make_run_id,
+            "cards_sent": cards_sent,
+            "filed": filed,
+            "duration_ms": duration_ms,
+        }
+    except Exception as exc:
+        log_event(f"[HIGH ERROR] {type(exc).__name__}: {exc}")
+        try:
+            ack.mark_complete(0, f"High trend failed: {type(exc).__name__}")
+        except Exception:
+            pass
+        return {"ok": False, "error": str(exc)[:200], "make_run_id": make_run_id}
+
+
+def execute_fill_gaps(
+    client: TelegramTestClient,
+    config,
+    state: V5BotState,
+    discovery: V5DiscoveryPipeline,
+    persistent_store: PersistentV5Store,
+    runtime: V5BotRuntime,
+    update_id: int,
+    update: dict,
+    site,
+    author,
+) -> dict[str, any]:
+    """Scan the thinnest WordPress categories and offer one story for each (max 15)."""
+    from newsagent_v2.control.offered_stories import OfferedStories
+    from newsagent_v2.control.site_flow import (
+        FILL_GAPS_TOTAL,
+        bind_event_category,
+        fetch_categories,
+        lacking_categories,
+        remember_publication,
+        store_categories,
+    )
+    from newsagent_v2.control.story_picker import skips_age_cap
+    from newsagent_v2.story6 import screen_story
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+
+    start_time = time.perf_counter()
+    make_run_id = state.start_make_run(update_id)
+    runtime.current_discovery_run_id = make_run_id
+    log_event(f"[FILL] accepted update_id={update_id} make_run_id={make_run_id} site={site.name}")
+
+    ack_targets = operator_ids(config) or (str(config.test_chat_id),)
+    ack = MakeAcknowledgement(
+        client=client,
+        chat_id=ack_targets[0],
+        update_id=update_id,
+        make_run_id=make_run_id,
+        chat_ids=ack_targets,
+    )
+    ack_result = ack.send_initial()
+    if not ack_result.get("ok"):
+        return {"ok": False, "error": "acknowledgement_failed", "make_run_id": make_run_id}
+
+    try:
+        ack.update_progress(f"Scanning {site.name} categories for gaps...")
+        categories = fetch_categories(site, build_live_wordpress_transport())
+        store_categories(site.id, categories)
+        thin = lacking_categories(categories, total=FILL_GAPS_TOTAL)
+        if not thin:
+            ack.mark_complete(0, f"{site.name}: no categories to fill.")
+            return {"ok": False, "error": "no_categories", "make_run_id": make_run_id}
+
+        gap_lines = ", ".join(f"{row['name']} ({row['count']})" for row in thin[:8])
+        if len(thin) > 8:
+            gap_lines += f", +{len(thin) - 8} more"
+        ack.update_progress(f"{len(thin)} thin categories: {gap_lines}")
+        log_event(f"[FILL] thin={len(thin)} categories={[row['name'] for row in thin]}")
+
+        postable = []
+        filled_names: list[str] = []
+        skipped: list[str] = []
+        offered = OfferedStories.load()
+        site_key = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "") or site.id
+
+        for index, row in enumerate(thin, start=1):
+            name = str(row["name"])
+            category_id = int(row["id"])
+            ack.update_progress(f"Gap {index}/{len(thin)}: finding a story for {name}...")
+            remember_publication(site.id, category_id, name, author)
+            try:
+                found, dropped, checked, candidates = fill_until_quota(
+                    discovery,
+                    selection=name,
+                    keep=1,
+                    screen=screen_story,
+                    unlimited_age=skips_age_cap(name),
+                    on_status=lambda msg, _n=name, _i=index: ack.update_progress(
+                        f"Gap {_i}/{len(thin)} {_n}: {msg}"
+                    ),
+                    max_rounds=4,
+                )
+            except Exception as exc:  # noqa: BLE001 — continue other categories
+                log_event(f"[FILL] discovery failed category={name} {type(exc).__name__}")
+                skipped.append(name)
+                continue
+            log_event(
+                f"[FILL] category={name} checked={checked} postable={len(found)} "
+                f"dropped={dropped} candidates={candidates}"
+            )
+            if not found:
+                skipped.append(name)
+                continue
+            event = found[0]
+            bind_event_category(
+                event.event_id,
+                site_id=site.id,
+                category_id=category_id,
+                category_name=name,
+            )
+            offered.remember([event], site_id=site_key)
+            postable.append(event)
+            filled_names.append(name)
+            if len(postable) >= FILL_GAPS_TOTAL:
+                break
+
+        discovery.replace_ranked(postable)
+        from datetime import datetime, timezone
+
+        discovery_run = DiscoveryRun(
+            run_id=make_run_id,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            event_ids=[e.event_id for e in postable],
+            total_events=len(postable),
+            chat_id=safe_get_chat_id(update) or config.test_chat_id,
+        )
+        persistent_store.save_discovery_run(discovery_run)
+
+        if postable:
+            note = (
+                f"FILL GAPS on {site.name} · byline {author.name}. "
+                f"Showing {len(postable)} {'story' if len(postable) == 1 else 'stories'} "
+                f"across thin categories: {', '.join(filled_names)}."
+            )
+            if skipped:
+                note += f" No writeable story for: {', '.join(skipped)}."
+        else:
+            note = (
+                f"FILL GAPS on {site.name}: scanned {len(thin)} thin categories, "
+                "but none had a writeable story right now."
+            )
+        ack.mark_complete(len(postable), note)
+
+        results = discovery.send_to_telegram(
+            client=client,
+            config=config,
+            count=len(postable),
+            offset=0,
+        ) if postable else []
+        cards_sent = len([r for r in results if r.get("ok")])
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+        log_event(
+            f"[FILL] done cards={cards_sent} filled={len(filled_names)} "
+            f"skipped={len(skipped)} duration_ms={duration_ms}"
+        )
+        return {
+            "ok": True,
+            "action": "fill_gaps",
+            "make_run_id": make_run_id,
+            "cards_sent": cards_sent,
+            "filled": filled_names,
+            "skipped": skipped,
+            "duration_ms": duration_ms,
+        }
+    except Exception as exc:
+        log_event(f"[FILL ERROR] {type(exc).__name__}: {exc}")
+        try:
+            ack.mark_complete(0, f"Fill gaps failed: {type(exc).__name__}")
+        except Exception:
+            pass
+        return {"ok": False, "error": str(exc)[:200], "make_run_id": make_run_id}
 
 
 def execute_make_with_acknowledgement(
@@ -720,6 +1440,233 @@ def _reply_author_menu(runtime: V5BotRuntime, chat_id: str) -> None:
     )
 
 
+def _reply_voice_menu(runtime: V5BotRuntime, chat_id: str) -> None:
+    """Open the /voice picker: language step first (English first, then A-Z)."""
+    from newsagent_v2.telegram.voice_picker import LANG_STEP_TEXT, PICKER_TITLE, language_keyboard
+    from newsagent_v2.tts.polly import PollyError, list_voices
+
+    if runtime.client is None:
+        return
+    try:
+        voices = list_voices()
+    except PollyError as exc:
+        runtime.client.send_message(chat_id=chat_id, text=f"Polly is not available right now: {exc}")
+        return
+    runtime.client.send_message(
+        chat_id=chat_id,
+        text=f"{PICKER_TITLE}\n\n{LANG_STEP_TEXT}",
+        reply_markup=language_keyboard(voices),
+    )
+
+
+def _handle_voice_callback(
+    *,
+    client: TelegramTestClient,
+    config,
+    runtime: V5BotRuntime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """Voice picker steps: language page, voice page, save the choice, preview."""
+    from newsagent_v2.telegram.voice_picker import (
+        PICKER_TITLE,
+        PREVIEW_TEXT,
+        language_keyboard,
+        parse_voice_callback,
+        safe_page,
+        set_voice,
+        voice_for,
+        voice_keyboard,
+    )
+    from newsagent_v2.tts.polly import PollyError, find_voice, list_voices, synthesize
+
+    chat_id = safe_get_chat_id(update) or ""
+    parsed = parse_voice_callback(callback_data)
+    if parsed is None:
+        return {"ok": False, "error": "unknown_voice_callback"}
+    try:
+        voices = list_voices()
+    except PollyError as exc:
+        log_event(f"[VOICE] polly unavailable: {exc}")
+        try:
+            client.answer_callback_query(
+                callback_query_id=callback_query_id,
+                text="Polly is not available right now.",
+            )
+        except Exception:
+            pass
+        return {"ok": False, "error": "polly_unavailable"}
+
+    message = (update.get("callback_query") or {}).get("message") or {}
+    message_id = message.get("message_id")
+    action = parsed["action"]
+
+    if action == "langs":
+        markup = language_keyboard(voices, page=safe_page(parsed.get("page", "0")))
+        if message_id:
+            client.edit_message_text(
+                chat_id=chat_id,
+                message_id=int(message_id),
+                text=f"{PICKER_TITLE}\n\nPick a language.",
+                reply_markup=markup,
+            )
+        else:
+            client.send_message(chat_id=chat_id, text="Pick a language.", reply_markup=markup)
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id)
+        except Exception:
+            pass
+        return {"ok": True, "action": "voice_langs"}
+
+    if action == "lang":
+        language_code = parsed.get("language_code", "")
+        markup = voice_keyboard(
+            voices,
+            language_code,
+            page=safe_page(parsed.get("page", "0")),
+            selected_id=voice_for(chat_id),
+        )
+        if message_id:
+            client.edit_message_text(
+                chat_id=chat_id,
+                message_id=int(message_id),
+                text="Pick a voice. ▶️ plays a one-sentence sample; the name row selects it.",
+                reply_markup=markup,
+            )
+        else:
+            client.send_message(chat_id=chat_id, text="Pick a voice.", reply_markup=markup)
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id)
+        except Exception:
+            pass
+        return {"ok": True, "action": "voice_lang", "language_code": language_code}
+
+    voice = find_voice(voices, parsed.get("voice_id", ""))
+    if voice is None:
+        try:
+            client.answer_callback_query(
+                callback_query_id=callback_query_id,
+                text="That voice is no longer available.",
+            )
+        except Exception:
+            pass
+        return {"ok": False, "error": "unknown_voice"}
+
+    if action == "set":
+        set_voice(chat_id, voice.id)
+        log_event(f"[VOICE] chat={chat_id} voice={voice.id}")
+        try:
+            client.answer_callback_query(
+                callback_query_id=callback_query_id,
+                text=f"Voice for this chat: {voice.id} · {voice.best_engine}",
+            )
+        except Exception:
+            pass
+        if message_id:
+            client.edit_message_text(
+                chat_id=chat_id,
+                message_id=int(message_id),
+                text=(
+                    f"✅ This chat now reads articles in <b>{html.escape(voice.id)}</b> "
+                    f"({html.escape(voice.language_name)}, {voice.best_engine}).\n"
+                    "Send /voice to change it."
+                ),
+                parse_mode="HTML",
+            )
+        return {"ok": True, "action": "voice_set", "voice_id": voice.id}
+
+    # action == "play": one-sentence sample, never saved.
+    try:
+        client.answer_callback_query(
+            callback_query_id=callback_query_id,
+            text=f"Playing a {voice.id} sample…",
+        )
+    except Exception:
+        pass
+    try:
+        audio = synthesize(PREVIEW_TEXT, voice.id, engine=voice.best_engine)
+    except PollyError as exc:
+        log_event(f"[VOICE] preview failed: {exc}")
+        client.send_message(chat_id=chat_id, text=f"Preview failed: {exc}")
+        return {"ok": False, "error": "preview_failed"}
+    sent = client.send_audio(
+        chat_id=chat_id,
+        audio_name=f"{voice.id.lower()}-preview.mp3",
+        audio_bytes=audio,
+        caption=f"▶️ {html.escape(voice.label())}",
+        title=f"{voice.id} sample",
+    )
+    return {"ok": bool(sent.get("ok")), "action": "voice_preview", "voice_id": voice.id}
+
+
+def _handle_listen_callback(
+    *,
+    client: TelegramTestClient,
+    config,
+    runtime: V5BotRuntime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """🔊 LISTEN on a review card: read the article aloud in this chat's voice."""
+    from newsagent_v2.telegram.voice_picker import voice_for
+    from newsagent_v2.tts.polly import PollyError, clean_for_speech, synthesize
+
+    chat_id = safe_get_chat_id(update) or str(config.test_chat_id)
+    parts = str(callback_data).split(":")
+    event_id = parts[1] if len(parts) > 1 else ""
+    version = parts[2] if len(parts) > 2 else ""
+
+    store = runtime.version_store
+    if store is None or not event_id:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Article not found.")
+        except Exception:
+            pass
+        return {"ok": False, "error": "no_version_store"}
+    if not version:
+        version = store.get_current_version(event_id, "article") or ""
+    record = store.get_article(event_id, version) if version else None
+    article = (record or {}).get("article") or {}
+    headline = str(article.get("headline") or "").strip()
+    body = clean_for_speech(str(article.get("article_body") or ""))
+    if not body:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="No article text to read.")
+        except Exception:
+            pass
+        return {"ok": False, "error": "no_article_text"}
+
+    voice = voice_for(chat_id)
+    try:
+        client.answer_callback_query(
+            callback_query_id=callback_query_id,
+            text=f"Preparing audio ({voice})…",
+        )
+    except Exception:
+        pass
+
+    narration = f"{headline}. {body}" if headline else body
+    try:
+        audio = synthesize(narration, voice)
+    except PollyError as exc:
+        log_event(f"[LISTEN] synthesize failed event={event_id}: {exc}")
+        client.send_message(chat_id=chat_id, text=f"Audio is not available right now: {exc}")
+        return {"ok": False, "error": "polly_failed"}
+
+    caption = f"🔊 {html.escape(headline[:120])}\nVoice: {html.escape(voice)}"
+    sent = client.send_audio(
+        chat_id=chat_id,
+        audio_name=f"{event_id}-{version or 'current'}.mp3",
+        audio_bytes=audio,
+        caption=caption[:1024],
+        title=(headline or "News Agent article")[:128],
+    )
+    log_event(f"[LISTEN] event={event_id} version={version} voice={voice} ok={bool(sent.get('ok'))}")
+    return {"ok": bool(sent.get("ok")), "action": "listen", "event_id": event_id, "voice": voice}
+
+
 def _edit_author_on_card(client: TelegramTestClient, update: dict, result: dict) -> bool:
     """Rewrite the review card in place: flow line, author, and author buttons."""
     from newsagent_v2.v5_generation.telegram_delivery import paint_author_flow, review_keyboard
@@ -760,6 +1707,35 @@ def _edit_author_on_card(client: TelegramTestClient, update: dict, result: dict)
 
 # ============ REVIEW CALLBACK HANDLER ============
 
+def _finish_review_result(
+    client: TelegramTestClient,
+    config,
+    update: dict,
+    actor_chat: str,
+    result: dict[str, any],
+) -> None:
+    """Send follow-up Telegram UI after a review action finishes."""
+    action = result.get("action", "unknown")
+    message_text = result.get("message", "Done")
+    if result.get("edit_card"):
+        edited = _edit_author_on_card(client, update, result)
+        if not edited:
+            broadcast_message(client, config, text=message_text, parse_mode="HTML")
+    elif result.get("reply_markup"):
+        client.send_message(
+            chat_id=actor_chat,
+            text=message_text,
+            parse_mode="HTML",
+            reply_markup=result.get("reply_markup"),
+        )
+    elif action in [
+        "rate_article", "rate_image", "feedback_captured",
+        "approve", "revise", "publish", "feedback_cancelled",
+        "set_author", "site_author",
+    ] or (not result.get("ok") and result.get("message")):
+        broadcast_message(client, config, text=message_text, parse_mode="HTML")
+
+
 def _handle_review_callback(
     client: TelegramTestClient,
     config,
@@ -770,76 +1746,71 @@ def _handle_review_callback(
     callback_query_id: str,
     callback_data: str,
 ) -> dict[str, any]:
-    """Handle review callbacks: rate, feedback, revise, approve, publish."""
+    """Handle review callbacks: rate, feedback, revise, approve, publish.
+
+    Heavy actions (approve/publish/revise) are acknowledged immediately and run
+    in a background thread so other Telegram buttons keep responding.
+    """
     start_time = time.perf_counter()
-    
     log_event(f"[REVIEW CALLBACK] data={callback_data}")
-    
+
     try:
-        # Get reviewer from callback
         cq = update.get("callback_query") or {}
         from_user = cq.get("from", {})
         reviewer = from_user.get("username") or from_user.get("first_name", "user")
-        
-        # Handle through review callback handler
         actor_chat = safe_get_chat_id(update) or str(config.test_chat_id)
+        parsed = runtime.review_handler.parse_callback(callback_data) if runtime.review_handler else None
+        action_hint = (parsed or {}).get("action", "")
+
+        if action_hint in _HEAVY_REVIEW_ACTIONS:
+            _ack_callback(client, callback_query_id, "Working…")
+            log_event("[REVIEW CALLBACK] acknowledged (async)")
+
+            def _heavy() -> None:
+                t0 = time.perf_counter()
+                try:
+                    result = runtime.review_handler.handle(
+                        data=callback_data,
+                        reviewer=reviewer,
+                        chat_id=actor_chat,
+                    )
+                    log_event(f"[REVIEW CALLBACK] action={result.get('action', 'unknown')}")
+                    _finish_review_result(client, config, update, actor_chat, result)
+                except Exception as exc:
+                    log_event(f"[REVIEW CALLBACK ERROR] {type(exc).__name__}: {exc}")
+                    traceback.print_exc()
+                    broadcast_message(
+                        client, config,
+                        text=f"❌ Review action failed: {html.escape(str(exc)[:200])}",
+                        parse_mode="HTML",
+                    )
+                finally:
+                    log_event(
+                        f"[REVIEW CALLBACK] completed duration_ms="
+                        f"{int((time.perf_counter() - t0) * 1000)}"
+                    )
+
+            _run_in_background(f"review-{action_hint}", _heavy)
+            return {"ok": True, "action": action_hint, "async": True}
+
         result = runtime.review_handler.handle(
             data=callback_data,
             reviewer=reviewer,
             chat_id=actor_chat,
         )
-        
         action = result.get("action", "unknown")
         log_event(f"[REVIEW CALLBACK] action={action}")
-        
-        # Acknowledge callback
-        message_text = result.get("message", "Done")
-        try:
-            client.answer_callback_query(
-                callback_query_id=callback_query_id,
-                text=message_text[:200],
-            )
-            log_event("[REVIEW CALLBACK] acknowledged")
-        except Exception as e:
-            log_event(f"[REVIEW CALLBACK ERROR] Failed to answer: {e}")
-        
-        # Keep the author choice on the same card so the flow stays visible.
-        if result.get("edit_card"):
-            edited = _edit_author_on_card(client, update, result)
-            if not edited:
-                broadcast_message(client, config, text=message_text, parse_mode="HTML")
-        elif result.get("reply_markup"):
-            # Prompt only the person who pressed the button; their next message is the reply.
-            client.send_message(
-                chat_id=actor_chat,
-                text=message_text,
-                parse_mode="HTML",
-                reply_markup=result.get("reply_markup"),
-            )
-        elif action in ["rate_article", "rate_image", "feedback_captured",
-                       "approve", "revise", "publish", "feedback_cancelled",
-                       "set_author", "site_author"] or (
-            not result.get("ok") and result.get("message")
-        ):
-            broadcast_message(client, config, text=message_text, parse_mode="HTML")
-        
+        _ack_callback(client, callback_query_id, result.get("message", "Done"))
+        log_event("[REVIEW CALLBACK] acknowledged")
+        _finish_review_result(client, config, update, actor_chat, result)
         duration_ms = int((time.perf_counter() - start_time) * 1000)
         log_event(f"[REVIEW CALLBACK] completed duration_ms={duration_ms}")
-        
         return result
-        
+
     except Exception as e:
         log_event(f"[REVIEW CALLBACK ERROR] {type(e).__name__}: {e}")
         traceback.print_exc()
-        
-        try:
-            client.answer_callback_query(
-                callback_query_id=callback_query_id,
-                text=f"Error: {str(e)[:100]}",
-            )
-        except Exception:
-            pass
-        
+        _ack_callback(client, callback_query_id, f"Error: {str(e)[:100]}")
         return {"ok": False, "error": str(e), "callback_data": callback_data}
 
 
@@ -930,11 +1901,11 @@ def _handle_site_callback(
     from newsagent_v2.control.sites import ADD_CALLBACK, FINISH_PREFIX, begin_add, begin_logo, find_site, is_ready
 
     chat_id = safe_get_chat_id(update) or ""
-    try:
-        client.answer_callback_query(callback_query_id=callback_query_id, text="Okay")
-    except Exception as exc:
-        log_event(f"[CALLBACK ERROR] Failed to answer site: {exc}")
     if callback_data == ADD_CALLBACK:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Add website")
+        except Exception as exc:
+            log_event(f"[CALLBACK ERROR] Failed to answer site: {exc}")
         prompt = begin_add(chat_id)
         client.send_message(chat_id=chat_id, text=prompt)
         log_event("[SITE] add started")
@@ -943,25 +1914,51 @@ def _handle_site_callback(
         site_id = str(callback_data)[len(FINISH_PREFIX):]
         site = find_site(site_id, environ=os.environ)
         if site is None:
+            try:
+                client.answer_callback_query(callback_query_id=callback_query_id, text="Unknown site")
+            except Exception:
+                pass
             client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start to see the list.")
             return {"ok": False, "error": "unknown_site"}
         if is_ready(site):
+            try:
+                client.answer_callback_query(callback_query_id=callback_query_id, text=f"Switched to {site.name}"[:200])
+            except Exception as exc:
+                log_event(f"[CALLBACK ERROR] Failed to answer site: {exc}")
             _use_site(runtime, site)
+            _refresh_site_menu_message(client, update, site)
             _send_site_categories(client, chat_id, site)
             return {"ok": True, "action": "select_site", "site": site.name}
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Finish setup")
+        except Exception:
+            pass
         prompt = begin_logo(chat_id, site)
         client.send_message(chat_id=chat_id, text=prompt)
         log_event(f"[SITE] logo requested site={site.name}")
         return {"ok": True, "action": "finish_setup"}
     managed = _manage_site_callback(client, runtime, chat_id, str(callback_data))
     if managed is not None:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Okay")
+        except Exception:
+            pass
         return managed
     site_id = callback_data.split(":", 1)[1]
     site = find_site(site_id, environ=os.environ)
     if site is None:
+        try:
+            client.answer_callback_query(callback_query_id=callback_query_id, text="Unknown site")
+        except Exception:
+            pass
         client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start to see the list.")
         return {"ok": False, "error": "unknown_site"}
+    try:
+        client.answer_callback_query(callback_query_id=callback_query_id, text=f"Switched to {site.name}"[:200])
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer site: {exc}")
     _use_site(runtime, site)
+    _refresh_site_menu_message(client, update, site)
     _send_site_categories(client, chat_id, site)
     return {"ok": True, "action": "select_site", "site": site.name}
 
@@ -984,6 +1981,94 @@ def _send_site_categories(client, chat_id: str, site) -> None:
         reply_markup=category_keyboard(site.id, categories),
     )
     log_event(f"[SITE] categories site={site.name} count={len(categories)}")
+
+
+def _handle_high_trend_callback(
+    *,
+    client: TelegramTestClient,
+    runtime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """Top high-traffic trend stories. Author pick is the only step before the batch."""
+    from newsagent_v2.control.site_flow import (
+        author_keyboard,
+        high_trend_author_menu_text,
+        remember_high_trend,
+    )
+    from newsagent_v2.control.sites import find_site, wordpress_config
+    from newsagent_v2.control.story_picker import HIGH_TREND_TOTAL
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.authors import list_site_authors
+
+    chat_id = safe_get_chat_id(update) or ""
+    site_id = str(callback_data).split(":", 1)[1]
+    site = find_site(site_id, environ=os.environ)
+    try:
+        client.answer_callback_query(callback_query_id=callback_query_id, text="High trend")
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer high trend: {exc}")
+    if site is None:
+        client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start.")
+        return {"ok": False, "error": "unknown_site"}
+    _use_site(runtime, site)
+    remember_high_trend(chat_id, site.id)
+    authors = list_site_authors(wordpress_config(site), build_live_wordpress_transport())
+    log_event(f"[SITE] high_trend authors site={site.name} count={len(authors)}")
+    if not authors:
+        client.send_message(chat_id=chat_id, text=f"{site.name} did not return any authors.")
+        return {"ok": False, "error": "no_authors"}
+    client.send_message(
+        chat_id=chat_id,
+        text=high_trend_author_menu_text(site.name, len(authors)),
+        reply_markup=author_keyboard(site.id, authors),
+    )
+    return {"ok": True, "action": "high_trend_author", "site": site.name, "total": HIGH_TREND_TOTAL}
+
+
+def _handle_fill_gaps_callback(
+    *,
+    client: TelegramTestClient,
+    runtime,
+    update: dict,
+    callback_query_id: str,
+    callback_data: str,
+) -> dict[str, any]:
+    """Scan thin categories next. Author pick is the only step before the batch."""
+    from newsagent_v2.control.site_flow import (
+        FILL_GAPS_TOTAL,
+        author_keyboard,
+        fill_gaps_author_menu_text,
+        remember_fill_gaps,
+    )
+    from newsagent_v2.control.sites import find_site, wordpress_config
+    from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
+    from newsagent_v2.wordpress.authors import list_site_authors
+
+    chat_id = safe_get_chat_id(update) or ""
+    site_id = str(callback_data).split(":", 1)[1]
+    site = find_site(site_id, environ=os.environ)
+    try:
+        client.answer_callback_query(callback_query_id=callback_query_id, text="Fill gaps")
+    except Exception as exc:
+        log_event(f"[CALLBACK ERROR] Failed to answer fill gaps: {exc}")
+    if site is None:
+        client.send_message(chat_id=chat_id, text="That website is no longer saved. Send /start.")
+        return {"ok": False, "error": "unknown_site"}
+    _use_site(runtime, site)
+    remember_fill_gaps(chat_id, site.id)
+    authors = list_site_authors(wordpress_config(site), build_live_wordpress_transport())
+    log_event(f"[SITE] fill_gaps authors site={site.name} count={len(authors)}")
+    if not authors:
+        client.send_message(chat_id=chat_id, text=f"{site.name} did not return any authors.")
+        return {"ok": False, "error": "no_authors"}
+    client.send_message(
+        chat_id=chat_id,
+        text=fill_gaps_author_menu_text(site.name, len(authors)),
+        reply_markup=author_keyboard(site.id, authors),
+    )
+    return {"ok": True, "action": "fill_gaps_author", "site": site.name, "total": FILL_GAPS_TOTAL}
 
 
 def _handle_category_callback(
@@ -1057,39 +2142,71 @@ def _handle_site_author_callback(
     callback_data: str,
 ) -> dict[str, any]:
     """The author completes this website's flow and starts the scan."""
-    from newsagent_v2.control.site_flow import pending_category, remember_publication
+    from newsagent_v2.control.site_flow import (
+        pending_category,
+        pending_is_fill_gaps,
+        pending_is_high_trend,
+        remember_publication,
+    )
     from newsagent_v2.control.sites import find_site, wordpress_config
     from newsagent_v2.wordpress.adapter import build_live_wordpress_transport
-    from newsagent_v2.wordpress.authors import find_author, list_site_authors
+    from newsagent_v2.wordpress.authors import find_author, list_site_authors, remember_default
 
     chat_id = safe_get_chat_id(update) or ""
     _prefix, site_id, user_text = (callback_data.split(":") + ["", ""])[:3]
     site = find_site(site_id, environ=os.environ)
     chosen = pending_category(chat_id)
     if site is None or chosen is None or chosen.get("site_id") != site_id:
-        try:
-            client.answer_callback_query(callback_query_id=callback_query_id, text="Pick a category first")
-        except Exception:
-            pass
+        _ack_callback(client, callback_query_id, "Pick a category first")
         client.send_message(chat_id=chat_id, text="Pick the website and a category first. Send /start.")
         return {"ok": False, "error": "no_category"}
+    # Ack before WordPress author lookup so the spinner clears even if WP is slow.
+    _ack_callback(client, callback_query_id, "Okay")
     authors = list_site_authors(wordpress_config(site), build_live_wordpress_transport())
     author = find_author(authors, user_text)
     if author is None:
-        try:
-            client.answer_callback_query(callback_query_id=callback_query_id, text="Author not found")
-        except Exception:
-            pass
+        client.send_message(chat_id=chat_id, text="That author is no longer on the site. Pick again.")
         return {"ok": False, "error": "unknown_author"}
     _use_site(runtime, site)
-    remember_publication(site.id, int(chosen["category_id"]), str(chosen["category_name"]), author)
-    try:
-        client.answer_callback_query(
-            callback_query_id=callback_query_id,
-            text=f"{chosen['category_name']} · {author.name}"[:200],
+    if pending_is_high_trend(chat_id):
+        remember_default(author)
+        log_event(f"[SITE] high_trend site={site.name} author={author.name}")
+        _run_in_background(
+            f"high-{site.id}",
+            lambda: execute_high_trend(
+                client=client,
+                config=config,
+                state=state,
+                discovery=discovery,
+                persistent_store=runtime.persistent_store,
+                runtime=runtime,
+                update_id=update_id,
+                update=update,
+                site=site,
+                author=author,
+            ),
         )
-    except Exception as exc:
-        log_event(f"[CALLBACK ERROR] Failed to answer author: {exc}")
+        return {"ok": True, "action": "high_trend", "async": True, "site": site.name}
+    if pending_is_fill_gaps(chat_id):
+        remember_default(author)
+        log_event(f"[SITE] fill_gaps site={site.name} author={author.name}")
+        _run_in_background(
+            f"fill-{site.id}",
+            lambda: execute_fill_gaps(
+                client=client,
+                config=config,
+                state=state,
+                discovery=discovery,
+                persistent_store=runtime.persistent_store,
+                runtime=runtime,
+                update_id=update_id,
+                update=update,
+                site=site,
+                author=author,
+            ),
+        )
+        return {"ok": True, "action": "fill_gaps", "async": True, "site": site.name}
+    remember_publication(site.id, int(chosen["category_id"]), str(chosen["category_name"]), author)
     log_event(f"[SITE] flow site={site.name} category={chosen['category_name']} author={author.name}")
     from newsagent_v2.control.site_flow import fetch_count_keyboard, fetch_count_text
 
@@ -1126,23 +2243,25 @@ def _handle_fetch_count_callback(
             pass
         client.send_message(chat_id=chat_id, text="Pick the website, a category, and an author first. Send /start.")
         return {"ok": False, "error": "no_fetch"}
-    try:
-        client.answer_callback_query(callback_query_id=callback_query_id, text=f"Fetching {count}")
-    except Exception as exc:
-        log_event(f"[CALLBACK ERROR] Failed to answer fetch count: {exc}")
+    _ack_callback(client, callback_query_id, f"Fetching {count}")
     log_event(f"[SITE] fetch count={count} category={chosen.get('category_name')}")
-    return execute_make_with_acknowledgement(
-        client=client,
-        config=config,
-        state=state,
-        discovery=discovery,
-        persistent_store=runtime.persistent_store,
-        runtime=runtime,
-        update_id=update_id,
-        update=update,
-        selection=str(chosen["category_name"]),
-        offer_batch=count,
+    selection = str(chosen["category_name"])
+    _run_in_background(
+        f"make-{selection[:20]}",
+        lambda: execute_make_with_acknowledgement(
+            client=client,
+            config=config,
+            state=state,
+            discovery=discovery,
+            persistent_store=runtime.persistent_store,
+            runtime=runtime,
+            update_id=update_id,
+            update=update,
+            selection=selection,
+            offer_batch=count,
+        ),
     )
+    return {"ok": True, "action": "make", "async": True, "count": count}
 
 
 # ============ CALLBACK HANDLER ============
@@ -1182,8 +2301,36 @@ def execute_callback(
             log_event(f"[CALLBACK ERROR] Failed to answer: {e}")
         return {"ok": False, "error": "no_callback_data"}
 
+    if str(callback_data).startswith("idle:"):
+        return _handle_idle_settings_callback(
+            client=client,
+            config=config,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
     if str(callback_data).startswith("c:"):
         return _handle_category_callback(
+            client=client,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
+    if str(callback_data).startswith("fill:"):
+        return _handle_fill_gaps_callback(
+            client=client,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
+    if str(callback_data).startswith("high:"):
+        return _handle_high_trend_callback(
             client=client,
             runtime=runtime,
             update=update,
@@ -1229,30 +2376,50 @@ def execute_callback(
 
     if str(callback_data).startswith("pick:"):
         choice = str(callback_data).split(":", 1)[1]
-        from newsagent_v2.control.story_picker import CHOICES, choice_label
+        from newsagent_v2.control.story_picker import CHOICES, HIGH_TREND, HIGH_TREND_TOTAL, choice_label
 
         known = {key for key, _label in CHOICES}
-        try:
-            client.answer_callback_query(
-                callback_query_id=callback_query_id,
-                text=f"Scanning {choice_label(choice)}"[:200],
-            )
-        except Exception as exc:
-            log_event(f"[CALLBACK ERROR] Failed to answer pick: {exc}")
+        _ack_callback(client, callback_query_id, f"Scanning {choice_label(choice)}")
         if choice not in known:
             return {"ok": False, "error": "unknown_pick"}
-        return execute_make_with_acknowledgement(
+        offer = HIGH_TREND_TOTAL if choice == HIGH_TREND else 10
+        _run_in_background(
+            f"pick-{choice[:20]}",
+            lambda: execute_make_with_acknowledgement(
+                client=client,
+                config=config,
+                state=state,
+                discovery=discovery,
+                persistent_store=runtime.persistent_store,
+                runtime=runtime,
+                update_id=update_id,
+                update=update,
+                selection=choice,
+                offer_batch=offer,
+            ),
+        )
+        return {"ok": True, "action": "pick", "async": True, "selection": choice}
+    
+    if str(callback_data).startswith("voice:"):
+        return _handle_voice_callback(
             client=client,
             config=config,
-            state=state,
-            discovery=discovery,
-            persistent_store=runtime.persistent_store,
             runtime=runtime,
-            update_id=update_id,
             update=update,
-            selection=choice,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
         )
-    
+
+    if str(callback_data).startswith("listen:"):
+        return _handle_listen_callback(
+            client=client,
+            config=config,
+            runtime=runtime,
+            update=update,
+            callback_query_id=callback_query_id,
+            callback_data=str(callback_data),
+        )
+
     # ==== REVIEW CALLBACKS (rate, feedback, revise, approve, publish) ====
     # Check if this is a review callback first
     if runtime.review_handler and runtime.review_handler.parse_callback(callback_data):
@@ -1618,6 +2785,12 @@ def main() -> int:
             if len(updates) == 0:
                 if runtime.offset is not None:
                     log_event(f"[POLL] no updates, offset={runtime.offset}")
+                try:
+                    idle = tick_idle_autopilot(runtime)
+                    if idle.get("started"):
+                        log_event(f"[IDLE-AUTOPILOT] started settings={idle.get('settings')}")
+                except Exception as exc:
+                    log_event(f"[IDLE-AUTOPILOT] tick failed: {exc}")
                 continue
             
             log_event(f"[POLL] updates_received={len(updates)}")
@@ -1843,9 +3016,15 @@ def main() -> int:
                         elif cmd_key == "/make":
                             _reply("Send /start to choose a website.")
                             log_event("[MAKE] redirected_to_start")
+                        elif cmd_key == "/autopilot":
+                            send_idle_settings_menu(runtime.client, chat_id=str(chat_id or ""))
+                            log_event("[MESSAGE] idle_settings_menu")
                         elif cmd_key == "/author":
                             _reply_author_menu(runtime, chat_id)
                             log_event("[MESSAGE] author_menu")
+                        elif cmd_key == "/voice":
+                            _reply_voice_menu(runtime, chat_id)
+                            log_event("[MESSAGE] voice_menu")
                         elif cmd_key == "/help":
                             _reply(HELP_TEXT)
                             log_event("[MESSAGE] help_reply")

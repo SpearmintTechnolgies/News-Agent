@@ -165,7 +165,17 @@ class V5CallbackHandler:
         
         event = self.event_store.get(event_id)
         if event is None:
-            return {"ok": False, "reason": "unknown_event", "event_id": event_id}
+            return {
+                "ok": False,
+                "action": "run_story",
+                "reason": "unknown_event",
+                "event_id": event_id,
+                "started": False,
+                "message": (
+                    "That story card is no longer in the bot's store. "
+                    "Run HIGH TREND / FILL GAPS / a category scan again, then tap RUN STORY."
+                ),
+            }
         
         # Check controlled E2E mode
         if self._controlled_e2e:

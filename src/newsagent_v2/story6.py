@@ -105,12 +105,22 @@ def _active_site_id() -> str:
         return ""
 
 
-def _category_on_active_site(writer_category: str) -> tuple[str, int]:
-    """The tapped category id, or the Coin Network name map when that site has no choice."""
+def _category_on_active_site(writer_category: str, event_id: str = "") -> tuple[str, int]:
+    """Pinned card category, then the tapped site category, then Coin Network map."""
     try:
-        from newsagent_v2.control.site_flow import current_category_id, current_category_name
+        from newsagent_v2.control.site_flow import (
+            category_for_event,
+            current_category_id,
+            current_category_name,
+        )
         from newsagent_v2.control.sites import COIN_NETWORK_SITE_ID
 
+        bound = category_for_event(event_id) if event_id else None
+        if bound:
+            return (
+                bound.get("category_name") or SITE_CATEGORIES.get(writer_category, "News"),
+                int(bound["category_id"]),
+            )
         chosen_id = current_category_id()
         chosen_name = current_category_name()
     except Exception:
@@ -132,7 +142,7 @@ def article_record(
 ) -> dict[str, Any]:
     """The article in the shape the image, WordPress and Telegram code read."""
     seo = article.seo
-    category, category_id = _category_on_active_site(seo.category)
+    category, category_id = _category_on_active_site(seo.category, event_id)
     report = outcome.report
     record = finalize_seo({
         "event_id": event_id,

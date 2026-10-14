@@ -16,6 +16,7 @@ from newsagent_v2.wordpress.config import WordPressConfig
 from newsagent_v2.wordpress.draft_lifecycle import (
     DraftResult,
     WordPressDraftLifecycle,
+    featured_image_filename,
 )
 from newsagent_v2.wordpress.draft_store import WordPressDraftStore
 
@@ -113,9 +114,12 @@ class MockTransport:
             return {"ok": True, "payload": {"id": int(media_id), "alt_text": body.get("alt_text", "")}}
         if method == "POST":
             media_id = self._next_media_id()
+            uploaded = (kwargs.get("files") or {}).get("file") or ("", b"")
+            filename = uploaded[0] if isinstance(uploaded, tuple) else ""
             media_data = {
                 "id": media_id,
-                "source_url": f"https://example.com/wp-content/uploads/media-{media_id}.png",
+                "filename": filename,
+                "source_url": f"https://example.com/wp-content/uploads/{filename}",
                 "title": {"rendered": "Featured Image"},
             }
             self.media[str(media_id)] = media_data
@@ -337,6 +341,14 @@ class TestWordPressDraftLifecycle(unittest.TestCase):
         record = self.store.load("evt-test-008")
         self.assertIsNotNone(record.featured_media_id)
         self.assertEqual(record.image_version, "v1")
+        uploaded = self.transport.media[str(record.featured_media_id)]
+        self.assertEqual(uploaded["filename"], "test-headline.png")
+
+    def test_08b_image_filename_is_the_article_name(self) -> None:
+        self.assertEqual(
+            featured_image_filename("Evernorth Public Debut: XRP on Nasdaq", Path("image-v1.png")),
+            "evernorth-public-debut-xrp-on-nasdaq.png",
+        )
 
     def test_09_different_events_separate_drafts(self) -> None:
         """Test different event_ids get separate drafts."""
@@ -429,6 +441,74 @@ class TestWordPressDraftStore(unittest.TestCase):
         self.assertTrue(self.store.delete("evt-delete"))
         self.assertFalse(self.store.exists("evt-delete"))
         self.assertFalse(self.store.delete("evt-delete"))  # Already deleted
+
+
+def test_publish_uses_the_draft_website_not_only_the_active_one(tmp_path, monkeypatch):
+    """Approving after a site switch must hit the draft host, not the active one."""
+    from newsagent_v2.control.sites import Site
+    from newsagent_v2.wordpress.draft_store import WordPressDraftRecord
+
+    coinography = Site(
+        id="coinography",
+        name="Coinography",
+        base_url="https://coinography.com",
+        username="editor",
+        app_password="abcd efgh ijkl mnop qrst uvwx",
+    )
+    alt = Site(
+        id="alt",
+        name="ALT",
+        base_url="https://altcoininformer.com",
+        username="alt",
+        app_password="zzzz yyyy xxxx wwww vvvv uuuu",
+    )
+    monkeypatch.setattr(
+        "newsagent_v2.control.sites.list_sites",
+        lambda path=None, environ=None: [coinography, alt],
+    )
+
+    calls: list[tuple[str, str, tuple[str, str]]] = []
+
+    def transport(method, url, **kwargs):
+        calls.append((method, url, kwargs.get("auth")))
+        if method == "PUT" and "coinography.com" in url and "/posts/39395" in url:
+            return {
+                "ok": True,
+                "payload": {
+                    "id": 39395,
+                    "link": "https://coinography.com/?p=39395",
+                    "status": "publish",
+                    "modified": "t",
+                },
+            }
+        return {"ok": False, "error": "HTTP 404: Invalid post ID.", "status_code": 404}
+
+    store = WordPressDraftStore(root=tmp_path / "drafts")
+    store.save(
+        WordPressDraftRecord(
+            event_id="evt-76f906a0",
+            wp_post_id=39395,
+            article_version="v1",
+            image_version="v1",
+            status="draft",
+            wp_url="https://coinography.com/?p=39395",
+            created_at="t",
+            updated_at="t",
+            wp_modified=None,
+            site_id="",
+            site_base_url="",
+        )
+    )
+    lifecycle = WordPressDraftLifecycle(
+        config=WordPressConfig(alt.base_url, alt.username, alt.app_password),
+        transport=transport,
+        store=store,
+    )
+    result = lifecycle.publish_draft("evt-76f906a0")
+    assert result.ok is True
+    assert result.status == "publish"
+    assert any("coinography.com" in url for _method, url, _auth in calls)
+    assert all("altcoininformer.com" not in url for _method, url, _auth in calls)
 
 
 if __name__ == "__main__":

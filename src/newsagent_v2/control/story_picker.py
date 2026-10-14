@@ -6,10 +6,49 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-# The first two buttons cover every category. The rest search one category's
+# The first row covers every category. The rest search one category's
 # keywords and list matches from newest to oldest, with no age cutoff.
+HIGH_TREND = "high_trend"
+HIGH_TREND_TOTAL = 10
+# Keep pulling fresh search rounds until the card quota is met (or this many tries).
+MAX_SEARCH_ROUNDS = 6
+
+_HIGH_TREND_QUERY_ROUNDS: tuple[tuple[str, ...], ...] = (
+    (
+        "crypto news today",
+        "bitcoin ethereum breaking news",
+        "cryptocurrency market latest",
+    ),
+    (
+        "bitcoin etf news",
+        "crypto regulation sec",
+        "solana defi news",
+    ),
+    (
+        "ethereum news today",
+        "crypto exchange news",
+        "altcoin market news",
+    ),
+    (
+        "stablecoin news",
+        "crypto funding acquisition",
+        "bitcoin price news",
+    ),
+    (
+        "ripple xrp lawsuit news",
+        "crypto AI news",
+        "web3 blockchain news",
+    ),
+    (
+        "crypto hacking exploit news",
+        "federal reserve bitcoin",
+        "crypto treasury news",
+    ),
+)
+
 CHOICES: tuple[tuple[str, str], ...] = (
     ("trend", "TRENDING"),
+    (HIGH_TREND, "HIGH TREND"),
     ("h6", "6 HOURS"),
     ("bitcoin", "Bitcoin"),
     ("ethereum", "Ethereum"),
@@ -39,6 +78,7 @@ CATEGORY_TERMS: dict[str, tuple[str, ...]] = {
 MENU_TEXT = (
     "What should I cover?\n\n"
     "TRENDING — the top stories across every category.\n"
+    "HIGH TREND — the 10 freshest high-traffic stories (multi-source momentum + SEO pull).\n"
     "6 HOURS — those top stories, kept only when the earliest publisher is inside the last 6 hours.\n"
     "A category lists only that topic, newest first, as far back as the feeds go.\n"
     "RUN STORY still writes only the card you tap."
@@ -54,8 +94,8 @@ def choice_label(choice: str) -> str:
 
 def menu_keyboard() -> dict[str, Any]:
     buttons = [{"text": label, "callback_data": f"pick:{key}"} for key, label in CHOICES]
-    rows = [buttons[:2]]
-    rest = buttons[2:]
+    rows = [buttons[:3]]
+    rest = buttons[3:]
     rows.extend(rest[i:i + 2] for i in range(0, len(rest), 2))
     return {"inline_keyboard": rows}
 
@@ -134,39 +174,66 @@ def related_terms(choice: str) -> tuple[str, ...]:
 
 
 def skips_age_cap(choice: str) -> bool:
-    """Category scans keep older feed items. Trend and 6 hours stay on the usual window."""
-    return choice not in {"", "trend", "h6"}
+    """Category scans keep older feed items. Trend buttons stay on the usual window."""
+    return choice not in {"", "trend", HIGH_TREND, "h6"}
 
 
-def category_queries(choice: str) -> tuple[str, ...]:
-    """News-search queries for one category. Empty for the time-window buttons."""
-    if choice in {"", "trend", "h6"}:
+def category_queries(choice: str, *, round: int = 0) -> tuple[str, ...]:
+    """News-search queries for one category / HIGH TREND / site-niche round.
+
+    ``round`` 0 is the first pass; later rounds rotate alternate queries so a
+    short card batch can keep searching until the quota is filled.
+
+    TRENDING / HIGH TREND / 6 HOURS use the active site's niche queries (e.g.
+    Altcoin Informer → altcoin terms) or that site's WordPress category catalog.
+    Plain TRENDING on a broad crypto site stays RSS-only when both are empty.
+    """
+    if choice in {"", "trend", "h6", HIGH_TREND}:
+        from newsagent_v2.control.site_niche import discovery_search_queries
+
+        niche_or_catalog = discovery_search_queries(round=round)
+        if niche_or_catalog:
+            return niche_or_catalog
+        if choice == HIGH_TREND:
+            idx = max(0, int(round)) % len(_HIGH_TREND_QUERY_ROUNDS)
+            return _HIGH_TREND_QUERY_ROUNDS[idx]
         return ()
     if choice not in CATEGORY_TERMS:
         terms = category_terms_from_name(choice)
         if not terms:
-            return (choice,)
-        popular = related_terms(choice)
-        literal_is_a_headline = any(
-            word in _HEADLINE_WORDS or _stem_key(word) in _HEADLINE_WORDS for word in terms
-        )
-        if popular and not literal_is_a_headline:
-            queries: list[str] = []
-            for term in popular:
-                if term not in queries:
-                    queries.append(term)
-                if len(queries) >= 3:
-                    break
-            return tuple(queries)
-        if len(terms) == 1:
-            return (terms[0],)
-        return (choice, " ".join(terms[:3]))
-    if choice == "ai":
-        return ("crypto AI", "bitcoin artificial intelligence")
-    lead = CATEGORY_TERMS[choice][0]
-    if choice in {"bitcoin", "ethereum"}:
-        return (lead,)
-    return (f"{lead} crypto",)
+            base: tuple[str, ...] = (choice,)
+        else:
+            popular = related_terms(choice)
+            literal_is_a_headline = any(
+                word in _HEADLINE_WORDS or _stem_key(word) in _HEADLINE_WORDS for word in terms
+            )
+            if popular and not literal_is_a_headline:
+                queries: list[str] = []
+                for term in popular:
+                    if term not in queries:
+                        queries.append(term)
+                    if len(queries) >= 6:
+                        break
+                base = tuple(queries)
+            elif len(terms) == 1:
+                base = (terms[0], f"{terms[0]} news", f"{terms[0]} crypto")
+            else:
+                base = (choice, " ".join(terms[:3]), f"{terms[0]} news")
+    elif choice == "ai":
+        base = ("crypto AI", "bitcoin artificial intelligence", "AI crypto news")
+    else:
+        lead = CATEGORY_TERMS[choice][0]
+        if choice in {"bitcoin", "ethereum"}:
+            base = (lead, f"{lead} news today", f"{lead} price")
+        else:
+            base = (f"{lead} crypto", f"{lead} news", lead)
+    if not base:
+        return ()
+    start = (max(0, int(round)) * 3) % len(base)
+    window: list[str] = []
+    for offset in range(min(3, len(base))):
+        window.append(base[(start + offset) % len(base)])
+    return tuple(window)
 
 
 def _parse_time(raw: Any) -> datetime | None:
@@ -218,8 +285,81 @@ def _recency(event: Any) -> float:
     return -age
 
 
+def _intel_score(event: Any, attr: str) -> float:
+    intel = getattr(event, "intelligence", None)
+    if intel is None:
+        return 0.0
+    part = getattr(intel, attr, None)
+    try:
+        return float(getattr(part, "score", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def traffic_seo_score(event: Any) -> float:
+    """Higher means fresher multi-outlet stories that tend to earn search traffic.
+
+    Uses coverage momentum (sources + velocity), breaking heat, and a hard
+    recency preference. Title length in the SEO sweet spot gets a small bump.
+    """
+    try:
+        sources = int(getattr(event, "source_count", 0) or 0)
+    except (TypeError, ValueError):
+        sources = 0
+    try:
+        age = float(getattr(event, "age_hours", 999) or 999)
+    except (TypeError, ValueError):
+        age = 999.0
+
+    score = 0.0
+    score += _intel_score(event, "momentum") * 3.0
+    score += _intel_score(event, "breaking") * 2.5
+    score += _intel_score(event, "novelty") * 1.0
+    score += min(sources, 8) * 0.55
+
+    if age <= 3:
+        score += 4.0
+    elif age <= 6:
+        score += 3.0
+    elif age <= 12:
+        score += 1.8
+    elif age <= 24:
+        score += 0.8
+
+    title = str(getattr(event, "canonical_title", "") or "").strip()
+    words = len(title.split())
+    if 6 <= words <= 14:
+        score += 0.6
+    elif 4 <= words <= 18:
+        score += 0.25
+    return score
+
+
 def order_stories(events: list[Any], choice: str) -> list[Any]:
-    """Trend and 6 hours keep the trending rank. A category is newest first."""
+    """Trend keeps discovery rank. HIGH TREND reorders by category relevance + traffic. Categories are newest first."""
+    if choice == HIGH_TREND:
+        from newsagent_v2.control.site_niche import category_relevance_score
+        import os
+
+        site_id = str(os.environ.get("NEWSAGENT_ACTIVE_SITE_ID") or "").strip()
+        categories: list[Any] = []
+        if site_id:
+            try:
+                from newsagent_v2.control.site_flow import cached_categories
+
+                categories = cached_categories(site_id)
+            except Exception:
+                categories = []
+
+        return sorted(
+            events,
+            key=lambda event: (
+                category_relevance_score(event, categories),
+                traffic_seo_score(event),
+                _recency(event),
+            ),
+            reverse=True,
+        )
     if not skips_age_cap(choice):
         return list(events)
     return sorted(events, key=_recency, reverse=True)
@@ -227,10 +367,16 @@ def order_stories(events: list[Any], choice: str) -> list[Any]:
 
 def story_matches(event: Any, choice: str) -> bool:
     """True when this story belongs on the card list for the button that was pressed."""
-    if choice in {"", "trend"}:
-        return True
+    if choice in {"", "trend", HIGH_TREND}:
+        from newsagent_v2.control.site_niche import discovery_allows_event
+
+        return discovery_allows_event(event)
     if choice == "h6":
-        return published_within_hours(event, 6)
+        if not published_within_hours(event, 6):
+            return False
+        from newsagent_v2.control.site_niche import discovery_allows_event
+
+        return discovery_allows_event(event)
     terms = CATEGORY_TERMS.get(choice)
     if terms is None:
         terms = category_terms_from_name(choice) + related_terms(choice)

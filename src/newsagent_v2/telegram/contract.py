@@ -10,6 +10,7 @@ TELEGRAM_CAPTION_LIMIT = 1024
 TELEGRAM_MODE_TEST = "test"
 SEND_TYPE_MESSAGE = "sendMessage"
 SEND_TYPE_PHOTO = "sendPhoto"
+SEND_TYPE_AUDIO = "sendAudio"
 SEND_TYPE_ANSWER_CALLBACK = "answerCallbackQuery"
 SEND_TYPE_EDIT_CAPTION = "editMessageCaption"
 SEND_TYPE_EDIT_TEXT = "editMessageText"

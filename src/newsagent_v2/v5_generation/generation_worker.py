@@ -153,21 +153,32 @@ class GenerationWorker:
 
     # ----- generation -------------------------------------------------------------------------
 
+    def _forget_job(self, job_id: str) -> None:
+        with self._lock:
+            GenerationWorker._active_jobs.pop(job_id, None)
+
     def run_generation(
         self, event: NewsEvent, job: GenerationJob, revision: Revision | None = None
     ) -> dict[str, Any]:
         """Write (or revise) the story, create/update the draft, send the review card."""
+        # Snapshot so another RUN STORY / site switch mid-flight cannot rewrite env under us.
+        env = dict(self.environ)
         try:
             self.persistent_store.update_job_state(job.job_id, "RESERVED")
             writer_entry = self.ledger.start_entry(
                 provider="bedrock-mantle",
-                model=self.environ.get("NEWSAGENT_V2_V4_WRITER_MODEL", "kimi"),
+                model=env.get("NEWSAGENT_V2_V4_WRITER_MODEL", "kimi"),
                 operation="revise" if revision else "write",
             )
             self._update_progress(job, "Revising with your feedback..." if revision else "Researching sources...", "🔎")
             self.persistent_store.update_job_state(job.job_id, "REQUESTING")
             version_store = self._version_store()
-            result = self._adapter(version_store).run_story(event, force_retry=bool(revision), revision=revision)
+            from newsagent_v2.approval.store import ApprovalStore
+
+            adapter = RunStoryAdapter(
+                version_store=version_store, approval_store=ApprovalStore(), environ=env
+            )
+            result = adapter.run_story(event, force_retry=bool(revision), revision=revision)
 
             if not result.get("ok"):
                 error = result.get("error") or "Unknown error"
@@ -182,6 +193,8 @@ class GenerationWorker:
             self.persistent_store.update_job_state(job.job_id, "FAILED_FINAL", error=str(exc)[:200])
             self._report_failure(job, "worker_exception", str(exc))
             return {"ok": False, "error": str(exc)}
+        finally:
+            self._forget_job(job.job_id)
 
     def _finish(self, event: NewsEvent, job: GenerationJob, result: dict[str, Any], version_store: Any,
                 writer_entry: Any = None) -> dict[str, Any]:
@@ -330,14 +343,37 @@ class GenerationWorker:
         return None
 
     def request_generation(self, event: NewsEvent, discovery_run_id: str | None = None) -> dict[str, Any]:
-        """RUN STORY: start generation in the background (idempotent while one is running)."""
+        """RUN STORY: start generation in the background (idempotent while one is running).
+
+        Different event IDs run in parallel. Tapping the same card twice only
+        returns the in-flight job; it does not start a second write.
+        """
         running = self._running_job(event.event_id)
         if running:
             return {"ok": True, "job_id": running.job_id, "state": running.state, "new": False,
                     "message": f"Generation already {running.state.lower()}"}
         job = self._new_job(event.event_id, discovery_run_id or "")
-        threading.Thread(target=contextvars.copy_context().run, args=(self.run_generation, event, job), daemon=True).start()
-        return {"ok": True, "job_id": job.job_id, "state": "RESERVED", "new": True, "message": "Generation started"}
+        active = self.get_active_job_count()
+        try:
+            from newsagent_v2.control.idle_autopilot import record_run
+
+            record_run(str(self.environ.get("NEWSAGENT_ACTIVE_SITE_ID") or ""))
+        except Exception:
+            pass
+        threading.Thread(
+            target=contextvars.copy_context().run,
+            args=(self.run_generation, event, job),
+            daemon=True,
+            name=f"gen-{event.event_id[:16]}",
+        ).start()
+        return {
+            "ok": True,
+            "job_id": job.job_id,
+            "state": "RESERVED",
+            "new": True,
+            "active_jobs": active,
+            "message": f"Generation started ({active} in flight)",
+        }
 
     def start_revision(self, event_id: str, revision: Revision, headline: str = "") -> dict[str, Any]:
         """REVISE: rewrite with the editor's feedback in the background; a new review card follows."""
@@ -365,6 +401,8 @@ class GenerationWorker:
         except Exception as exc:  # noqa: BLE001
             self.persistent_store.update_job_state(job.job_id, "FAILED_FINAL", error=str(exc)[:200])
             self._report_failure(job, "edit", str(exc))
+        finally:
+            self._forget_job(job.job_id)
 
     def should_auto_generate(self, event_id: str) -> bool:
         """False when the story was already written/published, or attempted recently."""

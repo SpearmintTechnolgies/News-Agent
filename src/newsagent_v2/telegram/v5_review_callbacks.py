@@ -541,6 +541,12 @@ class V5ReviewCallbackHandler:
             article_version=approval.article_version,
             image_version=approval.image_version,
         )
+        try:
+            from newsagent_v2.control.idle_autopilot import record_publish
+
+            record_publish(str((self.environ or {}).get("NEWSAGENT_ACTIVE_SITE_ID") or ""))
+        except Exception:
+            pass
         SITE_INDEX_CACHE.unlink(missing_ok=True)  # old single-site cache
         from newsagent_v2.seo6.sitemap import cache_path_for
 

@@ -65,6 +65,21 @@ def _score(report: QAReport) -> tuple[int, int]:
     return len(report.by(BLOCK)), len(report.by(FIX))
 
 
+def _keep_revision(report: QAReport, candidate_report: QAReport, article: Article, candidate: Article) -> bool:
+    """Keep a rewrite that is cleaner, or a longer one that does not add a blocking problem.
+
+    Length is a revision, not a reason to discard the story. A draft that grows toward the
+    minimum stays even when the rewrite picks up another line to fix, as long as it does
+    not invent a name, figure, quote, or other blocking problem.
+    """
+    if _score(candidate_report) <= _score(report):
+        return True
+    grew = candidate.body_words > article.body_words
+    length_was_the_problem = any(issue.code == "too_short" for issue in report.issues)
+    no_new_blocks = len(candidate_report.by(BLOCK)) <= len(report.by(BLOCK))
+    return bool(length_was_the_problem and grew and no_new_blocks)
+
+
 def _parse(raw: dict[str, Any]) -> Article | None:
     try:
         return Article.from_json(raw)
@@ -86,8 +101,9 @@ def write_and_check(
 
     A revision is kept only if it does not add blocking problems or problems to fix.
     A worse revision is discarded and not retried; the draft already in hand continues.
-    The final status is ``blocked`` when a blocking problem remains, otherwise ``review``
-    with the remaining fix/warn items shown to the editor. ``feedback`` is the editor's
+    The final status is ``blocked`` when a blocking problem remains (invented facts, junk).
+    A short body is revised and, if it is still short, sent to review with that note.
+    Remaining fix/warn items are shown to the editor. ``feedback`` is the editor's
     note on a previous version (REVISE).
     """
     day = today or datetime.now(timezone.utc).strftime("%A, %B %d, %Y")
@@ -126,7 +142,7 @@ def write_and_check(
             outcome.history.append({"stage": stage, "kept": False, "summary": "unparseable"})
             continue
         candidate_report = run_qa(candidate, bank, dossier)
-        kept = _score(candidate_report) <= _score(report)
+        kept = _keep_revision(report, candidate_report, article, candidate)
         outcome.history.append(
             {"stage": stage, "kept": kept, "score": _score(candidate_report), "summary": candidate_report.summary()}
         )

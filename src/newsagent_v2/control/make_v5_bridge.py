@@ -85,49 +85,75 @@ def _earliest_published_epoch(event: NewsEvent) -> float:
     return best or 0.0
 
 
-def _category_search_items(selection: str) -> list[Any]:
-    """Live news-search hits for a category, beyond whatever the RSS feeds still hold."""
+def _category_search_items(selection: str, *, round: int = 0) -> list[Any]:
+    """Live news-search hits for a category / HIGH TREND round (Bing + Google News)."""
     from newsagent_v2.control.story_picker import category_queries
     from newsagent_v2.discovery.raw_news_item import RawNewsItem
-    from newsagent_v2.research.fetch import HTTP_HEADERS
-    from newsagent_v2.research.search import bing_news
+    from newsagent_v2.research.search import search_news
 
-    queries = category_queries(selection)
+    queries = category_queries(selection, round=round)
     if not queries:
-        return []
-    try:
-        import httpx
-    except ImportError:
-        logger.info("[DISCOVERY] category_search skipped: httpx missing")
         return []
     items: list[Any] = []
     seen: set[str] = set()
     try:
-        with httpx.Client(headers=HTTP_HEADERS, timeout=15.0, follow_redirects=True) as client:
-            for query in queries:
-                for hit in bing_news(query, client, limit=25):
-                    key = hit.url.split("#")[0].split("?")[0].rstrip("/").lower()
-                    if not key or key in seen or not hit.title:
-                        continue
-                    seen.add(key)
-                    item = RawNewsItem(
-                        source=hit.publisher or "Bing News",
-                        source_id="bing-news",
-                        source_type="newsroom",
-                        headline=hit.title,
-                        raw_title=hit.title,
-                        description=hit.title,
-                        canonical_url=hit.url,
-                        original_url=hit.url,
-                        published_at=hit.published_at or None,
-                        topics=[selection],
-                    )
-                    item.compute_fingerprint()
-                    items.append(item)
+        for hit in search_news(list(queries), per_query=20):
+            key = hit.url.split("#")[0].split("?")[0].rstrip("/").lower()
+            if not key or key in seen or not hit.title:
+                continue
+            seen.add(key)
+            engine = str(getattr(hit, "engine", "") or "news-search")
+            item = RawNewsItem(
+                source=hit.publisher or engine,
+                source_id=engine.replace("_", "-") or "news-search",
+                source_type="newsroom",
+                headline=hit.title,
+                raw_title=hit.title,
+                description=hit.title,
+                canonical_url=hit.url,
+                original_url=hit.url,
+                published_at=hit.published_at or None,
+                topics=[selection],
+            )
+            item.compute_fingerprint()
+            items.append(item)
     except Exception as exc:
         logger.info("[DISCOVERY] category_search failed: %s", type(exc).__name__)
         return items
     return items
+
+
+def _pipeline_search_events(
+    selection: str,
+    *,
+    round: int = 0,
+    unlimited_age: bool = False,
+) -> list[NewsEvent]:
+    """Cluster one live-search round into matched NewsEvents (no RSS re-collect)."""
+    from newsagent_v2.control.story_picker import order_stories, story_matches
+    from newsagent_v2.discovery.niche_filter import RelevanceDecision
+
+    raw_items = _category_search_items(selection, round=round)
+    if not raw_items:
+        return []
+    max_age_hours = None if unlimited_age else discovery_max_age_hours()
+    freshness = FreshnessEngine(FreshnessConfig(max_age_hours=max_age_hours))
+    fresh = [item for item in raw_items if freshness.check(item).accepted]
+    niche = NicheFilter()
+    relevant = []
+    for item in fresh:
+        decision, _reason, _confidence = niche.classify(item)
+        if decision in (RelevanceDecision.KEEP, RelevanceDecision.CONDITIONAL):
+            relevant.append(item)
+    unique, _ = DeduplicationEngine().dedupe_batch(relevant)
+    events = EventClusterer(ClusterConfig()).cluster_batch(unique)
+    intelligence = IntelligenceEngine()
+    for event in events:
+        event.intelligence = intelligence.analyze(event)
+    return order_stories(
+        [event for event in events if story_matches(event, selection)],
+        selection,
+    )
 
 
 def _log_discovery_timing(stage: str, started: float, **extra: Any) -> float:
@@ -382,11 +408,12 @@ class V5DiscoveryPipeline:
         collector.begin_run()
         self._run_collector = collector
         raw_items, diagnostics = collector.collect(sources)
-        if unlimited_age:
-            extra = _category_search_items(selection)
-            if extra:
-                raw_items = list(raw_items) + extra
-                logger.info("[DISCOVERY] category_search selection=%s added=%s", selection, len(extra))
+        # Category scans and HIGH TREND need live news search; plain TRENDING
+        # / 6 HOURS leave queries empty and stay on the RSS pool only.
+        extra = _category_search_items(selection)
+        if extra:
+            raw_items = list(raw_items) + extra
+            logger.info("[DISCOVERY] category_search selection=%s added=%s", selection, len(extra))
         self._discovery_timings["registry_feed_collection"] = _log_discovery_timing(
             "registry_feed_collection",
             t0,
@@ -448,7 +475,12 @@ class V5DiscoveryPipeline:
 
         # 8. Rank by combined score (breaking + momentum) — highest first.
         ranked_events = self._rank_events(events)
-        from newsagent_v2.control.story_picker import order_stories, skips_age_cap, story_matches
+        from newsagent_v2.control.story_picker import (
+            HIGH_TREND,
+            order_stories,
+            skips_age_cap,
+            story_matches,
+        )
 
         matched_events = order_stories(
             [event for event in ranked_events if story_matches(event, selection)],
@@ -494,14 +526,17 @@ class V5DiscoveryPipeline:
         skipped_offered = 0
         offered = OfferedStories.load()
         offer_site = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "")
-        batch = OFFER_BATCH if offer_batch is None else max(1, min(int(offer_batch), 15))
+        # Allow large pools for HIGH TREND / fill loops; default stays OFFER_BATCH.
+        batch = OFFER_BATCH if offer_batch is None else max(1, min(int(offer_batch), 80))
         # Research only as many stories as were requested. A spare pool spends tokens
         # on articles that are never sent.
         pool = batch
         t_expand_all = perf_counter()
-        # A category list is judged later by opening the article. The RSS blurb
-        # gate was rejecting single-feed stories before that fetch happened.
-        if skips_age_cap(selection):
+        # Category scans and HIGH TREND are judged later by opening the article
+        # (screen_story). Skip the slow expand gate so we can keep searching
+        # until the card quota is filled.
+        light_select = skips_age_cap(selection) or selection == HIGH_TREND
+        if light_select:
             for event in matched_events:
                 if not event.reports:
                     continue
@@ -620,6 +655,36 @@ class V5DiscoveryPipeline:
         )
         return self._ranked_events
 
+    def supplement_from_search(
+        self,
+        selection: str,
+        *,
+        round: int,
+        unlimited_age: bool = False,
+        exclude_ids: set[str] | None = None,
+    ) -> list[NewsEvent]:
+        """Pull another live-search round and return new matched events only."""
+        exclude = exclude_ids or set()
+        offered = OfferedStories.load()
+        offer_site = os.environ.get("NEWSAGENT_ACTIVE_SITE_ID", "")
+        fresh = _pipeline_search_events(
+            selection, round=round, unlimited_age=unlimited_age
+        )
+        out: list[NewsEvent] = []
+        for event in fresh:
+            if not event.reports or event.event_id in exclude:
+                continue
+            if offered.already(event, site_id=offer_site):
+                continue
+            out.append(event)
+        logger.info(
+            "[DISCOVERY] supplement selection=%s round=%s new=%s",
+            selection,
+            round,
+            len(out),
+        )
+        return out
+
     def _rank_events(self, events: list[NewsEvent]) -> list[NewsEvent]:
         """Rank by intelligence, with strong preference for newer publish times."""
         def score(event: NewsEvent) -> float:
@@ -657,8 +722,14 @@ class V5DiscoveryPipeline:
         return list(self._ranked_events)
 
     def replace_ranked(self, events: list[NewsEvent]) -> None:
-        """Keep only the stories that are allowed to be offered for writing."""
+        """Keep only the stories that are allowed to be offered for writing.
+
+        Persist them too: high-trend / fill-gaps cards from later search rounds
+        never went through ``run_discovery``, so without this save RUN STORY
+        looks up a missing event and does nothing.
+        """
         self._ranked_events = list(events)
+        self.event_store.save_batch(self._ranked_events)
         self.telegram_store.save_batch(self._ranked_events)
     
     def send_to_telegram(

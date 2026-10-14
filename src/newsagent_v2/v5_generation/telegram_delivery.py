@@ -238,6 +238,7 @@ def review_keyboard(
         [{"text": "RATE ARTICLE", "callback_data": f"rate_article:{event_id}:{article_version}"}, {"text": "RATE IMAGE", "callback_data": f"rate_image:{event_id}:{image}"}],
         [{"text": "ARTICLE FEEDBACK", "callback_data": f"feedback_article:{event_id}:{article_version}"}, {"text": "IMAGE FEEDBACK", "callback_data": f"feedback_image:{event_id}:{image}"}],
         [{"text": "REVISE", "callback_data": f"revise:{event_id}:{article_version}:{image_version or ''}"}, {"text": "EDIT", "callback_data": f"edit:{event_id}:{article_version}"}],
+        [{"text": "🔊 LISTEN", "callback_data": f"listen:{event_id}:{article_version}"}],
         [{"text": "REJECT", "callback_data": f"reject:{event_id}:{article_version}"}],
     ])
     author_row: list[dict[str, str]] = []

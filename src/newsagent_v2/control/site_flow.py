@@ -15,6 +15,10 @@ from newsagent_v2.wordpress.authors import SiteAuthor, remember_default
 
 Transport = Callable[..., Any]
 FLOW_PATH = Path("data/v5_state/site_flow.json")
+EVENT_CATEGORY_PATH = Path("data/v5_state/event_categories.json")
+FILL_GAPS_TOTAL = 15
+FILL_PREFIX = "fill:"
+HIGH_TREND_PREFIX = "high:"
 _pending: dict[str, dict[str, Any]] = {}
 _catalog: dict[str, list[dict[str, Any]]] = {}
 
@@ -43,10 +47,37 @@ def fetch_categories(site: Site, transport: Transport) -> list[dict[str, Any]]:
                 parent_id = int(row.get("parent") or 0)
             except (TypeError, ValueError):
                 continue
-            rows.append({"id": category_id, "name": name, "parent": parent_id})
+            try:
+                count = int(row.get("count") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            rows.append({"id": category_id, "name": name, "parent": parent_id, "count": max(0, count)})
         if len(payload) < 100:
             break
     return rows
+
+
+def lacking_categories(
+    categories: list[dict[str, Any]],
+    *,
+    total: int = FILL_GAPS_TOTAL,
+) -> list[dict[str, Any]]:
+    """Thinnest categories first. One slot per category, up to ``total``."""
+    want = max(1, min(int(total), FILL_GAPS_TOTAL))
+    ranked = sorted(
+        categories,
+        key=lambda row: (int(row.get("count") or 0), str(row.get("name") or "").lower()),
+    )
+    return [
+        {
+            "id": int(row["id"]),
+            "name": str(row["name"]),
+            "parent": int(row.get("parent") or 0),
+            "count": int(row.get("count") or 0),
+        }
+        for row in ranked[:want]
+        if str(row.get("name") or "").strip()
+    ]
 
 
 def category_labels(categories: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -74,15 +105,34 @@ def category_keyboard(site_id: str, categories: list[dict[str, Any]]) -> dict[st
     rows = [buttons[index:index + 2] for index in range(0, len(buttons), 2)]
     if not rows:
         rows = [[{"text": "No categories", "callback_data": "c:none:0"}]]
+    from newsagent_v2.control.story_picker import HIGH_TREND_TOTAL
+
+    rows.append([
+        {"text": f"HIGH TREND · {HIGH_TREND_TOTAL}", "callback_data": f"{HIGH_TREND_PREFIX}{site_id}"},
+        {"text": f"FILL GAPS · {FILL_GAPS_TOTAL}", "callback_data": f"{FILL_PREFIX}{site_id}"},
+    ])
     rows.append([{"text": "SITE SETTINGS", "callback_data": f"site:settings:{site_id}"}])
     return {"inline_keyboard": rows}
 
 
 def category_menu_text(site_name: str, count: int) -> str:
+    from newsagent_v2.control.site_niche import active_niche
+    from newsagent_v2.control.story_picker import HIGH_TREND_TOTAL
+
+    niche = active_niche()
+    niche_note = ""
+    if niche.key != "crypto" or "altcoin" in site_name.lower():
+        label = niche.label if niche.key != "crypto" else "Altcoins"
+        niche_note = f"Niche: {label} — search and cards stay on that beat.\n"
+
     return (
         f"{site_name}\n\n"
         f"{count} categories on this site.\n"
-        "Pick one. The next step is that site's authors."
+        f"{niche_note}"
+        f"HIGH TREND — top {HIGH_TREND_TOTAL} freshest high-traffic stories for this site's niche + categories.\n"
+        f"FILL GAPS — one story for each of the thinnest {FILL_GAPS_TOTAL} categories.\n"
+        "Or pick one category.\n"
+        "The next step is that site's authors."
     )
 
 
@@ -91,6 +141,105 @@ def remember_category(chat_id: str, site_id: str, category_id: int, name: str) -
         "site_id": site_id,
         "category_id": int(category_id),
         "category_name": name,
+        "mode": "category",
+    }
+
+
+def remember_fill_gaps(chat_id: str, site_id: str) -> None:
+    """Author pick next; then scan thin categories instead of one tap."""
+    _pending[str(chat_id)] = {
+        "site_id": site_id,
+        "mode": "fill_gaps",
+        "category_id": 0,
+        "category_name": "",
+    }
+
+
+def remember_high_trend(chat_id: str, site_id: str) -> None:
+    """Author pick next; then fetch the top high-traffic trend stories."""
+    _pending[str(chat_id)] = {
+        "site_id": site_id,
+        "mode": "high_trend",
+        "category_id": 0,
+        "category_name": "",
+    }
+
+
+def pending_is_fill_gaps(chat_id: str) -> bool:
+    row = _pending.get(str(chat_id)) or {}
+    return str(row.get("mode") or "") == "fill_gaps"
+
+
+def pending_is_high_trend(chat_id: str) -> bool:
+    row = _pending.get(str(chat_id)) or {}
+    return str(row.get("mode") or "") == "high_trend"
+
+
+def best_category_for_event(event: Any, categories: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Map a story onto the closest WordPress category by term relevance.
+
+    Returns None when nothing matches — do not invent a random category.
+    """
+    from newsagent_v2.control.story_picker import (
+        _blob,
+        _contains,
+        category_terms_from_name,
+        related_terms,
+    )
+
+    if not categories:
+        return None
+    text = _blob(event)
+    best: dict[str, Any] | None = None
+    best_hits = 0
+    for row in categories:
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        terms = category_terms_from_name(name) + related_terms(name)
+        hits = sum(1 for term in terms if _contains(text, term))
+        if hits > best_hits:
+            best_hits = hits
+            best = row
+    if best_hits <= 0:
+        return None
+    return best
+
+
+def bind_event_category(
+    event_id: str,
+    *,
+    site_id: str,
+    category_id: int,
+    category_name: str,
+) -> None:
+    """Pin the WordPress category for this story card through RUN STORY."""
+    event_key = str(event_id or "").strip()
+    if not event_key or not category_id:
+        return
+    payload = _read_event_categories()
+    payload[event_key] = {
+        "site_id": site_id,
+        "category_id": int(category_id),
+        "category_name": str(category_name or "").strip(),
+    }
+    _write_event_categories(payload)
+
+
+def category_for_event(event_id: str) -> dict[str, Any] | None:
+    row = _read_event_categories().get(str(event_id or "").strip())
+    if not isinstance(row, dict):
+        return None
+    try:
+        category_id = int(row.get("category_id") or 0)
+    except (TypeError, ValueError):
+        return None
+    if category_id <= 0:
+        return None
+    return {
+        "site_id": str(row.get("site_id") or ""),
+        "category_id": category_id,
+        "category_name": str(row.get("category_name") or "").strip(),
     }
 
 
@@ -114,6 +263,28 @@ def author_menu_text(site_name: str, category_name: str, count: int) -> str:
         f"Category: {category_name}\n\n"
         f"{count} authors on this site. Pick the byline.\n"
         "The next step is how many stories to fetch."
+    )
+
+
+def fill_gaps_author_menu_text(site_name: str, count: int) -> str:
+    return (
+        f"{site_name}\n"
+        f"FILL GAPS · up to {FILL_GAPS_TOTAL} stories\n\n"
+        f"{count} authors on this site. Pick the byline.\n"
+        "I will scan which categories have the fewest posts, "
+        "then fetch one writeable story for each thin category."
+    )
+
+
+def high_trend_author_menu_text(site_name: str, count: int) -> str:
+    from newsagent_v2.control.story_picker import HIGH_TREND_TOTAL
+
+    return (
+        f"{site_name}\n"
+        f"HIGH TREND · {HIGH_TREND_TOTAL} stories\n\n"
+        f"{count} authors on this site. Pick the byline.\n"
+        "I will fetch the freshest high-traffic stories "
+        "(multi-source momentum + SEO pull) and file each under the closest category."
     )
 
 
@@ -223,3 +394,18 @@ def _read() -> dict[str, Any]:
 def _write(payload: dict[str, Any]) -> None:
     FLOW_PATH.parent.mkdir(parents=True, exist_ok=True)
     FLOW_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _read_event_categories() -> dict[str, Any]:
+    if not EVENT_CATEGORY_PATH.is_file():
+        return {}
+    try:
+        payload = json.loads(EVENT_CATEGORY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_event_categories(payload: dict[str, Any]) -> None:
+    EVENT_CATEGORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    EVENT_CATEGORY_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")

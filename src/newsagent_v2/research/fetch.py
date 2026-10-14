@@ -63,19 +63,26 @@ class BrowserFetcher:
     """Lazy headless browser. Uses the system Edge install (no download).
 
     Playwright's sync API is bound to the thread that started it, so one
-    instance must stay on one thread and be closed there.
+    instance must stay on one thread and be closed there. A process-wide
+    disable reason stops every later screen from spending another ~10s on
+    a launch that already failed (common on the hub when Edge is missing).
     """
+
+    _process_disabled_reason: str = ""
 
     def __init__(self, channel: str | None = None) -> None:
         self.channel = channel or os.environ.get("NEWSAGENT_RESEARCH_BROWSER_CHANNEL", "msedge")
         self._pw = None
         self._browser = None
         self._context = None
-        self.disabled_reason = ""
+        self.disabled_reason = BrowserFetcher._process_disabled_reason
 
     def _ensure(self) -> bool:
         if self._context is not None:
             return True
+        if BrowserFetcher._process_disabled_reason:
+            self.disabled_reason = BrowserFetcher._process_disabled_reason
+            return False
         if self.disabled_reason:
             return False
         try:
@@ -95,6 +102,7 @@ class BrowserFetcher:
             return True
         except Exception as exc:
             self.disabled_reason = f"{type(exc).__name__}: {exc}"[:300]
+            BrowserFetcher._process_disabled_reason = self.disabled_reason
             logger.warning("[RESEARCH] browser unavailable: %s", self.disabled_reason)
             self.close()
             return False

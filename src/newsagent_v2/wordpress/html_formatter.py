@@ -327,12 +327,14 @@ class ArticleHtmlFormatter:
                     line = line.strip()
                     if line.startswith(("- ", "* ")):
                         items.append(f'<li>{escape(line[2:])}</li>')
-                    elif re.match(r'^\d+\.\s', line):
-                        items.append(f'<li>{escape(re.sub(r"^\d+\.\s", "", line))}</li>')
+                    elif re.match(r"^\d+\.\s", line):
+                        stripped = re.sub(r"^\d+\.\s", "", line)
+                        items.append(f"<li>{escape(stripped)}</li>")
                 if items:
-                    html_blocks.append(f'<ul>\n{"\n".join(items)}\n</ul>')
+                    joined = "\n".join(items)
+                    html_blocks.append(f"<ul>\n{joined}\n</ul>")
                 else:
-                    html_blocks.append(f'<p>{escape(block)}</p>')
+                    html_blocks.append(f"<p>{escape(block)}</p>")
             else:
                 html_blocks.append(f'<p>{escape(block)}</p>')
 

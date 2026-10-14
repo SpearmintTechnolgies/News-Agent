@@ -269,7 +269,10 @@ def menu_keyboard(sites: list[Site], *, active: str = "") -> dict[str, Any]:
                 "text": f"FINISH SETUP {site.name}"[:40],
                 "callback_data": f"{FINISH_PREFIX}{site.id}",
             }])
-    rows.append([{"text": "ADD WEBSITE", "callback_data": ADD_CALLBACK}])
+    rows.append([
+        {"text": "🤖 AUTOPILOT", "callback_data": "idle:menu"},
+        {"text": "ADD WEBSITE", "callback_data": ADD_CALLBACK},
+    ])
     return {"inline_keyboard": rows}
 
 
@@ -361,6 +364,9 @@ def activate(site_id: str, path: Path | None = None, environ: dict[str, str] | N
         environ["NEWSAGENT_ACTIVE_SITE_ID"] = site.id
         logo = logo_file(site)
         environ["NEWSAGENT_ACTIVE_LOGO_PATH"] = str(logo) if logo else ""
+        from newsagent_v2.control.site_niche import NICHE_ENV, niche_for_site
+
+        environ[NICHE_ENV] = niche_for_site(site).key
     from newsagent_v2.wordpress import authors
 
     authors.active_site_id = site.id

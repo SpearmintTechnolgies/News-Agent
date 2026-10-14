@@ -1,8 +1,8 @@
 """Article QA against the fact bank and the research dossier.
 
 Severities:
-- BLOCK: cannot publish (invented names/figures/quotes, junk, too short).
-- FIX: worth one revision call (copying, repetition, editorializing).
+- BLOCK: cannot publish (invented names/figures/quotes, junk).
+- FIX: worth one revision call (too short, copying, repetition, editorializing).
 - WARN: shown to the editor on the review card.
 """
 
@@ -27,6 +27,7 @@ FIX = "fix"
 WARN = "warn"
 MAX_REVISION_ITEMS = 8
 _FIX_PRIORITY = {
+    "too_short": -1,
     "copied_phrasing": 0,
     "unsourced_name": 1,
     "quote_speaker_missing": 2,
@@ -436,7 +437,11 @@ def run_qa(article: Article, bank: FactBank, dossier: ResearchDossier | None = N
     ctx = _Context(article, bank, dossier)
     issues: list[Issue] = []
     if article.body_words < BODY_MIN_WORDS:
-        issues.append(Issue("too_short", BLOCK, "body", f"body is {article.body_words} words; minimum is {BODY_MIN_WORDS}"))
+        issues.append(Issue(
+            "too_short", FIX, "body",
+            f"body is {article.body_words} words; expand it to at least {BODY_MIN_WORDS} words by developing "
+            "facts already in the draft. Do not add names, figures, or quotes that are not in the facts.",
+        ))
     quote_map = dict(usable_quotes(bank))
     for message in structural_issues(article, ctx.facts, quote_map):
         if "body is" in message or "quotation marks" in message:

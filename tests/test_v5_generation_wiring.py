@@ -11,6 +11,8 @@ Covers:
 from __future__ import annotations
 
 import json
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
@@ -290,6 +292,17 @@ class TestGenerationWorker:
             environ=environ or {},
         )
 
+    @staticmethod
+    def _hold_generation(worker: GenerationWorker, release: threading.Event):
+        """Keep run_generation blocked so the job stays RESERVED/REQUESTING."""
+
+        def _run(event, job, revision=None):  # noqa: ARG001
+            job.state = "REQUESTING"
+            release.wait(timeout=5)
+            return {"ok": True}
+
+        return patch.object(worker, "run_generation", side_effect=_run)
+
     def test_request_generation_returns_immediately(
         self,
         persistent_store: PersistentV5Store,
@@ -298,13 +311,14 @@ class TestGenerationWorker:
         mock_event: NewsEvent,
     ) -> None:
         worker = self._worker(persistent_store, mock_client, mock_config)
-        with patch.object(worker, "run_generation", return_value={"ok": True}):
+        release = threading.Event()
+        with self._hold_generation(worker, release):
             result = worker.request_generation(mock_event, discovery_run_id="run-001")
-
-        assert result["ok"] is True
-        assert result["new"] is True
-        assert result["state"] == "RESERVED"
-        assert result["job_id"]
+            assert result["ok"] is True
+            assert result["new"] is True
+            assert result["state"] == "RESERVED"
+            assert result["job_id"]
+            release.set()
 
     def test_request_generation_idempotent(
         self,
@@ -314,15 +328,40 @@ class TestGenerationWorker:
         mock_event: NewsEvent,
     ) -> None:
         worker = self._worker(persistent_store, mock_client, mock_config)
-        with patch.object(worker, "run_generation", return_value={"ok": True}):
+        release = threading.Event()
+        with self._hold_generation(worker, release):
             first = worker.request_generation(mock_event)
-            # Force active job into a terminal-ish tracked state for idempotency branch
-            job = GenerationWorker._active_jobs[first["job_id"]]
-            job.state = "REQUESTING"
+            for _ in range(50):
+                job = GenerationWorker._active_jobs.get(first["job_id"])
+                if job and job.state == "REQUESTING":
+                    break
+                time.sleep(0.01)
             second = worker.request_generation(mock_event)
+            assert second["new"] is False
+            assert second["job_id"] == first["job_id"]
+            release.set()
 
-        assert second["new"] is False
-        assert second["job_id"] == first["job_id"]
+    def test_two_different_stories_run_in_parallel(
+        self,
+        persistent_store: PersistentV5Store,
+        mock_client: MagicMock,
+        mock_config: TelegramConfig,
+        mock_event: NewsEvent,
+    ) -> None:
+        other = NewsEvent(
+            event_id="evt-other-parallel",
+            canonical_title="Second story",
+            reports=list(mock_event.reports),
+        )
+        worker = self._worker(persistent_store, mock_client, mock_config)
+        release = threading.Event()
+        with self._hold_generation(worker, release):
+            first = worker.request_generation(mock_event)
+            second = worker.request_generation(other)
+            assert first["new"] is True and second["new"] is True
+            assert first["job_id"] != second["job_id"]
+            assert worker.get_active_job_count() >= 2
+            release.set()
 
     def test_get_active_job_count(
         self,
@@ -332,9 +371,11 @@ class TestGenerationWorker:
         mock_event: NewsEvent,
     ) -> None:
         worker = self._worker(persistent_store, mock_client, mock_config)
-        with patch.object(worker, "run_generation", return_value={"ok": True}):
+        release = threading.Event()
+        with self._hold_generation(worker, release):
             worker.request_generation(mock_event)
-        assert worker.get_active_job_count() >= 1
+            assert worker.get_active_job_count() >= 1
+            release.set()
 
     def test_get_job_for_event(
         self,
@@ -344,11 +385,13 @@ class TestGenerationWorker:
         mock_event: NewsEvent,
     ) -> None:
         worker = self._worker(persistent_store, mock_client, mock_config)
-        with patch.object(worker, "run_generation", return_value={"ok": True}):
+        release = threading.Event()
+        with self._hold_generation(worker, release):
             result = worker.request_generation(mock_event)
-        job = worker.get_job_for_event(mock_event.event_id)
-        assert job is not None
-        assert job.job_id == result["job_id"]
+            job = worker.get_job_for_event(mock_event.event_id)
+            assert job is not None
+            assert job.job_id == result["job_id"]
+            release.set()
 
 
 # ============== Callback Handler Tests ==============

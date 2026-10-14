@@ -4,10 +4,12 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from newsagent_v2.control.story_picker import (
+    HIGH_TREND,
     category_queries,
     menu_keyboard,
     order_stories,
     story_matches,
+    traffic_seo_score,
 )
 from newsagent_v2.v5_generation.article_spend import record_text_spend, total_text_spend
 
@@ -27,8 +29,8 @@ def test_menu_offers_trend_last_six_hours_and_categories():
     buttons = [button for row in menu_keyboard()["inline_keyboard"] for button in row]
     labels = [button["text"] for button in buttons]
     callbacks = [button["callback_data"] for button in buttons]
-    assert labels[:2] == ["TRENDING", "6 HOURS"]
-    assert callbacks[:2] == ["pick:trend", "pick:h6"]
+    assert labels[:3] == ["TRENDING", "HIGH TREND", "6 HOURS"]
+    assert callbacks[:3] == ["pick:trend", "pick:high_trend", "pick:h6"]
     assert "Bitcoin" in labels and "Stablecoins" in labels
     assert all("24" not in label for label in labels)
 
@@ -37,6 +39,7 @@ def test_category_and_age_filters():
     bitcoin = _event("Strategy buys more Bitcoin", hours=10)
     sec = _event("SEC delays the ETF decision", topic="regulation", hours=3)
     assert story_matches(bitcoin, "trend")
+    assert story_matches(bitcoin, HIGH_TREND)
     assert story_matches(bitcoin, "bitcoin")
     assert not story_matches(bitcoin, "h6")
     assert story_matches(sec, "h6")
@@ -54,8 +57,36 @@ def test_category_and_age_filters():
 def test_category_search_queries_skip_the_time_buttons():
     assert category_queries("trend") == ()
     assert category_queries("h6") == ()
+    assert "crypto news" in category_queries(HIGH_TREND)[0]
+    assert category_queries(HIGH_TREND, round=1) != category_queries(HIGH_TREND, round=0)
     assert "crypto AI" in category_queries("ai")
-    assert category_queries("bitcoin") == ("bitcoin",)
+    assert "bitcoin" in category_queries("bitcoin")
+
+
+def test_high_trend_prefers_fresh_multi_source_stories():
+    quiet = SimpleNamespace(
+        canonical_title="Quiet market note",
+        topic="",
+        reports=[],
+        age_hours=20,
+        source_count=1,
+        intelligence=None,
+    )
+    hot = SimpleNamespace(
+        canonical_title="Bitcoin ETF inflows hit a record as traders pile in",
+        topic="markets",
+        reports=[],
+        age_hours=2,
+        source_count=6,
+        intelligence=SimpleNamespace(
+            momentum=SimpleNamespace(score=1.4),
+            breaking=SimpleNamespace(score=0.9),
+            novelty=SimpleNamespace(score=0.5),
+        ),
+    )
+    assert traffic_seo_score(hot) > traffic_seo_score(quiet)
+    ordered = order_stories([quiet, hot], HIGH_TREND)
+    assert ordered[0] is hot
 
 
 def test_category_list_is_newest_first():

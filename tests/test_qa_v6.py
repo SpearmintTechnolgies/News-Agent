@@ -182,6 +182,47 @@ def test_loop_keeps_better_version_when_revision_is_worse():
     assert any(i.code == "copied_phrasing" for i in outcome.report.issues)
 
 
+def _short_article() -> dict:
+    data = _clean_article()
+    for section in data["sections"]:
+        for para in section["paragraphs"]:
+            para["text"] = "Regulators cleared the leveraged bitcoin fund listing."
+    return data
+
+
+def test_short_body_asks_for_a_revision_instead_of_blocking():
+    codes = _codes(_short_article())
+    assert codes.get("too_short") == FIX
+    assert BLOCK not in codes.values()
+
+
+def test_loop_expands_a_short_draft_then_goes_to_review():
+    post, calls = _post_returning(_short_article(), _clean_article())
+    outcome = write_and_check(_bank(), None, KimiClient("k", http_post=post), StoryBudget())
+    assert outcome.status == STATUS_REVIEW and outcome.revisions == 1 and len(calls) == 2
+    assert "expand it to at least" in calls[1]["messages"][-1]["content"]
+    assert "longer body" in calls[1]["messages"][-1]["content"]
+    assert not any(i.code == "too_short" for i in outcome.report.issues)
+
+
+def test_loop_sends_a_still_short_article_to_review():
+    post, calls = _post_returning(_short_article())
+    outcome = write_and_check(_bank(), None, KimiClient("k", http_post=post), StoryBudget())
+    assert len(calls) == 3 and outcome.status == STATUS_REVIEW
+    assert any(i.code == "too_short" for i in outcome.report.issues)
+
+
+def test_loop_keeps_a_longer_draft_that_picks_up_a_fix():
+    longer = _with_paragraph(_clean_article(), f"Analysts noted {COPY_FACT}.", ["F31"])
+    post, _calls = _post_returning(_short_article(), longer)
+    outcome = write_and_check(_bank(), None, KimiClient("k", http_post=post), StoryBudget(max_calls=2))
+    assert outcome.revisions == 1
+    assert outcome.history[-1]["kept"] is True
+    assert outcome.status == STATUS_REVIEW
+    assert any(i.code == "copied_phrasing" for i in outcome.report.issues)
+    assert not any(i.code == "too_short" for i in outcome.report.issues)
+
+
 def test_loop_blocks_when_invention_survives_budget():
     invented = _with_paragraph(_clean_article(), "Analyst Walter Pennington said inflows reached $45 million.")
     post, calls = _post_returning(invented)
