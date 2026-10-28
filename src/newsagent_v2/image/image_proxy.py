@@ -18,14 +18,6 @@ from newsagent_v2.image.validate import file_sha256
 
 PROXY_MODEL = "gemini-3.1-flash-image"
 DEFAULT_PROXY_URL = "http://127.0.0.1:8092"
-# Gemini 3.1 Flash Image list price for size=1K (1120 image tokens @ $60/MTok).
-# https://ai.google.dev/gemini-api/docs/pricing — override with NEWSAGENT_IMAGE_PROXY_USD_PER_IMAGE.
-DEFAULT_USD_PER_1K_IMAGE = 0.067
-IMAGE_OUTPUT_TOKENS_1K = 1120
-LIST_PRICE_NOTE = (
-    "Gemini 3.1 Flash Image list price for 1K output "
-    "($0.067 ≈ 1120 image tokens @ $60/MTok); proxy does not return usage"
-)
 _BEARER_RE = re.compile(r"(?i)bearer\s+\S+")
 
 
@@ -38,16 +30,6 @@ def _proxy_settings(environ: Mapping[str, str]) -> tuple[str, str]:
     url = str(environ.get("NEWSAGENT_IMAGE_PROXY_URL") or DEFAULT_PROXY_URL).rstrip("/")
     key = str(environ.get("NEWSAGENT_IMAGE_PROXY_KEY") or "").strip()
     return url, key
-
-
-def proxy_image_list_price_usd(environ: Mapping[str, str] | None) -> float:
-    raw = str((environ or {}).get("NEWSAGENT_IMAGE_PROXY_USD_PER_IMAGE") or "").strip()
-    if raw:
-        try:
-            return round(float(raw), 8)
-        except (TypeError, ValueError):
-            pass
-    return DEFAULT_USD_PER_1K_IMAGE
 
 
 def redact_proxy_text(text: str, secret: str) -> str:
@@ -176,16 +158,6 @@ class Gx10ImageProxy:
         elapsed = int((time.perf_counter() - started) * 1000)
         with Image.open(dest) as image:
             width, height = image.size
-        billed = proxy_image_list_price_usd(self.environ)
-        usage = {
-            "promptTokenCount": 0,
-            "candidatesTokenCount": IMAGE_OUTPUT_TOKENS_1K,
-            "totalTokenCount": IMAGE_OUTPUT_TOKENS_1K,
-            "image_tokens": IMAGE_OUTPUT_TOKENS_1K,
-            "candidatesTokensDetails": [
-                {"modality": "IMAGE", "tokenCount": IMAGE_OUTPUT_TOKENS_1K}
-            ],
-        }
         return ProviderResult(
             provider_name="image_proxy",
             success=True,
@@ -200,16 +172,4 @@ class Gx10ImageProxy:
             response_format="b64_json",
             requested_aspect_ratio="16:9",
             requested_resolution_tier="1K",
-            provider_reported_cost=billed,
-            provider_reported_cost_usd=billed,
-            provider_reported_usage=usage,
-            provider_reported_image_usage=usage["candidatesTokensDetails"],
-            provider_reported_tokens={
-                "promptTokenCount": 0,
-                "candidatesTokenCount": IMAGE_OUTPUT_TOKENS_1K,
-                "totalTokenCount": IMAGE_OUTPUT_TOKENS_1K,
-            },
-            estimated_list_price_usd=billed,
-            estimated_list_price_is_estimate=True,
-            estimated_list_price_note=LIST_PRICE_NOTE,
         )

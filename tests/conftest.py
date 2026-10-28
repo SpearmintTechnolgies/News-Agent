@@ -6,7 +6,30 @@ V6 deep research returns an empty dossier unless a test passes its own research_
 
 from __future__ import annotations
 
+import os
+import socket
+
+import dotenv
 import pytest
+
+# Release checks must never read a developer token or call a live provider.
+dotenv.load_dotenv = lambda *args, **kwargs: False
+os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
+
+
+@pytest.fixture(autouse=True)
+def _no_live_network(monkeypatch):
+    def offline(*args, **kwargs):
+        raise RuntimeError("Network disabled in release checks; inject a fake transport")
+    monkeypatch.setattr(socket.socket, "connect", offline)
+    monkeypatch.setattr(socket.socket, "connect_ex", offline)
+    monkeypatch.setattr(socket, "create_connection", offline)
+    monkeypatch.setattr(socket, "getaddrinfo", offline)
+    from newsagent_v2.wordpress import authors
+    from newsagent_v2.control import site_flow
+    monkeypatch.setattr(authors, "active_site_id", "")
+    monkeypatch.setattr(site_flow, "_pending", {})
+    monkeypatch.setattr(site_flow, "_catalog", {})
 
 
 @pytest.fixture(autouse=True)

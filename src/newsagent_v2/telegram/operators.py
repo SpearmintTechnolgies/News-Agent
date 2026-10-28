@@ -13,11 +13,33 @@ from __future__ import annotations
 import contextvars
 from typing import Any
 
+from newsagent_v2.telegram import access
 from newsagent_v2.telegram.config import TelegramConfig
 
 _ORIGIN_CHAT: contextvars.ContextVar[str] = contextvars.ContextVar(
     "newsagent_origin_chat", default=""
 )
+
+
+_ACTOR_ID: contextvars.ContextVar[str] = contextvars.ContextVar("newsagent_actor_id", default="")
+
+
+def set_actor_id(actor_id: Any) -> contextvars.Token:
+    return _ACTOR_ID.set(str(actor_id or ""))
+
+
+def actor_id() -> str:
+    return _ACTOR_ID.get()
+
+
+def actor_from_update(update: dict) -> str:
+    """The numeric Telegram user behind a message or button press ('' for bots and channel posts)."""
+    source = update.get("callback_query") or update.get("message") or {}
+    actor = source.get("from") or {}
+    raw = str(actor.get("id") or "")
+    if source.get("sender_chat") or actor.get("is_bot") or not raw.isdigit() or int(raw) <= 0:
+        return ""
+    return str(int(raw))
 
 
 def set_origin_chat(chat_id: Any) -> contextvars.Token:
@@ -41,7 +63,7 @@ def operator_ids(config: TelegramConfig) -> tuple[str, ...]:
     """The chat to send to: the originating chat if allowed, else the primary chat."""
     ids = all_operator_ids(config)
     origin = _ORIGIN_CHAT.get()
-    if origin and origin in ids:
+    if origin and (origin in ids or access.allows(origin, actor_id())):
         return (origin,)
     return ids[:1]
 

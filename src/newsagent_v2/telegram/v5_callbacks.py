@@ -177,6 +177,13 @@ class V5CallbackHandler:
                 ),
             }
         
+        from newsagent_v2.telegram import access
+        from newsagent_v2.telegram.operators import actor_id as _actor_id, origin_chat
+        quota_ok, quota_why = access.check_quota(_actor_id())
+        if not quota_ok:
+            return {"ok": False, "action": "run_story", "reason": "daily_limit", "event_id": event_id,
+                    "started": False, "message": f"⏱ {quota_why}"}
+
         # Check controlled E2E mode
         if self._controlled_e2e:
             # In controlled mode, mark selected but don't auto-start
@@ -231,6 +238,8 @@ class V5CallbackHandler:
                 event=event,
                 discovery_run_id=None,  # Could be passed from discovery context
             )
+            if result.get("ok", False):
+                access.record_story(_actor_id(), event_id, origin_chat())
             
             return {
                 "ok": True,
@@ -394,10 +403,18 @@ class V5CallbackHandler:
                     "new": False,
                 }
 
+            from newsagent_v2.telegram import access
+            from newsagent_v2.telegram.operators import actor_id as _actor_id, origin_chat
+            quota_ok, quota_why = access.check_quota(_actor_id())
+            if not quota_ok:
+                return {"ok": False, "action": "generate_now", "reason": "daily_limit", "event_id": event_id,
+                        "started": False, "message": f"⏱ {quota_why}"}
             result = self.generation_worker.request_generation(
                 event=event,
                 discovery_run_id=None,
             )
+            if result.get("ok", False):
+                access.record_story(_actor_id(), event_id, origin_chat())
 
             return {
                 "ok": result.get("ok", False),

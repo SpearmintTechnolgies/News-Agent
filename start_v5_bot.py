@@ -51,7 +51,7 @@ from newsagent_v2.telegram.singleton import (
     SingletonError,
 )
 from newsagent_v2.telegram.config import CHAT_ENV, load_telegram_config
-from newsagent_v2.telegram.operators import broadcast_message, operator_ids, set_origin_chat
+from newsagent_v2.telegram.operators import actor_from_update, actor_id, set_actor_id, broadcast_message, operator_ids, set_origin_chat
 from newsagent_v2.telegram.client import TelegramTestClient
 from newsagent_v2.telegram.contract import SEND_TYPE_GET_UPDATES
 from newsagent_v2.telegram.live_transport import create_live_transport
@@ -161,6 +161,19 @@ HELP_TEXT = (
     "Anything else goes to Hermes. In a group, tag the bot first. A direct message does not need a tag."
 )
 _BOT_COMMANDS = frozenset({"/start", "/make", "/author", "/voice", "/help", "/autopilot"})
+ADMIN_HELP = (
+    "\n\n🛠 Admin (super admin only):\n"
+    "• /admin — access control panel: users, groups, requests, blocked, daily limit; 🔐 Menu on a user or group switches on Publish, Autopilot, Manage websites or Report for them\n"
+    "• /adduser <id> [name] · /removeuser <id>\n"
+    "• /allowgroup (inside a group) · /removegroup\n"
+    "• /limit <n> — stories per approved user per day (0 = unlimited)\n"
+    "• /myid — show a Telegram ID"
+)
+
+
+def help_for(actor: str) -> str:
+    from newsagent_v2.telegram import access
+    return HELP_TEXT + (ADMIN_HELP if access.is_admin(actor) else "")
 
 
 def is_group_chat(update: dict, chat_id: str = "") -> bool:
@@ -669,11 +682,134 @@ def send_site_menu(client: TelegramTestClient, config, *, chat_id: str | None = 
     sites = list_sites(environ=os.environ)
     text = MENU_TEXT
     markup = menu_keyboard(sites, active=active_id())
-    if chat_id:
-        client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
-        return
-    broadcast_message(client, config, text=text, reply_markup=markup)
+    from newsagent_v2.telegram import home_menu
+    target = chat_id or operator_ids(config)[0]
+    uid = actor_id() or (target if str(target).isdigit() else "")
+    head = home_menu.header(uid, target)
+    client.send_message(chat_id=target, text=(head + chr(10) * 2 if head else "") + text,
+                        reply_markup=home_menu.decorate(markup, uid, target))
 
+
+def _runtime_allows(runtime, chat_id, actor: str) -> bool:
+    """Chats in the env allowlist keep full access exactly as before; the approval layer adds approved users and groups."""
+    from newsagent_v2.telegram import access
+    return runtime.config.allows(chat_id) or access.allows(chat_id, actor)
+
+
+def _feature_needed(update: dict) -> str:
+    """The extra switch (see access.FEATURES) the admin must have turned on for approved users/groups to do this."""
+    data = str(safe_get_callback_data(update) or "")
+    if data.startswith("idle:") or safe_get_message_text(update).split(" ", 1)[0].split("@", 1)[0] == "/autopilot":
+        return "autopilot"
+    if data.startswith(("site:add", "site:finish:", "site:settings:", "site:logo:", "site:user:", "site:password:", "site:remove:")):
+        return "sites"
+    if data.split(":", 1)[0] in {"approve", "publish", "unpublish"}:
+        return "publish"
+    return ""
+
+
+def _authorized(runtime, update: dict) -> bool:
+    from newsagent_v2.telegram import access
+    chat_id, actor = safe_get_chat_id(update), actor_from_update(update)
+    if runtime.config.allows(chat_id):
+        return True            # the env allowlist keeps working exactly as before
+    if not access.allows(chat_id, actor):
+        return False
+    feature = _feature_needed(update)
+    return not feature or access.can(feature, actor, chat_id, access.chat_type_of(chat_id))
+
+
+def _site_ok(update: dict) -> bool:
+    """The admin picks which websites a person / group may use; every button that points at a website is checked."""
+    from newsagent_v2.telegram import access
+    actor, chat_id = actor_from_update(update), safe_get_chat_id(update)
+    if access.allowed_sites(actor, chat_id, access.chat_type_of(chat_id)) is None:
+        return True
+    parts = str(safe_get_callback_data(update) or "").split(":")
+    site_id = ""
+    if parts[0] == "site" and len(parts) >= 2 and parts[1] != "add":
+        site_id = parts[-1] if parts[1] in {"finish", "settings", "logo", "user", "password", "remove"} else parts[1]
+    elif parts[0] in {"c", "a", "high", "fill"} and len(parts) > 1:
+        site_id = parts[1]
+    elif parts[0] == "fetch":
+        from newsagent_v2.control.site_flow import pending_category
+        site_id = str((pending_category(chat_id or "") or {}).get("site_id") or "")
+    elif len(parts) > 1 and parts[0] in {"run", "gen", "cancel", "flw", "ign", "approve", "publish", "unpublish", "revise", "edit", "reject",
+                                         "author", "set_author", "view_full", "listen"}:
+        from newsagent_v2.control.site_flow import category_for_event
+        site_id = str((category_for_event(parts[1]) or {}).get("site_id") or "")
+    return not site_id or access.site_allowed(actor, chat_id, site_id)
+
+
+def _story_owner_ok(update: dict) -> bool:
+    """People manage the stories they started (a group's members, the group's); the super admin manages all."""
+    from newsagent_v2.telegram import access
+    parts = str(safe_get_callback_data(update) or "").split(":")
+    if parts[0] in {"gen", "cancel", "approve", "publish", "unpublish", "revise", "edit", "reject", "author", "set_author", "qa_revise", "qa_discard"} and len(parts) > 1:
+        return access.can_manage_story(actor_from_update(update), safe_get_chat_id(update), parts[1])
+    return True
+
+
+def _handle_access_update(runtime, update: dict, bot_info: dict) -> bool:
+    """Onboarding traffic: group add/remove, ac: buttons, /myid and admin commands, strangers. True = fully handled."""
+    from newsagent_v2.telegram import access, access_menu
+
+    client = runtime.client
+    if update.get("my_chat_member"):
+        access_menu.handle_my_chat_member(client, update["my_chat_member"])
+        return True
+    cq = update.get("callback_query")
+    if cq:
+        if str(cq.get("data") or "").startswith(access_menu.PREFIX):
+            access_menu.handle_callback(client, cq)
+            return True
+        if str(cq.get("data") or "").startswith("hm:"):
+            from newsagent_v2.telegram import home_menu
+            return home_menu.handle_callback(client, cq, help_for(actor_from_update(update)))
+        if not _authorized(runtime, update):
+            _ack_callback(client, str(cq.get("id") or ""), "🔒 Not approved, or the admin has not switched this on for you")
+            return True
+        blocked_here = os.environ.get("NEWSAGENT_TEST_BLOCK_PUBLISH", "").lower() in {"1", "true", "yes", "on"}
+        if blocked_here and str(cq.get("data") or "").split(":", 1)[0] in {"approve", "publish"}:
+            # test bot only (the live server never sets this): a copy of the live sites must not publish for real
+            _ack_callback(client, str(cq.get("id") or ""), "Publishing is blocked on the test bot")
+            return True
+        if not _story_owner_ok(update):
+            _ack_callback(client, str(cq.get("id") or ""), "This story belongs to someone else")
+            return True
+        if not _site_ok(update):
+            _ack_callback(client, str(cq.get("id") or ""), "The admin has not given you this website")
+            return True
+        return False
+    msg = update.get("message")
+    if not msg:
+        return False
+    sender = msg.get("from") or {}
+    uid = sender.get("id")
+    if sender.get("is_bot") or msg.get("sender_chat"):
+        return False
+    cmd, args = access_menu.command_of(update, str(bot_info.get("username") or ""))
+    if cmd == "/myid":
+        access_menu.handle_command(client, cmd, args, msg)
+        return True
+    if access.is_admin(uid):
+        if cmd in access_menu.ADMIN_COMMANDS:
+            access_menu.handle_command(client, cmd, args, msg)
+            return True
+        return access_menu.handle_admin_input(client, msg)
+    if _authorized(runtime, update):
+        if cmd in access_menu.ADMIN_COMMANDS:
+            client.send_message(chat_id=str(msg["chat"]["id"]), text="🔒 That command is for the admin only.")
+            return True
+        return False
+    if access.allows(str((msg.get("chat") or {}).get("id") or ""), uid):
+        # approved, but this part is not switched on for them
+        client.send_message(chat_id=str(msg["chat"]["id"]), text="🔒 The admin has not switched this on for you.")
+        return True
+    chat_type = (msg.get("chat") or {}).get("type") or "private"
+    if chat_type == "private" or cmd:
+        access_menu.deny_unauthorized(client, msg)
+    return True
 
 def send_idle_settings_menu(client: TelegramTestClient, *, chat_id: str) -> None:
     """Show editable idle-autopilot hours and article count."""
@@ -2410,6 +2546,14 @@ def execute_callback(
             log_event(f"[CALLBACK ERROR] Failed to answer: {e}")
         return {"ok": False, "error": "no_callback_data"}
 
+    if str(callback_data).split(":", 1)[0] in {"run", "gen"}:
+        from newsagent_v2.telegram import access
+        quota_ok, quota_why = access.check_quota(actor_id())
+        if not quota_ok:
+            _ack_callback(client, callback_query_id, "Daily limit reached")
+            client.send_message(chat_id=safe_get_chat_id(update), text=html.escape(f"⏱ {quota_why}"))
+            return {"ok": False, "reason": "daily_limit"}
+
     if str(callback_data).startswith("idle:"):
         return _handle_idle_settings_callback(
             client=client,
@@ -2720,6 +2864,8 @@ def build_runtime() -> tuple[V5BotRuntime, dict]:
     
     # Initialize V5 Generation components
     V5_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    from newsagent_v2.telegram import access as _access
+    _access.configure(V5_STATE_DIR, [x.strip() for x in os.environ.get("NEWSAGENT_TELEGRAM_ADMIN_IDS", "").replace(";", ",").split(",") if x.strip()])
     runtime.persistent_store = PersistentV5Store(V5_STATE_DIR)
     runtime.review_store = PersistentReviewStore(V5_STATE_DIR)
     
@@ -2843,6 +2989,8 @@ def main() -> int:
     log_event(f"Chat IDs: {', '.join(runtime.config.chat_ids)}")
     log_event("LIVE transport configured")
     log_event(f"[OK] Connected as @{bot_info.get('username')}")
+    from newsagent_v2.telegram.access_menu import register_commands
+    register_commands(runtime.client)
     
     # Log generation mode
     if runtime._controlled_e2e:
@@ -2882,7 +3030,8 @@ def main() -> int:
     # MAIN POLLING LOOP
     while True:
         try:
-            body: dict[str, any] = {"timeout": 10, "limit": 10}
+            body: dict[str, any] = {"timeout": 10, "limit": 10,
+                                    "allowed_updates": ["message", "callback_query", "my_chat_member"]}
             if runtime.offset is not None:
                 body["offset"] = runtime.offset
             
@@ -2935,10 +3084,17 @@ def main() -> int:
                 # ROUTE BY UPDATE TYPE - wrapped in try/except to ensure errors don't cause replay
                 try:
                     set_origin_chat("")
+                    set_actor_id(actor_from_update(update))
+                    if _handle_access_update(runtime, update, bot_info):
+                        runtime.state.mark_update_processed(update_id)
+                        continue
+                    if not _authorized(runtime, update):
+                        runtime.state.mark_update_processed(update_id)
+                        continue
                     if is_callback_update(update):
                         # HANDLE CALLBACK
                         chat_id = safe_get_chat_id(update)
-                        if not runtime.config.allows(chat_id):
+                        if not _runtime_allows(runtime, chat_id, actor_id()):
                             if chat_id:
                                 log_event(f"[SKIP] wrong chat_id={chat_id}")
                             runtime.state.mark_update_processed(update_id)
@@ -2958,7 +3114,7 @@ def main() -> int:
                     elif is_message_update(update):
                         # HANDLE MESSAGE (/make, etc)
                         chat_id = safe_get_chat_id(update)
-                        if not runtime.config.allows(chat_id):
+                        if not _runtime_allows(runtime, chat_id, actor_id()):
                             if chat_id:
                                 log_event(f"[SKIP] wrong chat_id={chat_id}")
                             runtime.state.mark_update_processed(update_id)
@@ -2978,7 +3134,8 @@ def main() -> int:
                         else:
                             raw_preview = (text or "").strip()
                             preview_cmd = raw_preview.split()[0].split("@", 1)[0].lower() if raw_preview else ""
-                            log_event(f"[MESSAGE] text={raw_preview!r} cmd={preview_cmd.strip('!.?,:;…')!r}")
+                            # Log the command only; ordinary messages may contain pasted credentials.
+                            log_event(f"[MESSAGE] cmd={preview_cmd.strip('!.?,:;…')!r}" if preview_cmd.startswith('/') else "[MESSAGE] received (text withheld)")
 
                         # ==== CHECK FOR FEEDBACK MODE ====
                         # First check if this message is feedback for awaiting story
@@ -3144,7 +3301,7 @@ def main() -> int:
                             _reply_voice_menu(runtime, chat_id)
                             log_event("[MESSAGE] voice_menu")
                         elif cmd_key == "/help":
-                            _reply(HELP_TEXT)
+                            _reply(help_for(actor_id()))
                             log_event("[MESSAGE] help_reply")
                         elif is_group_chat(update, str(chat_id or "")) and not mentions_bot(update, bot_username):
                             log_event("[MESSAGE] group ignored (bot not tagged)")
@@ -3152,8 +3309,19 @@ def main() -> int:
                             question = raw_text
                             if is_group_chat(update, str(chat_id or "")):
                                 question = strip_bot_mention(raw_text, bot_username)
-                            if not question:
-                                _reply(HELP_TEXT)
+                            from newsagent_v2.telegram.access_menu import looks_like_secret
+                            if looks_like_secret(question):
+                                # a pasted token / key: do not send it to the chat model, take it out of the chat, never log it
+                                if not is_group_chat(update, str(chat_id or "")):
+                                    try:
+                                        runtime.client._post("deleteMessage", json_body={
+                                            "chat_id": chat_id, "message_id": int((update.get("message") or {}).get("message_id") or 0)})
+                                    except Exception:
+                                        pass
+                                _reply("That is not a command, so I ignored it and did not keep it. If it was a token or a key, treat it as leaked and create a new one.")
+                                log_event("[MESSAGE] secret-shaped text dropped")
+                            elif not question:
+                                _reply(help_for(actor_id()))
                                 log_event("[MESSAGE] help_reply")
                             else:
                                 try:

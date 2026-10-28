@@ -13,7 +13,6 @@ from newsagent_v2.telegram.config import TelegramConfig, mask_token
 from newsagent_v2.telegram.contract import (
     LIVE_SEND_ENABLED,
     SEND_TYPE_ANSWER_CALLBACK,
-    SEND_TYPE_AUDIO,
     SEND_TYPE_EDIT_CAPTION,
     SEND_TYPE_EDIT_TEXT,
     SEND_TYPE_MESSAGE,
@@ -161,29 +160,6 @@ class TelegramTestClient:
             body["reply_markup"] = reply_markup
         files = {"photo": (photo_name, photo_bytes)}
         return self._post(SEND_TYPE_PHOTO, json_body=body, files=files)
-
-    def send_audio(
-        self,
-        *,
-        chat_id: str,
-        audio_name: str,
-        audio_bytes: bytes,
-        caption: str = "",
-        title: str | None = None,
-        parse_mode: str = "HTML",
-        reply_markup: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        body: dict[str, Any] = {
-            "chat_id": chat_id,
-            "caption": caption,
-            "parse_mode": parse_mode,
-        }
-        if title:
-            body["title"] = title
-        if reply_markup is not None:
-            body["reply_markup"] = reply_markup
-        files = {"audio": (audio_name, audio_bytes, "audio/mpeg")}
-        return self._post(SEND_TYPE_AUDIO, json_body=body, files=files)
 
     def answer_callback_query(
         self,

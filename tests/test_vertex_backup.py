@@ -122,6 +122,7 @@ def _env(sa_file: Path | None, **extra: str) -> dict[str, str]:
     env = {
         ENV_BASE_URL: "https://proxy.test/v1",
         ENV_API_KEY: FAKE_KEY,
+        "NEWSAGENT_IMAGE_VIA_PROXY": "false",  # this fixture tests the DIRECT backup chain
         "NEWSAGENT_V2_VERTEX_ENABLED": "true",
         "NEWSAGENT_V2_MAX_VERTEX_CALLS_PER_DAY": "25",
         "NEWSAGENT_V2_VERTEX_MODEL": "gemini-3.1-flash-image",
